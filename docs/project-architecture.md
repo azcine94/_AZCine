@@ -1,6 +1,6 @@
 # AZCine 项目架构
 
-> 更新：2026-10-03。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
+> 更新：2026-10-04。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
 
 ## 1. 目录树
 
@@ -61,6 +61,9 @@ app/
 │   ├── use-anchored-popover.ts # top-layer定位、裁切区域检测与滚动响应
 │   ├── date-input.tsx / calendar.ts # 项目/待办共用日历和纯日期计算
 │   ├── pi-client.ts / pi-messages.ts # IPC客户端与消息展示
+│   ├── model-ranking-contract.ts / model-ranking-source.ts # 双榜快照校验与公开数据获取
+│   ├── model-ranking-prices.ts # Models.dev模型匹配及报价
+│   ├── use-model-ranking.ts / model-ranking-panel.tsx # App持有状态、取数与榜单显示
 │   ├── styles/              # 亮暗变量、共用与模块样式
 │   └── assets/              # 生产引用的受控资源
 ├── src-tauri/
@@ -70,6 +73,7 @@ app/
 │   │   ├── main.rs / lib.rs  # 宿主入口、模块、状态与有限IPC注册
 │   │   ├── storage.rs        # 根目录/独占锁/SQLite/待办
 │   │   ├── projects.rs       # 公司文档/修订/CAS事务
+│   │   ├── model-ranking.rs / model-ranking-commands.rs # 模型榜事务存储与有限IPC
 │   │   ├── native_paths.rs / diagnostics.rs # 原生路径与临时诊断
 │   │   ├── pi-manager.rs / pi-commands.rs # 生命周期与有限命令
 │   │   ├── pi-runtime.rs / pi-launch-plan.rs # 原版资源校验/独立环境
@@ -162,6 +166,12 @@ SQLite单业务写入者、根锁；稳定项目/块/行/阶段ID，公司修订
 `project-list-editor.tsx` 负责分页、单元格键盘、行列拖动与列宽预览，纯操作在 `project-table-operations.ts`，不重建行列ID或转换单元格语义。`fitColumnWidths` 按测得的容器宽度拟合显示列宽，达到可读最小宽度后才局部横滚；表格内部纵滚/固定表头与统一list容器由样式维护，不新增列分组功能。列宽作为可选字段跟随公司JSON文档保存；旧列不含宽度仍合法，TS/Rust都校验112–640整数。`tauri.conf.json` 的 `dragDropEnabled:false` 关闭WebView2被Tauri替换的内部拖放处理，使Windows HTML5行列拖动工作；不是禁用表内拖动或宣称附件导入已实现。
 
 `date-input.tsx` 为项目和待办共用输入/浮动月历，`calendar.ts` 用UTC日期作纯公历偏移，今天取既有本地日期函数；不猜不完整输入年份。项目选择日按原项目保存、待办选择只更新新增草稿。今天等待不卸载已有事项/表单，失败保旧记录，正式数据仍由Rust写入。
+
+### 模型榜与开发实例
+
+`App.tsx` 持有 `use-model-ranking.ts`，请求和反馈跨路由/主题保留；`model-ranking-source.ts` 通过固定Hugging Face Dataset Viewer读取Arena发布数据，`model-ranking-prices.ts` 从固定Models.dev JSON匹配Agent报价，前端不直写业务库。Rust `model-ranking.rs` 在既有 `app_meta` 的 `ranking-auto:<board>:` 命名空间保存不可变SHA256快照、当前指针及每日尝试；完整校验后事务提交，预期数据根/快照ID防止过期写入，无新增编号迁移。四项有限IPC经 `model-ranking-commands.rs` 注册，`native_paths.rs` 只打开两个固定Arena页面，CSP仅增加实际公开来源域名。
+
+正常 `scripts/run-desktop.mjs dev` 为自有子进程设置本源码根 `.tooling/dev-instance/`，debug宿主使用其中config/data，首次无定位配置时初始化独立数据根，WebView使用其中webview；正式版本不接受该覆盖。显式测试根仍有覆盖能力，已有配置或数据不因失败重建。Vite缓存移至 `.tooling/vite-cache/`，runner配置加载避免写入共享node_modules临时缓存。端口仍固定1420，自动分配和运行状态记录尚未实现；这些目录不入Git、不共享业务数据/认证/会话。
 
 ### 原版runtime、环境与进程
 
