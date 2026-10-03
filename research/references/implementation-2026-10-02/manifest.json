@@ -1,0 +1,409 @@
+{
+  "recordedAtUtc": "2026-10-02T11:46:19.849061+00:00",
+  "scope": "Read-only implementation preparation; public metadata/docs and local Pi resources; no app/agent process launched",
+  "timestampNote": "localDownloadFileMtimeUtc is completion-time filesystem evidence for new downloads in this run, not an HTTP header, upstream update time, or version release time. Text extraction has a separate SHA.",
+  "publicSources": [
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-prerequisites.txt",
+      "bytes": 160793,
+      "sha256": "7e432df98044c6f74587eb6b2cae18712f31d9bef8cbf6565a4c839d3c700445",
+      "url": "https://v2.tauri.app/start/prerequisites/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:23:18.784079+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-prerequisites-text.txt",
+        "bytes": 13837,
+        "sha256": "3fc07a9800ff391a8701500d68290df64abc1824bf0edd2cdc8a4736af728085",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-sidecar.txt",
+      "bytes": 133813,
+      "sha256": "bf7182d7e507445c626ff7aa39ce3ea44a9c53b6237ee3b6e3c7d0662f41d37d",
+      "url": "https://v2.tauri.app/develop/sidecar/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:23:18.546522+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-sidecar-text.txt",
+        "bytes": 10508,
+        "sha256": "39102aa3a997f75ad426a3b8ccf8677a6e1662de2530616c5034ae607b09ba2a",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-capabilities.txt",
+      "bytes": 119879,
+      "sha256": "776bf8a00825507812bfcd3ec1799e18e5ba1b25862721cd253b53ca4a447313",
+      "url": "https://v2.tauri.app/security/capabilities/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:23:18.857610+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-capabilities-text.txt",
+        "bytes": 10042,
+        "sha256": "50137956163b2bb817f09c887325b8751153d561ac3a040c613f9c91799dcb3a",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-tray.txt",
+      "bytes": 151135,
+      "sha256": "24b7f093ee79e0399ea47fa318fc2002234f25826f803cf8339bb02e6cc9853d",
+      "url": "https://v2.tauri.app/learn/system-tray/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:24:10.656259+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-tray-text.txt",
+        "bytes": 8606,
+        "sha256": "4eb8f8faa2094427df67093308701a9fc095cdc5adf513b72feb037625148c3a",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-window.txt",
+      "bytes": 1038995,
+      "sha256": "fcb0a24340b0c2a4c01c6afd50d9312115631f5ec945a36b5bb760f1787893a5",
+      "url": "https://v2.tauri.app/reference/javascript/api/namespacewindow/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:24:10.636279+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-window-text.txt",
+        "bytes": 117458,
+        "sha256": "686172fff1e07214a02e9dd0e38cb426ae67f483bdd72661d27591d2a72219f6",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-node-sidecar.txt",
+      "bytes": 151094,
+      "sha256": "cad167359ef07df98e226b415764867a5a40c0a8b0e3cd103c84c02f78a8277c",
+      "url": "https://v2.tauri.app/learn/sidecar-nodejs/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:24:10.714807+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-node-sidecar-text.txt",
+        "bytes": 10747,
+        "sha256": "cac8c23b39b6309a3c58106a0a0958d5d9ec8e05349c3372dc03c417ce2d3973",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-windows-distribution.txt",
+      "bytes": 246022,
+      "sha256": "14d368af780169286f13aacddd7b3042f8360f22d95f9e62048565afe908672e",
+      "url": "https://v2.tauri.app/distribute/windows-installer/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:24:10.614536+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-windows-distribution-text.txt",
+        "bytes": 27897,
+        "sha256": "fee4a6d931647dea003ab2224bc1fa58e5e3ee773553a4b58f76195be8a86a64",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-sql.txt",
+      "bytes": 167240,
+      "sha256": "eea388793a8942302bc5f2b7c5a11de15c734137c25713e65e5c59e6291b770d",
+      "url": "https://v2.tauri.app/plugin/sql/",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:30:10.323655+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/tauri-sql-text.txt",
+        "bytes": 11206,
+        "sha256": "ccadd888a14eeab1ecbbef32eac6614400df32c2e89272d800f31a5079821c5a",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/sqlite-backup.txt",
+      "bytes": 28195,
+      "sha256": "306b6cca5c7c2f93b648040ae139f14d7d3221c0d16d79b5749e69d808382e04",
+      "url": "https://www.sqlite.org/backup.html",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:23:21.740838+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/sqlite-backup-text.txt",
+        "bytes": 15692,
+        "sha256": "e1b01e771519dc31e7bd46e32469290682c9449dccd466e6be0c82f3cc7aefb1",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/sqlite-changes.txt",
+      "bytes": 473582,
+      "sha256": "7affb06012865c2b6026630fb6e9c2307642d5930a91857068184a17a0740f41",
+      "url": "https://www.sqlite.org/changes.html",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:30:10.969162+00:00",
+      "executed": false,
+      "visibleTextExtraction": {
+        "path": "research/references/implementation-2026-10-02/sqlite-changes-text.txt",
+        "bytes": 320994,
+        "sha256": "e9b18a54eb981f86e0f4150fc27e4df5e406dd4c13a24ec610d463c6c6188e13",
+        "method": "HTMLParser text extraction; script/style skipped; no remote code executed"
+      }
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-cli-latest.json",
+      "bytes": 3744,
+      "sha256": "5fed57628741f4f51b678a73c2fcaa7439a66aeac150d215728750279de7f4fb",
+      "url": "https://registry.npmjs.org/@tauri-apps/cli/latest",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:25:06.753718+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-api-latest.json",
+      "bytes": 3050,
+      "sha256": "c5167b08be101b7f45c92fa04df10a83d09c381b6360bba41495580ece2a2406",
+      "url": "https://registry.npmjs.org/@tauri-apps/api/latest",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:25:06.823929+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/react-latest.json",
+      "bytes": 2155,
+      "sha256": "c9b7f5adeab67cd3146ffc69712aee7ddc37c23e656e41feaaa5624dff4e02aa",
+      "url": "https://registry.npmjs.org/react/latest",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:25:06.845766+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/react-dom-19-3-0.json",
+      "bytes": 3422,
+      "sha256": "f7bb2eaf8d193af94c0b1749f05d7a0a8475c3d913aec87f1cb93e56ac860877",
+      "url": "https://registry.npmjs.org/react-dom/19.3.0",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:27:27.981389+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/vite-latest.json",
+      "bytes": 5193,
+      "sha256": "851e68112ac34917881f90def6a29010037e672caa0de8cada4a97fdcff49727",
+      "url": "https://registry.npmjs.org/vite/latest",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:25:06.922428+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/typescript-latest.json",
+      "bytes": 4833,
+      "sha256": "28a8ef314c6bbc3fddb831088f80eb2fcac6351cb618c8ac029f7229f587b8aa",
+      "url": "https://registry.npmjs.org/typescript/latest",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:25:06.863050+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/typescript-6-0-3.json",
+      "bytes": 3772,
+      "sha256": "c3b095f0ba61c854843c4965598d3d1de8eb8e3d41cfec93c5ffbfd8bde537cc",
+      "url": "https://registry.npmjs.org/typescript/6.0.3",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:27:27.970305+00:00",
+      "executed": false
+    },
+    {
+      "path": "research/references/implementation-2026-10-02/tauri-core-release.json",
+      "bytes": 11745,
+      "sha256": "a3f87fd6634b66dda88d40eca4a325dbc90ede186e5e2dda1bfa295e6e3dda02",
+      "url": "https://api.github.com/repos/tauri-apps/tauri/releases/tags/tauri-v2.12.1",
+      "method": "public GET through proxy_download",
+      "localDownloadFileMtimeUtc": "2026-10-02T11:27:27.937067+00:00",
+      "executed": false
+    }
+  ],
+  "failedRequests": [
+    {
+      "url": "https://crates.io/api/v1/crates/tauri",
+      "method": "proxy_download",
+      "error": "curl exited with code 22",
+      "scope": "No successful crates.io response saved; official GitHub core tag used instead. No bypass retry."
+    }
+  ],
+  "localPi": {
+    "name": "@earendil-works/pi-coding-agent",
+    "version": "0.99.1",
+    "isClaimedLatest": false,
+    "files": [
+      {
+        "packageRelativePath": "package.json",
+        "bytes": 4163,
+        "sha256": "c701ddbf28b5170deb478b8586ee713f9372027c04736946a4ffe82168ece5ba"
+      },
+      {
+        "packageRelativePath": "README.md",
+        "bytes": 2458,
+        "sha256": "43ce839505a4e0dd7f0db56c4a8ee0ae3fcbe6cffb241be2f281791afca1777c"
+      },
+      {
+        "packageRelativePath": "docs/sdk.md",
+        "bytes": 10181,
+        "sha256": "b334600d946c412ae2de5f95b2386ff3f0ac040c216f5132418f4c1f1994c025"
+      },
+      {
+        "packageRelativePath": "docs/rpc.md",
+        "bytes": 8897,
+        "sha256": "37a03d180115460a0a275022f4aeabef1e5345458df6a9b6e8a6de18474de720"
+      },
+      {
+        "packageRelativePath": "docs/cli-integration.md",
+        "bytes": 6104,
+        "sha256": "1596d0e7f1598b960d6e05cf6d44d762917348a92ee46e83e87cba9f69fb439a"
+      },
+      {
+        "packageRelativePath": "docs/cli.md",
+        "bytes": 17311,
+        "sha256": "a04646ac37a4881f413ebe3ddce07da9e1c99f14144598bed03d30c67e9d59ce"
+      },
+      {
+        "packageRelativePath": "docs/rpc-commands.md",
+        "bytes": 21482,
+        "sha256": "4deeee367852f4633ef594bc079f9e9fb14640a4e3ba8a69b7c89b6f54740838"
+      },
+      {
+        "packageRelativePath": "docs/rpc-extension-ui.md",
+        "bytes": 6174,
+        "sha256": "3c6f2c6edfc8b1ace6642343727aef97a7e9234c85509850921b52d6ff09a48e"
+      },
+      {
+        "packageRelativePath": "docs/json.md",
+        "bytes": 10887,
+        "sha256": "839a2a2da8112298a7f8870afa71d1998db2d43b8f68c9c179a0c696b6477a5e"
+      },
+      {
+        "packageRelativePath": "docs/message-types.md",
+        "bytes": 7182,
+        "sha256": "c642db2a93e6433aadde1675f51e3c8b51520d9a6ee1ac805802e635aab10413"
+      },
+      {
+        "packageRelativePath": "docs/session-format.md",
+        "bytes": 15766,
+        "sha256": "4f8fc42179b332bcf71fe4c85cc95d914853ff7486d68742954a45316b512a4a"
+      },
+      {
+        "packageRelativePath": "docs/sessions.md",
+        "bytes": 4692,
+        "sha256": "5ad5bda19caaa0794bb44f86c85c8e66be6f493c52bb5e6a4d127b58cd8c2c1e"
+      },
+      {
+        "packageRelativePath": "docs/security.md",
+        "bytes": 6542,
+        "sha256": "3b1e40a8d28b17c9eb7e496a7ba88fbe04665e3e6ae02873a58b943e325ad504"
+      },
+      {
+        "packageRelativePath": "docs/containerization.md",
+        "bytes": 7589,
+        "sha256": "e309fcb9a0a7592c0dba000ef8ee90f2d7ef1e01e6a1ac2f0cd9760dd63dee0c"
+      },
+      {
+        "packageRelativePath": "docs/windows.md",
+        "bytes": 3143,
+        "sha256": "6e05d30d8d4ade81f6c453b98538d98188cecbc1d4aa81750c6d690c486eeea1"
+      },
+      {
+        "packageRelativePath": "docs/configuration.md",
+        "bytes": 3239,
+        "sha256": "fc48d1ce7d885c5253222415fb7a4b46d75f80e6431eb924174657ff775099eb"
+      },
+      {
+        "packageRelativePath": "docs/models.md",
+        "bytes": 9171,
+        "sha256": "7132c6c5130a83b0c427db105e8b35fe38390f1e0d43afca0d3bb5898ad0bd71"
+      },
+      {
+        "packageRelativePath": "docs/providers.md",
+        "bytes": 6361,
+        "sha256": "6e13c6e26e344b79852092d363fe08aa6b6d77c996cea0b1043f9993ddb7a26c"
+      },
+      {
+        "packageRelativePath": "docs/extensions.md",
+        "bytes": 19208,
+        "sha256": "4994c80a115cd688c7bf901b78b6940880310ab4012547ddb47ddf124b31421c"
+      },
+      {
+        "packageRelativePath": "docs/skills.md",
+        "bytes": 4793,
+        "sha256": "5b9805525b194474ef1fe5455a0917ef15ed7f710aa9bec2eee11879556469e5"
+      },
+      {
+        "packageRelativePath": "docs/tui.md",
+        "bytes": 8808,
+        "sha256": "2d3d61b6b385dea968c76984f118e5862750caad6a0bc94d104f6b4dee185673"
+      },
+      {
+        "packageRelativePath": "docs/packages.md",
+        "bytes": 6106,
+        "sha256": "5fe4a3009d7260fe1e2f54b64086fc3c8b4d678232bfa2dbc7e91fe588fc9ea5"
+      },
+      {
+        "packageRelativePath": "docs/settings.md",
+        "bytes": 12683,
+        "sha256": "06d4966353ba8a1ad17ecedbb728aba17877b85451f3b045836140ed3457ff65"
+      },
+      {
+        "packageRelativePath": "docs/environment-variables.md",
+        "bytes": 4829,
+        "sha256": "f4b513dd62fc5200d7556c69d634b1bf75aa77b8b562a2e6329dc34954bcd671"
+      },
+      {
+        "packageRelativePath": "docs/custom-provider.md",
+        "bytes": 10751,
+        "sha256": "5345ac346429a3862b46533ee810944b2c756079dcf5d3aad272ab579c58c129"
+      },
+      {
+        "packageRelativePath": "examples/rpc-client.ts",
+        "bytes": 1057,
+        "sha256": "b46b19c291fbcb59f8f9c539c2dbe12a43eae25e4d7528084844bbb79d27b6f7"
+      },
+      {
+        "packageRelativePath": "examples/rpc-extension-ui.ts",
+        "bytes": 17330,
+        "sha256": "09bc33c28fdc9032e3752a487d659ac21c6776c6f589c5b1ae0967ef4ee5f127"
+      },
+      {
+        "packageRelativePath": "examples/extensions/rpc-demo.ts",
+        "bytes": 3632,
+        "sha256": "3d54a396eee12eb04ea12d0ea03716a6edd3e8743502b6a529e3b8d429ae640d"
+      },
+      {
+        "packageRelativePath": "examples/sdk/06-extensions.ts",
+        "bytes": 2673,
+        "sha256": "8e01ee409200b6516e9a6a0d9f3b3f61d2ad78aaaa18bd2ef9a8f77820d149b2"
+      },
+      {
+        "packageRelativePath": "examples/sdk/14-codemode-mcp.ts",
+        "bytes": 2014,
+        "sha256": "f952007f13b4764e1996af229e1e98f61d0754c155feaa2fa66fb58c3c31d4f7"
+      },
+      {
+        "packageRelativePath": "dist/modes/rpc/rpc-client.d.ts",
+        "bytes": 7657,
+        "sha256": "85ec53b3f019e0176bdbb8f843a213d8ae8aa0bba937dce40291e1315b762b1b"
+      },
+      {
+        "packageRelativePath": "dist/modes/rpc/rpc-client.js",
+        "bytes": 17201,
+        "sha256": "6cbb7d183db13468af61af733013a97ee6f5547ccd44edb1f85647f8bd6f218c"
+      },
+      {
+        "packageRelativePath": "dist/modes/rpc/jsonl.js",
+        "bytes": 1562,
+        "sha256": "049a9f8ca4242c79f1911ed977949e8d8906b4561f424c2729687f426fabaacf"
+      }
+    ]
+  }
+}

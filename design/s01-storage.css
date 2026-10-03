@@ -1,0 +1,15 @@
+.data-panel { max-width:960px; display:flex; flex-direction:column; gap:var(--s-4); }
+.entry-form { display:grid; gap:var(--s-3); margin-block:var(--s-4); }
+.entry-form label { display:grid; gap:var(--s-2); color:var(--t2); }
+.entry-form input { min-height:var(--control-h); min-width:0; width:100%; padding:var(--s-2) var(--s-3); background:var(--island-2); border:1px solid var(--line-2); border-radius:var(--r-ctl); color:var(--text); font:inherit; }
+.form-actions { display:flex; gap:var(--s-2); flex-wrap:wrap; }
+.feedback { margin-block:var(--s-4); overflow-wrap:anywhere; }
+.feedback[data-kind=error] { color:var(--bad); }
+.path-text { overflow-wrap:anywhere; font-family:var(--mono); }
+.todo-list { list-style:none; padding:0; margin-top:var(--s-3); }
+.todo-list li { border-bottom:1px solid var(--line); padding-block:var(--s-3); }
+.todo-toggle { display:flex; gap:var(--s-3); align-items:center; min-height:var(--control-h); }
+.todo-toggle input { width:18px; height:18px; }
+.state-preview { margin-top:var(--s-5); }
+.state-preview summary { cursor:pointer; min-height:var(--control-h); padding:var(--s-2); }
+.state-preview .form-actions { margin-top:var(--s-3); }

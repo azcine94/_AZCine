@@ -1,0 +1,23 @@
+// Parent-owned integration harness. Candidate modules only, explicit no-model fixtures.
+const fs=require('node:fs'),path=require('node:path'),{spawnSync}=require('node:child_process'),{createHash}=require('node:crypto');
+const {validationRun}=require('./support/validation-run.cjs');
+const root=path.resolve('.'), source=path.resolve(process.argv[2]||''), owned=path.resolve(process.argv[3]||'');
+for(const p of [source,owned])if(!p.startsWith(path.resolve('artifacts/validation')+path.sep))throw Error('Retained candidate paths required');
+const candidates=path.resolve('artifacts/validation/s03-protocol-candidates-2026-10-02T22-55-48-629104Z');
+const production=process.argv.includes('--production-foundation');
+const nativeOverride=process.argv.includes('--native-override');
+const files=production?[...['pi-model-config.rs','pi-jsonl.rs','pi-owned-process.rs','pi-config-store.rs','pi-launch-plan.rs','pi-rpc.rs','pi-projection.rs','pi-redactor.rs'].map(n=>[n,path.join(root,'app/src-tauri/src',n)]),['pi-rpc-tests.rs',path.join(source,'pi-rpc-tests.rs')]]:[['pi-model-config.rs',path.join(candidates,'pi-model-config.rs')],['pi-jsonl.rs',path.join(candidates,'rust-jsonl-1.rs')],['pi-owned-process.rs',owned],...['pi-config-store.rs','pi-launch-plan.rs','pi-rpc.rs','pi-rpc-tests.rs'].map(n=>[n,path.join(source,n)])];
+if(production&&nativeOverride){files.find(([name])=>name==='pi-owned-process.rs')[1]=owned;files.push(['pi-native-tests.rs',path.join(root,'tests/support/pi-native-tests.rs')]);}
+for(const[,p]of files)if(!fs.statSync(p).isFile())throw Error('Complete candidate file required');
+const {out}=validationRun('s03-process-candidate-checks');const crate=path.join(out,'harness');fs.mkdirSync(crate);
+const hash=()=>Object.fromEntries(files.map(([n,p])=>[n,createHash('sha256').update(fs.readFileSync(p)).digest('hex')]));
+const report={mode:production?'Current production foundation in isolated harness, actual native empty RPC; no PiManager/UI or model inference':'Windows owned Job tree + RPC + actual upstream empty configuration, no prompt or real model; isolated candidate only',before:hash()};
+for(const[n,p]of files)fs.copyFileSync(p,path.join(crate,n));
+fs.writeFileSync(path.join(crate,'lib.rs'),files.filter(([n])=>!n.endsWith('-tests.rs')).map(([n])=>`#[path="${n}"] pub mod ${n.slice(0,-3).replaceAll('-','_')};`).join('\n')+'\n#[cfg(test)] #[path="pi-rpc-tests.rs"] mod pi_rpc_tests;\n'+(nativeOverride?'#[cfg(test)] #[path="pi-native-tests.rs"] mod pi_native_tests;\n':''));
+fs.writeFileSync(path.join(crate,'Cargo.toml'),'[package]\nname="azcine-pi-process-candidate"\nversion="0.0.0"\nedition="2024"\n[lib]\npath="lib.rs"\n[dependencies]\nserde={version="=1.0.229",features=["derive"]}\nserde_json="=1.0.151"\nurl="=2.5.8"\ntempfile="=3.27.0"\nwindows={version="=0.62.2",features=["Win32_Foundation","Win32_Security","Win32_System_JobObjects","Win32_System_Threading","Win32_System_Diagnostics_ToolHelp","Win32_Globalization","Win32_Storage_FileSystem","Win32_System_IO","Win32_System_Pipes"]}\n');
+const install=JSON.parse(fs.readFileSync(path.join(root,'artifacts/validation/s03-runtime-integrity-2026-10-02T21-59-53-112934Z/report.json'),'utf8'));if(!install.success)throw Error('Verified original runtime required');
+const cargo=path.join(root,'.tooling/cargo/bin/cargo.exe');const env={...process.env,CARGO_HOME:path.join(root,'.tooling/cargo'),RUSTUP_HOME:path.join(root,'.tooling/rustup'),RUSTUP_TOOLCHAIN:'1.99.0-x86_64-pc-windows-msvc',CARGO_TARGET_DIR:path.join(out,'target'),AZCINE_PI_CONFIG_TEST_ROOT:path.join(out,'retained-config-data'),AZCINE_PI_PROCESS_TEST_ROOT:path.join(out,'retained-process-data'),AZCINE_PI_RUNTIME_TEST_ROOT:path.join(install.out,'runtime'),AZCINE_PARENT_FIXTURE_SENTINEL:'synthetic-parent-only'};
+for(const key of Object.keys(env))if(key.toLowerCase()==='path')delete env[key];env.PATH=path.dirname(cargo)+path.delimiter+(process.env.PATH||process.env.Path||'');
+const fd=fs.openSync(path.join(out,'cargo-test.log'),'wx'),args=['test','--offline','--manifest-path',path.join(crate,'Cargo.toml'),'--','--test-threads=1'];const result=spawnSync(cargo,args,{cwd:root,env,stdio:['ignore',fd,fd],timeout:600000});fs.closeSync(fd);
+report.command={executable:cargo,args,exitCode:result.status,error:result.error?.message,signal:result.signal};report.after=hash();report.sourceStable=JSON.stringify(report.before)===JSON.stringify(report.after);report.passed=result.status===0&&report.sourceStable;
+fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({out,passed:report.passed,exitCode:result.status}));if(!report.passed)process.exitCode=1;

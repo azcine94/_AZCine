@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Local AZCine main window only; no shell, filesystem or Pi plugins.",
+  "windows": ["main"],
+  "permissions": ["core:default", "allow-check-desktop", "allow-storage-workspace", "allow-select-data-root", "allow-create-todo", "allow-complete-todo", "allow-pick-data-root", "allow-open-data-root", "allow-list-projects", "allow-save-project", "allow-project-request", "allow-pi-snapshot", "allow-pi-connect", "allow-pi-disconnect", "allow-pi-send", "allow-pi-stop", "allow-pi-sessions", "allow-pi-new-session", "allow-pi-switch-session", "allow-pi-name-session", "allow-pi-select-model", "allow-pi-save-model"]
+}

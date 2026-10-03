@@ -1,0 +1,128 @@
+{
+  "scope": "Reference image page only; not application verification",
+  "viewports": [
+    {
+      "width": 1440,
+      "overflow": false,
+      "images": [
+        {
+          "src": "notion-project-hub.png",
+          "ok": true
+        },
+        {
+          "src": "milanote-project-plan.png",
+          "ok": true
+        },
+        {
+          "src": "milanote-film-project.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-projects.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-project-detail.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-project-overview.png",
+          "ok": true
+        },
+        {
+          "src": "affine-planning.jpg",
+          "ok": true
+        },
+        {
+          "src": "affine-canvas.jpg",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "overflow": false,
+      "images": [
+        {
+          "src": "notion-project-hub.png",
+          "ok": true
+        },
+        {
+          "src": "milanote-project-plan.png",
+          "ok": true
+        },
+        {
+          "src": "milanote-film-project.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-projects.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-project-detail.png",
+          "ok": true
+        },
+        {
+          "src": "anytype-project-overview.png",
+          "ok": true
+        },
+        {
+          "src": "affine-planning.jpg",
+          "ok": true
+        },
+        {
+          "src": "affine-canvas.jpg",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "network": [],
+  "anchor": true,
+  "expansion": true,
+  "localLinks": [
+    {
+      "href": "notion-project-hub-clean.jpg",
+      "exists": true
+    },
+    {
+      "href": "notion-project-hub.png",
+      "exists": true
+    },
+    {
+      "href": "milanote-project-plan.png",
+      "exists": true
+    },
+    {
+      "href": "milanote-film-project.png",
+      "exists": true
+    },
+    {
+      "href": "anytype-projects.png",
+      "exists": true
+    },
+    {
+      "href": "anytype-project-detail.png",
+      "exists": true
+    },
+    {
+      "href": "anytype-project-overview.png",
+      "exists": true
+    },
+    {
+      "href": "affine-planning.jpg",
+      "exists": true
+    },
+    {
+      "href": "affine-canvas.jpg",
+      "exists": true
+    },
+    {
+      "href": "README.md",
+      "exists": true
+    }
+  ],
+  "ok": true
+}

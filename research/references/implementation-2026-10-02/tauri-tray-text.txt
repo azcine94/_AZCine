@@ -1,0 +1,274 @@
+System Tray | TauriSkip to contentTauriGuidesReferencesBlogReleasesSearchCtrlKCancelGitHubDiscordTwitterBlueskyMastodonRSSSelect languageEnglishFrançaisEspañol简体中文日本語GermanMenu
+Guides
+References
+Blog
+Quick Start
+What is Tauri?
+Prerequisites
+Create a Project
+Project Structure
+Frontend Configuration
+Overview
+Leptos
+Next.js
+Nuxt
+Qwik
+SvelteKit
+Trunk
+Vite
+Upgrade & Migrate
+Overview
+Upgrade from Tauri 1.0
+Upgrade from Tauri 2.0 Beta
+Core Concepts
+Overview
+Tauri Architecture
+Process Model
+App Size
+Inter-Process Communication
+Overview
+Brownfield Pattern
+Isolation Pattern
+Security
+Overview
+Permissions
+Command Scopes
+Capabilities
+Asset protocol scope
+Content Security Policy (CSP)
+HTTP Headers
+Tauri Ecosystem Security
+Application Lifecycle Threats
+Future Work
+Runtime Authority
+Develop
+Overview
+Configuration Files
+Calling Rust from the Frontend
+Calling the Frontend from Rust
+Embedding Additional Files
+Embedding External Binaries
+State Management
+Updating Dependencies
+App Icons
+Debug
+Overview
+CrabNebula DevToolsNew
+Linux Graphics Issues
+Debug in Neovim
+Debug in JetBrains IDEs
+Debug in VS Code
+Plugins
+Overview
+Mobile Plugin Development
+Tests
+Overview
+Mock Tauri APIs
+WebDriver
+Overview
+Manual setup
+Continuous Integration
+Example
+Selenium
+WebdriverIO
+Distribute
+Overview
+App Store
+AppImage
+AUR
+CrabNebula Cloud
+Debian
+DMG
+Flathub
+Google Play
+macOS Application Bundle
+Microsoft Store
+RPM
+Snapcraft
+Windows Installer
+Sign
+macOS
+Windows
+Linux
+iOS
+Android
+Pipelines
+CrabNebula Cloud
+GitHub
+Learn
+Overview
+Node.js as a sidecar
+Splashscreen
+System Tray
+Window Customization
+Multi-Window on Mobile
+File Associations on Mobile
+Security
+Using Plugin Permissions
+Capabilities for Different Windows and Platforms
+Writing Plugin Permissions
+Window Menu
+Plugins
+Overview
+Autostart
+Barcode Scanner
+Biometric
+Command Line Interface (CLI)
+Clipboard
+Deep Linking
+Dialog
+File System
+Geolocation
+Global Shortcut
+Haptics
+HTTP Client
+Localhost
+Logging
+NFC
+Notifications
+Opener
+OS Information
+Persisted Scope
+Positioner
+Process
+Shell
+Single Instance
+SQL
+Store
+Stronghold
+Updater
+Upload
+Websocket
+Window State
+About
+About Tauri
+The Tauri Book
+Tauri Governance
+Tauri Philosophy
+Trademark Guidelines
+GitHubDiscordTwitterBlueskyMastodonRSSSelect languageEnglishFrançaisEspañol简体中文日本語GermanOn this page
+Overview
+Configuration
+Usage
+Create a Tray Icon
+Change the Tray Icon
+Add a Menu
+Listen to Menu Events
+Listen to Tray Events
+On this page
+Overview
+Configuration
+Usage
+Create a Tray Icon
+Change the Tray Icon
+Add a Menu
+Listen to Menu Events
+Listen to Tray Events
+System Tray
+Tauri allows you to create and customize a system tray for your application.
+This can enhance the user experience by providing quick access to common actions.
+Configuration
+Section titled “Configuration”
+First of all, update your
+Cargo.toml
+to include the necessary feature for the system tray.
+src-tauri/Cargo.toml
+tauri = { version = "2.0.0", features = [ "tray-icon" ] }
+Usage
+Section titled “Usage”
+The tray API is available in both JavaScript and Rust.
+Create a Tray Icon
+Section titled “Create a Tray Icon”
+JavaScript
+Rust
+Use the
+TrayIcon.new
+static function to create a new tray icon:
+import { TrayIcon } from '@tauri-apps/api/tray';
+const options = { // here you can add a tray menu, title, tooltip, event handler, etc};
+const tray = await TrayIcon.new(options);
+See
+TrayIconOptions
+for more information on the customization options.
+use tauri::tray::TrayIconBuilder;
+tauri::Builder::default() .setup(|app| { let tray = TrayIconBuilder::new().build(app)?; Ok(()) })
+See
+TrayIconBuilder
+for more information on customization options.
+Change the Tray Icon
+Section titled “Change the Tray Icon”
+When creating the tray you can use the application icon as the tray icon:
+JavaScript
+Rust
+import { TrayIcon } from '@tauri-apps/api/tray';import { defaultWindowIcon } from '@tauri-apps/api/app';
+const options = { icon: await defaultWindowIcon(),};
+const tray = await TrayIcon.new(options);
+let tray = TrayIconBuilder::new() .icon(app.default_window_icon().unwrap().clone()) .build(app)?;
+Add a Menu
+Section titled “Add a Menu”
+To attach a menu that is displayed when the tray is clicked, you can use the
+menu
+option.
+Note
+By default the menu is displayed on both left and right clicks.
+To prevent the menu from popping up on left click, call the
+show_menu_on_left_click(false)
+Rust function
+or set the
+menuOnLeftClick
+JavaScript option to
+false
+.
+JavaScript
+Rust
+import { TrayIcon } from '@tauri-apps/api/tray';import { Menu } from '@tauri-apps/api/menu';
+const menu = await Menu.new({ items: [ { id: 'quit', text: 'Quit', }, ],});
+const options = { menu, menuOnLeftClick: true,};
+const tray = await TrayIcon.new(options);
+use tauri::{ menu::{Menu, MenuItem}, tray::TrayIconBuilder,};
+let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;let menu = Menu::with_items(app, &[&quit_i])?;
+let tray = TrayIconBuilder::new() .menu(&menu) .show_menu_on_left_click(true) .build(app)?;
+Listen to Menu EventsSection titled “Listen to Menu Events”
+JavaScript
+Rust
+On JavaScript you can attach a menu click event listener directly to the menu item:
+Using a shared menu click handler
+import { Menu } from '@tauri-apps/api/menu';
+function onTrayMenuClick(itemId) { // itemId === 'quit'}
+const menu = await Menu.new({ items: [ { id: 'quit', text: 'Quit', action: onTrayMenuClick, }, ],});
+Using a dedicated menu click handler
+import { Menu } from '@tauri-apps/api/menu';
+const menu = await Menu.new({ items: [ { id: 'quit', text: 'Quit', action: () => { console.log('quit pressed'); }, }, ],});
+Use the
+TrayIconBuilder::on_menu_event
+method to attach a tray menu click event listener:
+use tauri::tray::TrayIconBuilder;
+TrayIconBuilder::new() .on_menu_event(|app, event| match event.id.as_ref() { "quit" => { println!("quit menu item was clicked"); app.exit(0); } _ => { println!("menu item {:?} not handled", event.id); } })
+Listen to Tray Events
+Section titled “Listen to Tray Events”
+The tray icon emits events for the following mouse events:
+click: triggered when the cursor receives a single left, right or middle click, including information on whether the mouse press was released or not
+Double click: triggered when the cursor receives a double left, right or middle click
+Enter: triggered when the cursor enters the tray icon area
+Move: triggered when the cursor moves around the tray icon area
+Leave: triggered when the cursor leaves the tray icon area
+Note
+Linux: Unsupported. The event is not emitted even though the icon is shown and will still show a context menu on right click.
+JavaScript
+Rust
+import { TrayIcon } from '@tauri-apps/api/tray';
+const options = { action: (event) => { switch (event.type) { case 'Click': console.log( `mouse ${event.button} button pressed, state: ${event.buttonState}` ); break; case 'DoubleClick': console.log(`mouse ${event.button} button pressed`); break; case 'Enter': console.log( `mouse hovered tray at ${event.rect.position.x}, ${event.rect.position.y}` ); break; case 'Move': console.log( `mouse moved on tray at ${event.rect.position.x}, ${event.rect.position.y}` ); break; case 'Leave': console.log( `mouse left tray at ${event.rect.position.x}, ${event.rect.position.y}` ); break; } },};
+const tray = await TrayIcon.new(options);
+See
+TrayIconEvent
+for more information on the event payload.
+use tauri::{ Manager, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}};
+TrayIconBuilder::new() .on_tray_icon_event(|tray, event| match event { TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => { println!("left click pressed and released"); // in this example, let's show and focus the main window when the tray is clicked let app = tray.app_handle(); if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus(); } } _ => { println!("unhandled event {event:?}"); } })
+See
+TrayIconEvent
+for more information on the event type.
+For detailed information about creating menus, including menu items, submenus, and dynamic updates, see the Window Menu documentation.
+Edit page
+Last updated: Apr 20, 2026
+PreviousSplashscreenNextWindow CustomizationSupport on Open CollectiveSponsor on GitHub
+© 2026 Tauri Contributors. CC-BY / MIT

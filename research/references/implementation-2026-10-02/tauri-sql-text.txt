@@ -1,0 +1,354 @@
+SQL | TauriSkip to contentTauriGuidesReferencesBlogReleasesSearchCtrlKCancelGitHubDiscordTwitterBlueskyMastodonRSSSelect languageEnglishFrançaisEspañol简体中文日本語GermanMenu
+Guides
+References
+Blog
+Quick Start
+What is Tauri?
+Prerequisites
+Create a Project
+Project Structure
+Frontend Configuration
+Overview
+Leptos
+Next.js
+Nuxt
+Qwik
+SvelteKit
+Trunk
+Vite
+Upgrade & Migrate
+Overview
+Upgrade from Tauri 1.0
+Upgrade from Tauri 2.0 Beta
+Core Concepts
+Overview
+Tauri Architecture
+Process Model
+App Size
+Inter-Process Communication
+Overview
+Brownfield Pattern
+Isolation Pattern
+Security
+Overview
+Permissions
+Command Scopes
+Capabilities
+Asset protocol scope
+Content Security Policy (CSP)
+HTTP Headers
+Tauri Ecosystem Security
+Application Lifecycle Threats
+Future Work
+Runtime Authority
+Develop
+Overview
+Configuration Files
+Calling Rust from the Frontend
+Calling the Frontend from Rust
+Embedding Additional Files
+Embedding External Binaries
+State Management
+Updating Dependencies
+App Icons
+Debug
+Overview
+CrabNebula DevToolsNew
+Linux Graphics Issues
+Debug in Neovim
+Debug in JetBrains IDEs
+Debug in VS Code
+Plugins
+Overview
+Mobile Plugin Development
+Tests
+Overview
+Mock Tauri APIs
+WebDriver
+Overview
+Manual setup
+Continuous Integration
+Example
+Selenium
+WebdriverIO
+Distribute
+Overview
+App Store
+AppImage
+AUR
+CrabNebula Cloud
+Debian
+DMG
+Flathub
+Google Play
+macOS Application Bundle
+Microsoft Store
+RPM
+Snapcraft
+Windows Installer
+Sign
+macOS
+Windows
+Linux
+iOS
+Android
+Pipelines
+CrabNebula Cloud
+GitHub
+Learn
+Overview
+Node.js as a sidecar
+Splashscreen
+System Tray
+Window Customization
+Multi-Window on Mobile
+File Associations on Mobile
+Security
+Using Plugin Permissions
+Capabilities for Different Windows and Platforms
+Writing Plugin Permissions
+Window Menu
+Plugins
+Overview
+Autostart
+Barcode Scanner
+Biometric
+Command Line Interface (CLI)
+Clipboard
+Deep Linking
+Dialog
+File System
+Geolocation
+Global Shortcut
+Haptics
+HTTP Client
+Localhost
+Logging
+NFC
+Notifications
+Opener
+OS Information
+Persisted Scope
+Positioner
+Process
+Shell
+Single Instance
+SQL
+Store
+Stronghold
+Updater
+Upload
+Websocket
+Window State
+About
+About Tauri
+The Tauri Book
+Tauri Governance
+Tauri Philosophy
+Trademark Guidelines
+GitHubDiscordTwitterBlueskyMastodonRSSSelect languageEnglishFrançaisEspañol简体中文日本語GermanOn this page
+Overview
+Supported Platforms
+Setup
+Usage
+Syntax
+Migrations
+Defining Migrations
+Adding Migrations to the Plugin Builder
+Applying Migrations
+Migration Management
+Permissions
+On this page
+Overview
+Supported Platforms
+Setup
+Usage
+Syntax
+Migrations
+Defining Migrations
+Adding Migrations to the Plugin Builder
+Applying Migrations
+Migration Management
+Permissions
+SQL
+GitHubnpmcrates.ioAPI Reference:
+Plugin providing an interface for the frontend to communicate with SQL databases through sqlx. It supports the SQLite, MySQL and PostgreSQL drivers, enabled by a Cargo feature.
+Supported Platforms
+Section titled “Supported Platforms”
+This plugin requires a Rust version of at least 1.77.2
+PlatformLevelNotes
+windows
+linux
+macos
+android
+ios
+Setup
+Section titled “Setup”
+Install the SQL plugin to get started.
+Automatic
+Manual
+Use your project’s package manager to add the dependency:
+npm
+yarn
+pnpm
+deno
+bun
+cargo
+npm run tauri add sql
+yarn run tauri add sql
+pnpm tauri add sql
+deno task tauri add sql
+bun tauri add sql
+cargo tauri add sql
+Run the following command in the
+src-tauri
+folder to add the plugin to the project’s dependencies in
+Cargo.toml
+:
+cargo add tauri-plugin-sql
+Modify
+lib.rs
+to initialize the plugin:
+src-tauri/src/lib.rs
+#[cfg_attr(mobile, tauri::mobile_entry_point)] pub fn run() { tauri::Builder::default() .plugin(tauri_plugin_sql::Builder::default().build()) .run(tauri::generate_context!()) .expect("error while running tauri application");}
+Install the JavaScript Guest bindings using your preferred JavaScript package manager:
+npm
+yarn
+pnpm
+deno
+bun
+npm install @tauri-apps/plugin-sql
+yarn add @tauri-apps/plugin-sql
+pnpm add @tauri-apps/plugin-sql
+deno add npm:@tauri-apps/plugin-sql
+bun add @tauri-apps/plugin-sql
+After installing the plugin, you must select the supported database engine.
+The available engines are Sqlite, MySQL and PostgreSQL.
+Run the following command in the
+src-tauri
+folder to enable your preferred engine:
+SQLite
+MySQL
+PostgreSQL
+cargo add tauri-plugin-sql --features sqlite
+cargo add tauri-plugin-sql --features mysql
+cargo add tauri-plugin-sql --features postgres
+Usage
+Section titled “Usage”
+All the plugin’s APIs are available through the JavaScript guest bindings:
+SQLite
+MySQL
+PostgreSQL
+The path is relative to
+tauri::api::path::BaseDirectory::AppConfig
+.
+import Database from '@tauri-apps/plugin-sql';// when using `"withGlobalTauri": true`, you may use// const Database = window.__TAURI__.sql;
+const db = await Database.load('sqlite:test.db');await db.execute('INSERT INTO ...');
+import Database from '@tauri-apps/plugin-sql';// when using `"withGlobalTauri": true`, you may use// const Database = window.__TAURI__.sql;
+const db = await Database.load('mysql://user:password@host/test');await db.execute('INSERT INTO ...');
+import Database from '@tauri-apps/plugin-sql';// when using `"withGlobalTauri": true`, you may use// const Database = window.__TAURI__.sql;
+const db = await Database.load('postgres://user:password@host/test');await db.execute('INSERT INTO ...');
+Syntax
+Section titled “Syntax”
+We use sqlx as the underlying library and adopt their query syntax.
+SQLite
+MySQL
+PostgreSQL
+Use the “$#” syntax when substituting query data
+const result = await db.execute( 'INSERT into todos (id, title, status) VALUES ($1, $2, $3)', [todos.id, todos.title, todos.status]);
+const result = await db.execute( 'UPDATE todos SET title = $1, status = $2 WHERE id = $3', [todos.title, todos.status, todos.id]);
+Use “?” when substituting query data
+const result = await db.execute( 'INSERT into todos (id, title, status) VALUES (?, ?, ?)', [todos.id, todos.title, todos.status]);
+const result = await db.execute( 'UPDATE todos SET title = ?, status = ? WHERE id = ?', [todos.title, todos.status, todos.id]);
+Use the “$#” syntax when substituting query data
+const result = await db.execute( 'INSERT into todos (id, title, status) VALUES ($1, $2, $3)', [todos.id, todos.title, todos.status]);
+const result = await db.execute( 'UPDATE todos SET title = $1, status = $2 WHERE id = $3', [todos.title, todos.status, todos.id]);
+Migrations
+Section titled “Migrations”
+This plugin supports database migrations, allowing you to manage database schema evolution over time.
+Defining Migrations
+Section titled “Defining Migrations”
+Migrations are defined in Rust using the
+Migration
+struct. Each migration should include a unique version number, a description, the SQL to be executed, and the type of migration (Up or Down).
+Example of a migration:
+use tauri_plugin_sql::{Migration, MigrationKind};
+let migration = Migration { version: 1, description: "create_initial_tables", sql: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);", kind: MigrationKind::Up,};
+Or if you want to use SQL from a file, you can include it by using
+include_str!
+:
+use tauri_plugin_sql::{Migration, MigrationKind};
+let migration = Migration { version: 1, description: "create_initial_tables", sql: include_str!("../drizzle/0000_graceful_boomer.sql"), kind: MigrationKind::Up,};
+Adding Migrations to the Plugin Builder
+Section titled “Adding Migrations to the Plugin Builder”
+Migrations are registered with the
+Builder
+struct provided by the plugin. Use the
+add_migrations
+method to add your migrations to the plugin for a specific database connection.
+Example of adding migrations:
+src-tauri/src/main.rs
+use tauri_plugin_sql::{Builder, Migration, MigrationKind};
+fn main() { let migrations = vec![ // Define your migrations here Migration { version: 1, description: "create_initial_tables", sql: "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);", kind: MigrationKind::Up, } ];
+tauri::Builder::default() .plugin( tauri_plugin_sql::Builder::default() .add_migrations("sqlite:mydatabase.db", migrations) .build(), ) ...}
+Applying Migrations
+Section titled “Applying Migrations”
+To apply the migrations when the plugin is initialized, add the connection string to the
+tauri.conf.json
+file:
+src-tauri/tauri.conf.json
+{ "plugins": { "sql": { "preload": ["sqlite:mydatabase.db"] } }}
+Alternatively, the client side
+load()
+also runs the migrations for a given connection string:
+import Database from '@tauri-apps/plugin-sql';const db = await Database.load('sqlite:mydatabase.db');
+Ensure that the migrations are defined in the correct order and are safe to run multiple times.
+Note
+All migrations are executed within a transaction, ensuring atomicity. If any migration fails, the entire transaction is rolled back, leaving the database in a consistent state.
+Migration Management
+Section titled “Migration Management”
+Version Control: Each migration must have a unique version number. This is crucial for ensuring the migrations are applied in the correct order.
+Idempotency: Write migrations in a way that they can be safely re-run without causing errors or unintended consequences.
+Testing: Thoroughly test migrations to ensure they work as expected and do not compromise the integrity of your database.
+Permissions
+Section titled “Permissions”
+By default all potentially dangerous plugin commands and scopes are blocked and cannot be accessed. You must modify the permissions in your
+capabilities
+configuration to enable these.
+See the Capabilities Overview for more information and the step by step guide to use plugin permissions.
+src-tauri/capabilities/default.json
+{ "permissions": [ ..., "sql:default", "sql:allow-execute", ]}
+Default Permission
+Default Permissions
+This permission set configures what kind of
+database operations are available from the sql plugin.
+Granted Permissions
+All reading related operations are enabled.
+Also allows to load or close a connection.
+This default permission set includes the following:
+allow-close
+allow-load
+allow-select
+Permission Table
+Identifier
+Description
+sql:allow-close
+Enables the close command without any pre-configured scope.
+sql:deny-close
+Denies the close command without any pre-configured scope.
+sql:allow-execute
+Enables the execute command without any pre-configured scope.
+sql:deny-execute
+Denies the execute command without any pre-configured scope.
+sql:allow-load
+Enables the load command without any pre-configured scope.
+sql:deny-load
+Denies the load command without any pre-configured scope.
+sql:allow-select
+Enables the select command without any pre-configured scope.
+sql:deny-select
+Denies the select command without any pre-configured scope.
+Edit page
+Last updated: Nov 4, 2025
+PreviousSingle InstanceNextStoreSupport on Open CollectiveSponsor on GitHub
+© 2026 Tauri Contributors. CC-BY / MIT

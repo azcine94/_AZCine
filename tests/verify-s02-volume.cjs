@@ -1,0 +1,67 @@
+// One bounded, real-data volume check. All records are synthetic and retained;
+// timings are observations on this machine, not a general performance promise.
+const fs=require('node:fs'),path=require('node:path');
+const {randomUUID}=require('node:crypto');
+const {chromium}=require('./support/browser.cjs').browserRuntime();
+const {validationRun}=require('./support/validation-run.cjs');
+(async()=>{
+  const run=path.resolve(process.env.AZCINE_VALIDATION_RUN||'');
+  if(!run.startsWith(path.resolve('artifacts/validation')+path.sep))throw new Error('Explicit retained test root required');
+  const {out,hashes}=validationRun('s02-volume',['app/src','app/src-tauri/src','scripts','tests/verify-s02-volume.cjs']);
+  const report={mode:'real Tauri/Rust/SQLite; synthetic 10000-row boundary document',run,before:hashes(),checks:[],timings:{},errors:[]};
+  const check=(name,ok,detail)=>{report.checks.push({name,ok,detail});if(!ok)throw new Error(name);};
+  const browser=await chromium.connectOverCDP(`http://127.0.0.1:${process.env.AZCINE_CDP_PORT||9224}`);
+  try{
+    const page=browser.contexts()[0].pages().find(p=>p.url().startsWith('http://127.0.0.1:1420'));if(!page)throw new Error('Owned page missing');
+    page.on('pageerror',error=>report.errors.push(error.message));page.setDefaultTimeout(45_000);
+    const ipc=(command,args)=>page.evaluate(({command,args})=>window.__TAURI_INTERNALS__.invoke(command,args),{command,args});
+    const projectId=randomUUID(),blockId=randomUUID(),labelId=randomUUID(),columnIds=Array.from({length:4},randomUUID);
+    const rows=Array.from({length:10000},(_,i)=>({id:randomUUID(),cells:{[columnIds[0]]:`SH${String(i).padStart(5,'0')}`,[columnIds[1]]:labelId,[columnIds[2]]:'2028-01-01',[columnIds[3]]:'false'}}));
+    const document={id:projectId,name:'10000行容量验收',labels:[{id:labelId,name:'ACOPY'}],blocks:[{id:blockId,kind:'list',title:'容量清单',included:true,columns:['shot','stage','date','delivered'].map((kind,i)=>({id:columnIds[i],name:kind,kind})),rows}]};
+    let start=performance.now();const saved=await ipc('save_project',{input:{requestId:randomUUID(),expectedRevision:null,document}});report.timings.initialSaveMs=performance.now()-start;
+    check('Given 10000 rows When saving through real IPC Then complete boundary document persists',saved.blocks[0].rows.length===10000);
+    await page.locator('nav a[href="#projects"]').click();await page.waitForSelector('#project-search');await page.locator('#project-search').fill('');await page.getByRole('button',{name:'重新读取项目',exact:true}).click();await page.waitForSelector(`[data-project-id="${projectId}"]`);
+    start=performance.now();await page.locator(`[data-project-id="${projectId}"]`).click();await page.waitForSelector(`[data-row-id="${rows[0].id}"]`);report.timings.openDocumentMs=performance.now()-start;
+    check('Given boundary document When opening Then first 100 rows shown with accurate total and paging',await page.locator('[data-row-id]').count()===100&&(await page.locator('.list-pagination').innerText()).includes('共 10000 行')); 
+    check('Given 10000 deliveries Then recent date stays visible and summary initially bounded',await page.locator('.delivery-summary .delivery-link').count()===20&&await page.locator('.summary-feature .project-date').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight;}));
+    await page.locator('[data-summary-toggle="2028-01-01"]').click();
+    check('Given summary collapsed When expanded Then every stable backlink remains available',await page.locator('.delivery-summary .delivery-link').count()===10000);
+    check('Given expanded large summary Then collapse control remains at the top and operable',await page.locator('[data-summary-toggle="2028-01-01"]').getAttribute('aria-expanded')==='true');
+    await page.locator('[data-summary-toggle="2028-01-01"]').click();
+    check('Given summary recollapsed Then list paging is independent and total preserved',await page.locator('.delivery-summary .delivery-link').count()===20&&await page.locator('[data-row-id]').count()===100);
+    await page.locator('.list-pagination').getByRole('button',{name:'末页',exact:true}).click();
+    await page.waitForSelector(`[data-row-id="${rows[9999].id}"]`);
+    check('Given last page When opened Then original last row is available',await page.locator('[data-row-id]').count()===100&&(await page.locator('.list-pagination').innerText()).includes('第 100 / 100 页'));
+    const last=page.locator(`[data-row-id="${rows[9999].id}"] [data-column-kind="shot"] input`);
+    start=performance.now();await last.fill('SH09999-EDIT');await page.locator('h1').click();
+    await page.waitForFunction(()=>!document.querySelector('.pending-note')&&document.querySelector('.document-save-state')?.textContent.includes('已保存'),{},{timeout:45_000});
+    report.timings.editAndSaveMs=performance.now()-start;
+    const after=(await ipc('list_projects')).find(project=>project.id===projectId);
+    check('Given last row edited in large document Then same ID and all other rows retained',after.blocks[0].rows.length===10000&&after.blocks[0].rows[9999].id===rows[9999].id&&after.blocks[0].rows[9999].cells[columnIds[0]]==='SH09999-EDIT'&&after.blocks[0].rows[0].cells[columnIds[0]]==='SH00000');
+    await page.evaluate(hash=>{location.hash=hash;},`#projects/${projectId}/${blockId}/${rows[5000].id}`);
+    await page.waitForFunction(rowId=>document.activeElement?.getAttribute('data-row-id')===rowId,rows[5000].id);
+    check('Given middle-row summary deep link Then correct page and original row receive focus',(await page.locator('.list-pagination').innerText()).includes('第 51 / 100 页'));
+    const firstLink=page.locator('.delivery-summary .delivery-link').first();
+    await firstLink.click();await page.waitForFunction(rowId=>document.activeElement?.getAttribute('data-row-id')===rowId,rows[0].id);
+    await page.locator('.list-pagination').getByRole('button',{name:'下一页',exact:true}).click();await firstLink.click();
+    await page.waitForFunction(rowId=>document.activeElement?.getAttribute('data-row-id')===rowId,rows[0].id);
+    check('Given same backlink clicked after paging away Then original first row is again visible and focused',(await page.locator('.list-pagination').innerText()).includes('第 1 / 100 页'));
+    const firstShot=page.locator(`[data-row-id="${rows[0].id}"] [data-column-kind="shot"] input`);
+    await firstShot.fill('SH00000-DIRECT-PAGE');await page.locator('.list-pagination').getByRole('button',{name:'下一页',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.document-save-state')?.textContent.includes('已保存'));
+    let current=(await ipc('list_projects')).find(project=>project.id===projectId);
+    check('Given text edit When directly paging Then real document stores it and next page remains shown',current.blocks[0].rows[0].cells[columnIds[0]]==='SH00000-DIRECT-PAGE'&&(await page.locator('.list-pagination').innerText()).includes('第 2 / 100 页'));
+    await page.locator('#project-name').fill('万行边界仍保留的名称');await page.getByRole('button',{name:'添加行',exact:true}).click();await page.waitForSelector('.form-error');
+    check('Given 10000 rows When attempted overflow Then draft count unchanged and earlier text retained',(await page.locator('.list-pagination').innerText()).includes('共 10000 行')&&await page.locator('#project-name').inputValue()==='万行边界仍保留的名称');
+    await page.getByRole('button',{name:'保存文档',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.document-save-state')?.textContent.includes('已保存'));
+    current=(await ipc('list_projects')).find(project=>project.id===projectId);
+    check('Given rejected excess row When ordinary save Then name saves with all original 10000 rows',current.name==='万行边界仍保留的名称'&&current.blocks[0].rows.length===10000);
+    await page.locator('h1').scrollIntoViewIfNeeded();
+    await page.screenshot({path:path.join(out,'large-document-viewport.png')});
+    await page.locator('nav a[href="#today"]').click();await page.waitForSelector('#todo-title');
+    check('Given large project When leaving Then navigation remains available',await page.locator('.today-delivery-card .delivery-link').count()===6);
+    fs.writeFileSync(path.join(out,'record.json'),JSON.stringify({projectId,blockId,rows:10000,firstRow:rows[0].id,lastRow:rows[9999].id},null,2));
+    report.after=hashes();check('Source stable',JSON.stringify(report.before)===JSON.stringify(report.after));check('No page errors',report.errors.length===0,report.errors);
+  }catch(error){report.failure=String(error);process.exitCode=1;}
+  finally{await browser.close();fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({out,checks:report.checks.length,timings:report.timings,failure:report.failure},null,2));}
+})().catch(error=>{console.error(error);process.exitCode=1;});

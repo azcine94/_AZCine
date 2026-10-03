@@ -1,0 +1,44 @@
+[
+  {
+    "file": "milanote-project-plan.png",
+    "url": "https://images.milanote.com/milanote/Zi8Zlt3JpQ5PTOvH_image-graphic-design-project-plan.png?w=2000&fm=png",
+    "status": 200,
+    "type": "image/png",
+    "bytes": 490337
+  },
+  {
+    "file": "milanote-film-project.png",
+    "url": "https://images.milanote.com/milanote/e133ae37-4bca-4045-8d52-f28e5b67a60c_Film-Mega-Guide-hero.png?w=2000&fm=png",
+    "status": 200,
+    "type": "image/png",
+    "bytes": 330679
+  },
+  {
+    "file": "notion-project-hub.png",
+    "url": "https://s3-us-west-2.amazonaws.com/public.notion-static.com/92f04c37-ec18-460b-9f61-5a3904cc4330/ac76f839-e2bf-4d55-8d67-ac3d5ee4a6db.png",
+    "status": 200,
+    "type": "image/png",
+    "bytes": 304269
+  },
+  {
+    "file": "affine-workspace.png",
+    "url": "https://cdn.affine.pro/Github_hero_image2.png",
+    "status": 200,
+    "type": "image/png",
+    "bytes": 475062
+  },
+  {
+    "file": "affine-planning.jpg",
+    "url": "https://affine.pro/overview/Plan.jpg",
+    "status": 200,
+    "type": "image/jpeg",
+    "bytes": 108148
+  },
+  {
+    "file": "affine-canvas.jpg",
+    "url": "https://affine.pro/overview/Draw.jpg",
+    "status": 200,
+    "type": "image/jpeg",
+    "bytes": 247539
+  }
+]

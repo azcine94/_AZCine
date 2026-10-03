@@ -1,0 +1,3235 @@
+{
+  "status": "moved-byte-identical",
+  "entries": [
+    {
+      "old": ".playwright-mcp/console-2026-09-30T18-11-45-591Z.log",
+      "new": "archive/evidence/browser-research/console-2026-09-30T18-11-45-591Z.log",
+      "sha256": "cc1ad79ebd2101f8bd9f9ed0a78cdf57cdd79ba3a3b58a33d102a637e7bfe7c7",
+      "bytes": 209
+    },
+    {
+      "old": ".playwright-mcp/page-2026-09-30T18-08-07-544Z.yml",
+      "new": "archive/evidence/browser-research/page-2026-09-30T18-08-07-544Z.yml",
+      "sha256": "c18c7ab0d5d28da0d760185bc58f0e23f91a7b35ceae4d9fb53016a61d2f64be",
+      "bytes": 47255
+    },
+    {
+      "old": ".playwright-mcp/page-2026-09-30T18-09-43-028Z.yml",
+      "new": "archive/evidence/browser-research/page-2026-09-30T18-09-43-028Z.yml",
+      "sha256": "cdf56b075c525239da71dadda872faeed969d09e504b8433317fa0a61baf1c99",
+      "bytes": 39171
+    },
+    {
+      "old": ".playwright-mcp/page-2026-09-30T18-11-45-990Z.yml",
+      "new": "archive/evidence/browser-research/page-2026-09-30T18-11-45-990Z.yml",
+      "sha256": "004d901bdc5da5c6f7257920d4511f980c2fb5043f2b5d79683a5b3160eda4de",
+      "bytes": 55696
+    },
+    {
+      "old": ".playwright-mcp/page-2026-09-30T18-14-24-240Z.png",
+      "new": "archive/evidence/browser-research/page-2026-09-30T18-14-24-240Z.png",
+      "sha256": "6760828367186d1da4ac026f48bf7c4d01ba79c3b1e3f478f396a8ddba69de21",
+      "bytes": 350023
+    },
+    {
+      "old": "AGENTS.md",
+      "new": "AGENTS.md",
+      "sha256": "e25addaf9f03fdceb0b70161e22338fe49abebc0e38a48efb759700849e4a2d4",
+      "bytes": 13816
+    },
+    {
+      "old": "archive/evidence/project-document-pre-review/app.js",
+      "new": "archive/evidence/project-document-pre-review/app.js",
+      "sha256": "c6ec662f453accc28825c451303ab15273e5379c47bdc7351d39d1a4d9dbdad6",
+      "bytes": 18118
+    },
+    {
+      "old": "archive/evidence/project-document-pre-review/pages.js",
+      "new": "archive/evidence/project-document-pre-review/pages.js",
+      "sha256": "1f34fd61073b7a89ffdbd72a21a9dba00f1fb88ebbb3b307af10508f6a7b966e",
+      "bytes": 17015
+    },
+    {
+      "old": "archive/evidence/project-document-pre-review/projects.css",
+      "new": "archive/evidence/project-document-pre-review/projects.css",
+      "sha256": "f20679ff05a7bef9c8aa1d359c186d04fa95026add61f8b6126837a95a66d9f1",
+      "bytes": 9891
+    },
+    {
+      "old": "archive/evidence/project-document-pre-review/projects.js",
+      "new": "archive/evidence/project-document-pre-review/projects.js",
+      "sha256": "c0e56198f8efffba891d09785d6ee2fcc85ba63d3048ba94371f12359e8aad1e",
+      "bytes": 31115
+    },
+    {
+      "old": "archive/evidence/project-document-pre-review/verify-project-document.cjs",
+      "new": "archive/evidence/project-document-pre-review/verify-project-document.cjs",
+      "sha256": "94bdb7160a8fc7d04b2390fc90a79c231c913e80dbd4d79314079e5a06544a33",
+      "bytes": 18155
+    },
+    {
+      "old": "archive/project-table-v2/project-checks.cjs",
+      "new": "archive/project-table-v2/project-checks.cjs",
+      "sha256": "d38f56671b2158a36595c4b030536184db9f1b9e94975632b5aa35d42c1705e7",
+      "bytes": 14334
+    },
+    {
+      "old": "archive/project-table-v2/projects.css",
+      "new": "archive/project-table-v2/projects.css",
+      "sha256": "627890dd8746a91caa492d32181efcdc19cd579b35a0a357898be43dc380db1b",
+      "bytes": 11324
+    },
+    {
+      "old": "archive/project-table-v2/projects.js",
+      "new": "archive/project-table-v2/projects.js",
+      "sha256": "95b076b5d277c1e15ec6785abe6ba3c7ccacd1fc1361b9d0e015e8a4f5845185",
+      "bytes": 33375
+    },
+    {
+      "old": "archive/project-table-v2/validation-report.json",
+      "new": "archive/project-table-v2/validation-report.json",
+      "sha256": "4041c28f464ad57a62307c2e62a93b8a6b95bc6f7c5c6c4fe214aca81b861cbb",
+      "bytes": 661532
+    },
+    {
+      "old": "artifacts/previews/document-projects-dark.png",
+      "new": "artifacts/previews/document-projects-dark.png",
+      "sha256": "1a4bceec1cf3b5fc79104073c8e65ad4012b9ca22ae5c6c4b8f6825bfa894041",
+      "bytes": 44054
+    },
+    {
+      "old": "artifacts/previews/document-projects-film-dark.png",
+      "new": "artifacts/previews/document-projects-film-dark.png",
+      "sha256": "2a3220611adfd5cd9cec7960236ec68dff601db4972fe9978d8ea25508a25f34",
+      "bytes": 96312
+    },
+    {
+      "old": "artifacts/previews/document-projects-film-light.png",
+      "new": "artifacts/previews/document-projects-film-light.png",
+      "sha256": "2f8c74b1c03030dacdfb4b66723903a3e822df96b650fc1817fa9e21762b52e3",
+      "bytes": 95603
+    },
+    {
+      "old": "artifacts/previews/document-projects-light.png",
+      "new": "artifacts/previews/document-projects-light.png",
+      "sha256": "3ef738e07c325cb868aeaf4975cc15757321f290fea7a8549cceb6b4ce1edac6",
+      "bytes": 43336
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1024-cards.png",
+      "sha256": "f1db0486969a2587c74aeca4a2b65657b8e2fdd14560b7e5dd1025610f1290d7",
+      "bytes": 36401
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1024-document.png",
+      "sha256": "e37d69ba797b641677a174785709beaeb8120ef3caa4bb292aaee4ed2b8e9561",
+      "bytes": 88131
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1280-cards.png",
+      "sha256": "9aac6f8f989bd2e71bb2bbca6444762e4b4b8cf3ce84949b8e582a031136068f",
+      "bytes": 41809
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1280-document.png",
+      "sha256": "990a00f3b1e906080cf6c571c2078770f3950cf5aa848522d626d9600f593072",
+      "bytes": 94508
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1440-cards.png",
+      "sha256": "1a4bceec1cf3b5fc79104073c8e65ad4012b9ca22ae5c6c4b8f6825bfa894041",
+      "bytes": 44054
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-dark-1440-document.png",
+      "sha256": "2a3220611adfd5cd9cec7960236ec68dff601db4972fe9978d8ea25508a25f34",
+      "bytes": 96312
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1024-cards.png",
+      "sha256": "edef4e9276d5e2146bfa663e384c3336889489437127887ef1797455b86f5179",
+      "bytes": 35573
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1024-document.png",
+      "sha256": "c3323e2f64f13078bb9c02409ac9a477c21d6a95adffe7015fcdc7ee8a94624d",
+      "bytes": 87383
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1280-cards.png",
+      "sha256": "2ef89dbd554e4bfa615ccaf64a14f7df7132edf97188537e283529ff80be3f4d",
+      "bytes": 40915
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1280-document.png",
+      "sha256": "5e7406200df048afcc7c904d2f77f764827c7a8bf5440d1324279c6ddae944f5",
+      "bytes": 93480
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1440-cards.png",
+      "sha256": "3ef738e07c325cb868aeaf4975cc15757321f290fea7a8549cceb6b4ce1edac6",
+      "bytes": 43336
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/A-light-1440-document.png",
+      "sha256": "2f8c74b1c03030dacdfb4b66723903a3e822df96b650fc1817fa9e21762b52e3",
+      "bytes": 95603
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1024-cards.png",
+      "sha256": "4d76538761f84d73d8e6547897141264edb820632dda3fac6640e49e6b7de8fe",
+      "bytes": 36510
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1024-document.png",
+      "sha256": "22c8921c416828f423e87b341b3507cddc35833ff54f0aa7aced8af0aeb96ac4",
+      "bytes": 88249
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1280-cards.png",
+      "sha256": "600c040662a308aa3222c4cadc892f7fd67a2ee3ae6108d3ae7ada912ee60479",
+      "bytes": 42110
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1280-document.png",
+      "sha256": "d76bc3dbe544a51b7047dae135ea72282f2f0ffd656f1c3d6911050376fa8897",
+      "bytes": 94834
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1440-cards.png",
+      "sha256": "63e9878c53b60c0d53f232363921ba28a8a3358e301bee1581821e87b6964dd7",
+      "bytes": 44314
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-dark-1440-document.png",
+      "sha256": "2799198bed420fed58875158b2e459885361fb5d43f00c5cc9d5d470c8104b15",
+      "bytes": 96642
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1024-cards.png",
+      "sha256": "57e483b6bc60c2d3f87289e5e64447563dab5520b7117966c9cdb6e417e0890a",
+      "bytes": 35889
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1024-document.png",
+      "sha256": "180034db5f6e3b6969b7e65dbd285455af44f2644baefe9629100a07df3e817e",
+      "bytes": 87592
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1280-cards.png",
+      "sha256": "6671450b277ac80aa13da8973d418f6d6cb6ce5fccaa069d3c2cca9aaf125fc8",
+      "bytes": 41248
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1280-document.png",
+      "sha256": "50359ba1ca9aa09b3dd58929359b88df4469a1c21aaaac1b4f7ed16577d363f8",
+      "bytes": 93796
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1440-cards.png",
+      "sha256": "09690bf4ffb469a2ee488094798cccb0555f53de990df11e22b18c1cde95f2c2",
+      "bytes": 43611
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/B-light-1440-document.png",
+      "sha256": "c4ad7103fafc5e6df85a635f0fe73b0346c852d1654c04dee4b3e9b694c648e6",
+      "bytes": 95934
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1024-cards.png",
+      "sha256": "21fc61b2b057113775ad018820639e710dd9e1731174de5a6bc38f724e4c7f94",
+      "bytes": 36353
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1024-document.png",
+      "sha256": "26526c90ff28dc03002992e0bca6053878bb9863a2664667466881e0ee02ae62",
+      "bytes": 88083
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1280-cards.png",
+      "sha256": "85cf03812a4d2187857819c3c57e6e63b42f400c4b260341d0a2cc6ff5c2d0f8",
+      "bytes": 41758
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1280-document.png",
+      "sha256": "496e3f4bdcffbe02ff37090f334a3a3cfdc7e7a5bab72e757c9b73d6f1912481",
+      "bytes": 94458
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1440-cards.png",
+      "sha256": "bc3f81a1821bfd00d5907062254263b32e43285e9a0ca29dd26d0a620211f814",
+      "bytes": 43983
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-dark-1440-document.png",
+      "sha256": "dad83b1c15c656318f2b97acd2c49e06e6ccc0cd66d68f902fb15c96da2e58eb",
+      "bytes": 96241
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1024-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1024-cards.png",
+      "sha256": "5fca61826da6e5b88ca676188c728d2bcad0524be3a01b1b303736fb72eb0ea7",
+      "bytes": 35566
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1024-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1024-document.png",
+      "sha256": "59617403c6ff01602861779fb0bd70fd57920b194399f51cb1b5ffcf2a49f5f7",
+      "bytes": 87376
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1280-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1280-cards.png",
+      "sha256": "6860b30e932c5b692b743a8a219c9f7c0f41cf2b4486d2ee0dce886e0e207c6a",
+      "bytes": 40902
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1280-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1280-document.png",
+      "sha256": "ba676de6d2debceb845c290b576bd6ffba366083b723a51cecfc54663c8b98e5",
+      "bytes": 93464
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1440-cards.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1440-cards.png",
+      "sha256": "837d354999b27af0036abaf4328e04b48903a6c1cd6a092a1abffdf51d3b4435",
+      "bytes": 43298
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1440-document.png",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/C-light-1440-document.png",
+      "sha256": "9c0857ad03056f6c9aa48ddf8b872f89604b8efa718215af240914f0e31e7552",
+      "bytes": 95565
+    },
+    {
+      "old": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/report.json",
+      "new": "artifacts/validation/project-document-2026-10-01T10-07-00-115Z/report.json",
+      "sha256": "c3be085c5ef2e676bc83eb0624f60be4218eea697e7437ed7f989e32a42b98ac",
+      "bytes": 132480
+    },
+    {
+      "old": "artifacts/validation/project-document-draft/editor-kit.png",
+      "new": "artifacts/validation/project-document-draft/editor-kit.png",
+      "sha256": "43a071ff850ea2d6f5390618888db10df2daa6aea4a661e425f67c7d59b75471",
+      "bytes": 100420
+    },
+    {
+      "old": "artifacts/validation/project-document-draft/overflow.png",
+      "new": "artifacts/validation/project-document-draft/overflow.png",
+      "sha256": "a6e76dff0fcfd1b80e4167b4861d0ed6c12e4f32e3785d0b55ad9b82852993e7",
+      "bytes": 131114
+    },
+    {
+      "old": "artifacts/validation/project-document-draft/test.log",
+      "new": "artifacts/validation/project-document-draft/test.log",
+      "sha256": "ffb9daec5bb4951d00ff4e2de205dfc7f63731a1382f7609c38e5f11c3a4615d",
+      "bytes": 429
+    },
+    {
+      "old": "assets/brand/logo-lockup-preview.png",
+      "new": "assets/brand/logo-lockup-preview.png",
+      "sha256": "9e6a899933070f4c2d42d8ccc9156fc08bd590e39cb0e9dbd2fff66ab7c639b6",
+      "bytes": 28819
+    },
+    {
+      "old": "assets/brand/logo-lockup.png",
+      "new": "assets/brand/logo-lockup.png",
+      "sha256": "195b8514e12198ef2215ab663a3ae3531c4580303696583eb824dd4dcd37ca7b",
+      "bytes": 121128
+    },
+    {
+      "old": "assets/brand/logo-on-white.png",
+      "new": "assets/brand/logo-on-white.png",
+      "sha256": "54a6e677505901c698cda099a30d27857d2d0479cd03671722b6586f346cc8be",
+      "bytes": 48089
+    },
+    {
+      "old": "assets/brand/logo-original.png",
+      "new": "assets/brand/logo-original.png",
+      "sha256": "9108dd2523e7ba4dbdbbc84af4734124015bcb84d82907b8e879547ee174e0b3",
+      "bytes": 168895
+    },
+    {
+      "old": "assets/brand/README.md",
+      "new": "assets/brand/README.md",
+      "sha256": "fe3ea379b12387d02aca7fece0260479f8bb1d26cfa4db68301fa34d8aaedad6",
+      "bytes": 975
+    },
+    {
+      "old": "assets/brand/sidebar-dark.png",
+      "new": "assets/brand/sidebar-dark.png",
+      "sha256": "4ed33444030e2eddc101c471ba1a6ec5370a62b8515ab7774bb7fbd86c4b6cf2",
+      "bytes": 5697
+    },
+    {
+      "old": "assets/brand/sidebar-light.png",
+      "new": "assets/brand/sidebar-light.png",
+      "sha256": "041af07e9df8579d86988d5842a0a14e5ad74027ce0cacd27c9bbe5e66172163",
+      "bytes": 4743
+    },
+    {
+      "old": "design/project-document.html",
+      "new": "design/project-document.html",
+      "sha256": "a771baf3995239e76673edf940afd1d2145cea1a35e39e73ab47cbd96a681ac1",
+      "bytes": 539
+    },
+    {
+      "old": "direction-approved.md",
+      "new": "docs/decisions.md",
+      "sha256": "8e80b37098966df359bdb8b7e3f69475c3fab5a2b6d1fa317e2a7cf2fb4ff351",
+      "bytes": 7140
+    },
+    {
+      "old": "research/domain-logo-test.log",
+      "new": "research/domain-logo-test.log",
+      "sha256": "d200bca20d25d8c8608a17b66fa7d1b7777933ed8621e0ac49c63006efca2936",
+      "bytes": 27
+    },
+    {
+      "old": "research/news-domains-dark.png",
+      "new": "research/news-domains-dark.png",
+      "sha256": "c2d8025eb2450151be3edf481a8df2c7f5e520fa36e1079b2600b7fd4c18c3b9",
+      "bytes": 95787
+    },
+    {
+      "old": "research/news-domains-light.png",
+      "new": "research/news-domains-light.png",
+      "sha256": "8d21ec0c78f9d53635e47d7623e4389510014ca38d3d9bceaf0861714f02fc3c",
+      "bytes": 96153
+    },
+    {
+      "old": "research/project-document-checkpoint.md",
+      "new": "research/project-document-checkpoint.md",
+      "sha256": "00e2c16a331dd2e644c20ec8ebf76194d4f6efef16b4397e0814b4163f66dac3",
+      "bytes": 3720
+    },
+    {
+      "old": "research/project-references/appflowy-project-tracking.webp",
+      "new": "research/project-references/appflowy-project-tracking.webp",
+      "sha256": "d165940a0797551c8dd1144807ae7e93f7b21f9b217682dd7a93e549d7740911",
+      "bytes": 150690
+    },
+    {
+      "old": "research/project-references/index.html",
+      "new": "research/project-references/index.html",
+      "sha256": "332324d0e146f5fc4a23cf5edac44fce49e6a22edb2b5d207e170de7b0baf840",
+      "bytes": 9965
+    },
+    {
+      "old": "research/project-references/kanboard-board.png",
+      "new": "research/project-references/kanboard-board.png",
+      "sha256": "5788f5038a94c621f440ea5c8c6b98f44e827f1499c0f60494519d3043d1dfcf",
+      "bytes": 42564
+    },
+    {
+      "old": "research/project-references/README.md",
+      "new": "research/project-references/README.md",
+      "sha256": "9370b7ff9fee5dd43e81ed46f8a4a982df43e6f146dcc888a19d794b760c0e74",
+      "bytes": 3404
+    },
+    {
+      "old": "research/project-references/reference-page-preview.png",
+      "new": "research/project-references/reference-page-preview.png",
+      "sha256": "a8612a019f2a95781e2c13ff39500b5a37536613211ced2092c7da22cf26d4de",
+      "bytes": 163270
+    },
+    {
+      "old": "research/project-references/round-2/acreom-projects.webp",
+      "new": "research/project-references/round-2/acreom-projects.webp",
+      "sha256": "25bb1efe590a5bbd4f416ea91b3f5aa922062f8b2a7ed0aa2652769914cdc185",
+      "bytes": 37896
+    },
+    {
+      "old": "research/project-references/round-2/affine-canvas.jpg",
+      "new": "research/project-references/round-2/affine-canvas.jpg",
+      "sha256": "f4cb45e9ab117fdc1c79a8cfa3185444fac1023e29fd8e6e2d4ee16b707a37cb",
+      "bytes": 247539
+    },
+    {
+      "old": "research/project-references/round-2/affine-planning.jpg",
+      "new": "research/project-references/round-2/affine-planning.jpg",
+      "sha256": "f889d3954892bf2c414c6284b459b225fddd1a01980585cc83ffd1638ef775cf",
+      "bytes": 108148
+    },
+    {
+      "old": "research/project-references/round-2/affine-workspace.png",
+      "new": "research/project-references/round-2/affine-workspace.png",
+      "sha256": "a001be4264e045d864fd1a4d8209b7a79293851e82d379761985daf255905a89",
+      "bytes": 475062
+    },
+    {
+      "old": "research/project-references/round-2/anytype-para-project.png",
+      "new": "research/project-references/round-2/anytype-para-project.png",
+      "sha256": "4308f54b137057cc195da32fbdd061d5997d1c3e5805614c67a3878fa61dbf3b",
+      "bytes": 55516
+    },
+    {
+      "old": "research/project-references/round-2/anytype-project-detail.png",
+      "new": "research/project-references/round-2/anytype-project-detail.png",
+      "sha256": "d60bcbd65bd21f85b0d8a0d9307fe43613668bb418206a31bbdbbba63075cedf",
+      "bytes": 406459
+    },
+    {
+      "old": "research/project-references/round-2/anytype-project-overview.png",
+      "new": "research/project-references/round-2/anytype-project-overview.png",
+      "sha256": "75d90f844001f3f3d7618c6792f067313db2454ca32c91d2f63c50f419cc7291",
+      "bytes": 146893
+    },
+    {
+      "old": "research/project-references/round-2/anytype-project-tasks.png",
+      "new": "research/project-references/round-2/anytype-project-tasks.png",
+      "sha256": "8abe05224b7e76c7055bb6439c339a0ff2a0c49a9448621975a220959d6747e7",
+      "bytes": 211376
+    },
+    {
+      "old": "research/project-references/round-2/anytype-project-workspace.png",
+      "new": "research/project-references/round-2/anytype-project-workspace.png",
+      "sha256": "b161b43d0ad777c2db838e92fa22a917870edc225b581e914892700fb32cbd03",
+      "bytes": 21525
+    },
+    {
+      "old": "research/project-references/round-2/anytype-projects.png",
+      "new": "research/project-references/round-2/anytype-projects.png",
+      "sha256": "745702872cd775c3bb4af0c6cfafee681d27ceca6a33877616e596a60ef37bed",
+      "bytes": 304957
+    },
+    {
+      "old": "research/project-references/round-2/downloads.json",
+      "new": "research/project-references/round-2/downloads.json",
+      "sha256": "cebf8556ddf049e067e41c9c881d9c1d6a0a419b223b9bacffb733979e70d2cb",
+      "bytes": 1270
+    },
+    {
+      "old": "research/project-references/round-2/index.html",
+      "new": "research/project-references/round-2/index.html",
+      "sha256": "b257a13ff4606979054f12efa52338630e9767540cb33ca2f2d940795879c62c",
+      "bytes": 10457
+    },
+    {
+      "old": "research/project-references/round-2/milanote-film-project.png",
+      "new": "research/project-references/round-2/milanote-film-project.png",
+      "sha256": "c450739c565d18358f720740aa566144059379454b4bae2b08090dd2f226c1f4",
+      "bytes": 330679
+    },
+    {
+      "old": "research/project-references/round-2/milanote-project-plan.png",
+      "new": "research/project-references/round-2/milanote-project-plan.png",
+      "sha256": "c9fc019cd78969901b9e2c569e24dcf15331274d8dc73b67f9b02182f73fd823",
+      "bytes": 490337
+    },
+    {
+      "old": "research/project-references/round-2/notion-project-hub-clean.jpg",
+      "new": "research/project-references/round-2/notion-project-hub-clean.jpg",
+      "sha256": "87f0379f1cdcdb67e1ff510c7f10d8f280b52bb5ed60284d5272c03846ec3814",
+      "bytes": 378688
+    },
+    {
+      "old": "research/project-references/round-2/notion-project-hub.png",
+      "new": "research/project-references/round-2/notion-project-hub.png",
+      "sha256": "2a309004da9ca3b30ad62b68622bd985116d8d59acb0d9c3a63a61648445fe1f",
+      "bytes": 304269
+    },
+    {
+      "old": "research/project-references/round-2/notion-simple-project.png",
+      "new": "research/project-references/round-2/notion-simple-project.png",
+      "sha256": "a96c8b4c6a85cd4e7561e447acbba4615fbf10b7d35d2d78eff8dae77ca6ea9c",
+      "bytes": 441795
+    },
+    {
+      "old": "research/project-references/round-2/README.md",
+      "new": "research/project-references/round-2/README.md",
+      "sha256": "cf45ab0dfc9194fb69e9ca51eb5a12e574b1c55bde74cfe2596377e96296be61",
+      "bytes": 6456
+    },
+    {
+      "old": "research/project-references/round-2/reference-check.json",
+      "new": "research/project-references/round-2/reference-check.json",
+      "sha256": "b3313834e05ffb72b6b80b6f27a529903c47b8c45ea3891fe5ca48b220dfa0d6",
+      "bytes": 2480
+    },
+    {
+      "old": "research/project-references/round-2/reference-page-1024.png",
+      "new": "research/project-references/round-2/reference-page-1024.png",
+      "sha256": "b6ed0534d6495ecb51e16a19f08e58a99baec26438ae8ec636f2106a59a48096",
+      "bytes": 185682
+    },
+    {
+      "old": "research/project-references/round-2/reference-page-1440.png",
+      "new": "research/project-references/round-2/reference-page-1440.png",
+      "sha256": "e53378e56b45ddf93b58f77c7282c3aa3d023095bc2b834444693a074d55994e",
+      "bytes": 231395
+    },
+    {
+      "old": "research/project-references/super-productivity-eisenhower.png",
+      "new": "research/project-references/super-productivity-eisenhower.png",
+      "sha256": "a5054d24091310b11fa6893bbc904b4b5fe58ab951c8b0e815703a94da8f9b2e",
+      "bytes": 1047347
+    },
+    {
+      "old": "research/project-references/super-productivity-task-detail.png",
+      "new": "research/project-references/super-productivity-task-detail.png",
+      "sha256": "7b1cf55e99f3d41a5fddfc116a1654ff626a50b0fa57ad9a0d4d206275a6e244",
+      "bytes": 97941
+    },
+    {
+      "old": "research/project-references/vikunja-task-detail.png",
+      "new": "research/project-references/vikunja-task-detail.png",
+      "sha256": "becc47d6378b7781e881550d8e447e6a1ac260acbff90d5a21e5f0bf710aafb9",
+      "bytes": 494964
+    },
+    {
+      "old": "research/project-references/vikunja-task-list.png",
+      "new": "research/project-references/vikunja-task-list.png",
+      "sha256": "32b45a887048b30deab467891e8a52215c81c9c3e4397138bcb5af63d92845fc",
+      "bytes": 213602
+    },
+    {
+      "old": "research/structure-proposal.md",
+      "new": "research/structure-proposal.md",
+      "sha256": "9ba925eb6b8de43edcfa477c0446d094f353719c4cc35413dd69da03d60fcc71",
+      "bytes": 4628
+    },
+    {
+      "old": "tests/verify-project-document.cjs",
+      "new": "tests/verify-project-document.cjs",
+      "sha256": "94bdb7160a8fc7d04b2390fc90a79c231c913e80dbd4d79314079e5a06544a33",
+      "bytes": 18155
+    },
+    {
+      "old": "产品需求文档.md",
+      "new": "docs/requirements.md",
+      "sha256": "727c3947fcd5ad9e82ae4d90c731fb244cdad10d338819a3e7feced7b6e5fc92",
+      "bytes": 56425
+    },
+    {
+      "old": "设计/app.js",
+      "new": "archive/design-v1/app.js",
+      "sha256": "cdc3a54f6fdad0d641df907b8ed227ca894ab8a860ef418a7903458ba8d44ab1",
+      "bytes": 54089
+    },
+    {
+      "old": "设计/demo-data.js",
+      "new": "archive/design-v1/demo-data.js",
+      "sha256": "3b7d1c649f71b97e7a2779aeb815caed0fe71c6144547c2a374327587fabe40e",
+      "bytes": 7602
+    },
+    {
+      "old": "设计/index.html",
+      "new": "archive/design-v1/index.html",
+      "sha256": "6273c01c8631f6f8c4662831b13d954bbe43c0d57a7ee7a7d01897ad10301dbf",
+      "bytes": 422
+    },
+    {
+      "old": "设计/print.js",
+      "new": "archive/design-v1/print.js",
+      "sha256": "8b653921a59b6996c174b566d19a898462823dee70ded4e1cb762b3b498d6bae",
+      "bytes": 1746
+    },
+    {
+      "old": "设计/README.md",
+      "new": "archive/design-v1/README.md",
+      "sha256": "294f9461a264231a83f5ba5f748f33c18d050ae441d0cb6e4d998a0506ceef47",
+      "bytes": 3014
+    },
+    {
+      "old": "设计/tokens.css",
+      "new": "archive/design-v1/tokens.css",
+      "sha256": "a6f77aad146e626b5a5d051f286e4bc5993bdfbe0790dbcd287e1dbecc7ce02d",
+      "bytes": 838
+    },
+    {
+      "old": "设计/v2/app.js",
+      "new": "design/app.js",
+      "sha256": "c6ec662f453accc28825c451303ab15273e5379c47bdc7351d39d1a4d9dbdad6",
+      "bytes": 18118
+    },
+    {
+      "old": "设计/v2/base.css",
+      "new": "design/base.css",
+      "sha256": "65f19c0197ba4668d3b3609c0fb745930468d03ad50f0022b299398e0cd978ee",
+      "bytes": 35465
+    },
+    {
+      "old": "设计/v2/data.js",
+      "new": "design/data.js",
+      "sha256": "a9b8c49f143b24e88f387cb2013f03109353f82c0fe9fc7da31685fc9982da9b",
+      "bytes": 2559
+    },
+    {
+      "old": "设计/v2/index.html",
+      "new": "design/index.html",
+      "sha256": "2f5b9716401b6e1d18878f717494614054691efa385621f74fb39caee32dc16d",
+      "bytes": 5245
+    },
+    {
+      "old": "设计/v2/news-data.js",
+      "new": "design/news-data.js",
+      "sha256": "be4784a565abc87c944e1e94561afd8393d92e663fa6d9b416e2dfd10fc424d0",
+      "bytes": 10748
+    },
+    {
+      "old": "设计/v2/news.css",
+      "new": "design/news.css",
+      "sha256": "f96c5561ccb676a63b3d95472586a07547b69cbfa15ca606678ffb86b760a41d",
+      "bytes": 13677
+    },
+    {
+      "old": "设计/v2/news.js",
+      "new": "design/news.js",
+      "sha256": "d2a35f2a52cb74718b3021e5bbb52fc17757d177b785d3dfc91bc6a7336299b5",
+      "bytes": 15122
+    },
+    {
+      "old": "设计/v2/pages.css",
+      "new": "design/pages.css",
+      "sha256": "c823a33dbecddcd22b71373366056b0b992ccfdfdf7a253aa5e4ac20abcbd88c",
+      "bytes": 9942
+    },
+    {
+      "old": "设计/v2/pages.js",
+      "new": "design/pages.js",
+      "sha256": "1f34fd61073b7a89ffdbd72a21a9dba00f1fb88ebbb3b307af10508f6a7b966e",
+      "bytes": 17015
+    },
+    {
+      "old": "设计/v2/projects.css",
+      "new": "design/projects.css",
+      "sha256": "f20679ff05a7bef9c8aa1d359c186d04fa95026add61f8b6126837a95a66d9f1",
+      "bytes": 9891
+    },
+    {
+      "old": "设计/v2/projects.js",
+      "new": "design/projects.js",
+      "sha256": "c0e56198f8efffba891d09785d6ee2fcc85ba63d3048ba94371f12359e8aad1e",
+      "bytes": 31115
+    },
+    {
+      "old": "设计/v2/README.md",
+      "new": "design/README.md",
+      "sha256": "ae0d5d0cf78dadd30317e42f5773a9f00d9f399310434ee6a11bc9043cf1c938",
+      "bytes": 7770
+    },
+    {
+      "old": "设计/v2/tokens.css",
+      "new": "design/tokens.css",
+      "sha256": "c99cb081860567c6a6a90679cdfebec111de37512e45bb4054b6126ad662bb45",
+      "bytes": 5536
+    },
+    {
+      "old": "设计/v2/workspace.css",
+      "new": "design/workspace.css",
+      "sha256": "bd5873f6d4e2e9b13713d18dd20347e0ce185043936a3798587f0bbfd7115e32",
+      "bytes": 15212
+    },
+    {
+      "old": "设计/v2/参考/AIHOT-列表.png",
+      "new": "research/references/aihot/AIHOT-list.png",
+      "sha256": "0a2d8a1b69987af5fba1d1a9ab2a1c0b6e7ad2b8d287f4dbe986f323ae1fc28d",
+      "bytes": 11457
+    },
+    {
+      "old": "设计/v2/参考/AIHOT-计算样式.json",
+      "new": "research/references/aihot/aihot-computed-styles.json",
+      "sha256": "e86e14ac8417e618177f884e2a2e5467e4d89a78e32845be03cb12c5acd1a8c7",
+      "bytes": 491
+    },
+    {
+      "old": "设计/v2/截图/A-agent-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-dark-1024.png",
+      "sha256": "7c1dba4569b22bbc0d8138bf86d1d3a20be95acf96b36cdf2cbc955353bd85e5",
+      "bytes": 46526
+    },
+    {
+      "old": "设计/v2/截图/A-agent-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-dark-1280.png",
+      "sha256": "6d199a1555d3252f6a9c1659bbca5955b5334d200544ffc848ce300569c98665",
+      "bytes": 52755
+    },
+    {
+      "old": "设计/v2/截图/A-agent-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-dark-1440.png",
+      "sha256": "1a3c2e681000a4e8af99628f69eb0ea954eb2a409242fd9962b7a2616bc4326c",
+      "bytes": 54435
+    },
+    {
+      "old": "设计/v2/截图/A-agent-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-light-1024.png",
+      "sha256": "30d1aa4c75828f41b246fa07e2d7539c0ac3b7c7e9d7f4a510930611526b70b9",
+      "bytes": 45401
+    },
+    {
+      "old": "设计/v2/截图/A-agent-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-light-1280.png",
+      "sha256": "84caa9131a962cb5869814842ed1a71fd0f39a92db1da39e4c65cd83ddb228d5",
+      "bytes": 51483
+    },
+    {
+      "old": "设计/v2/截图/A-agent-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-agent-light-1440.png",
+      "sha256": "0cc5413a71d2d2cf74262a0a166d6db0fc859b7a7b8a9a8b9d987467e0aec91b",
+      "bytes": 53566
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-dark-1024.png",
+      "sha256": "ce0280d130632f19637409c10b1cdf63acc68e80c7507a636ef67bdf32bffd43",
+      "bytes": 57942
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-dark-1280.png",
+      "sha256": "4c5d718c41067b0c59300219d759596de4efc8ea56cb1c96c86812949b3a45e5",
+      "bytes": 65285
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-dark-1440.png",
+      "sha256": "271804c5ef51bf4b020e36b91d458def434cd8ff5155683d69d50838d8a593ad",
+      "bytes": 69658
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-light-1024.png",
+      "sha256": "e28a3380ce195bc3fef8ec258dc198929f56d63535fc808d3216d383eee2ade6",
+      "bytes": 57069
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-light-1280.png",
+      "sha256": "dacd85b8d1834cc55abc86382d969a9ee5d806e011280b4a175ed34170967162",
+      "bytes": 64460
+    },
+    {
+      "old": "设计/v2/截图/A-conversation-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-conversation-light-1440.png",
+      "sha256": "fffbd3ff61cb20702ff10c6a5e4d40fe65113063ea697aa8b8fb5bf965633acc",
+      "bytes": 69401
+    },
+    {
+      "old": "设计/v2/截图/A-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-dark-1024.png",
+      "sha256": "5f7b0258caebb5cf351d37c4a334b16482cab0ded19d2b05bbe8de2accc36818",
+      "bytes": 73823
+    },
+    {
+      "old": "设计/v2/截图/A-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-dark-1280.png",
+      "sha256": "deff037423253e6f957ecf0e69378da86b8d42f260b4ed373b3d61e44db0d13d",
+      "bytes": 80177
+    },
+    {
+      "old": "设计/v2/截图/A-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-dark-1440.png",
+      "sha256": "557a3495c172835f35cc8217dea2a767141d515346e441cd16a4f3bf0ce0388f",
+      "bytes": 81983
+    },
+    {
+      "old": "设计/v2/截图/A-dark-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-dark-review.png",
+      "sha256": "eb1ec2e6c029b0a3c48f99ff2ab514344797d7bed3a82c4384b9e0de94496a70",
+      "bytes": 60721
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-dark-1024.png",
+      "sha256": "5f34b6e89f54f540b5711a21eed44df6e5f5c9e499d61d72f51f1dc6efd2493e",
+      "bytes": 87403
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-dark-1280.png",
+      "sha256": "c5fe29cb436f4f5db67abca0af2124424e3e89364981bb34b5c0763a88351eeb",
+      "bytes": 90514
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-dark-1440.png",
+      "sha256": "2e4e4a77afd46f0b61102884cde41ec0860bec7bc7f38b46c35d9de32ef7980d",
+      "bytes": 95002
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-light-1024.png",
+      "sha256": "322fc8f02dd8728ea12f9a02cc096b08eb8cf182b05b00d95443b3ab21637e04",
+      "bytes": 84772
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-light-1280.png",
+      "sha256": "b92c3ab8c90fc8f8cc2a0998012851c3dbf4d195cefc2c99e47032c0317771cf",
+      "bytes": 86812
+    },
+    {
+      "old": "设计/v2/截图/A-ideas-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-ideas-light-1440.png",
+      "sha256": "79186b60a2234432b5f82b16fd9c8619a92f2002e37f7091ffc797a5da7b7a30",
+      "bytes": 91624
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-dark-1024.png",
+      "sha256": "6bf4a1e4a6a3ec2552ce0382e97fc452cf18db89278206fc78a6450abb42b27d",
+      "bytes": 44978
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-dark-1280.png",
+      "sha256": "853ce5f2fb89a3b9dee097e3fc2cb49950c752d2013a43b8ba29580544130c98",
+      "bytes": 49916
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-dark-1440.png",
+      "sha256": "cd9e7f2990e145053a8c145d92163c708a3863bbab2ba04c97a7128e868ef890",
+      "bytes": 52021
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-light-1024.png",
+      "sha256": "d79d2bc84c9e40bd07ab3c6cf0475dcd9fb75469daa2cf9c846e256dae800dfc",
+      "bytes": 44264
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-light-1280.png",
+      "sha256": "362c58c2a554634b54a5d5dad80c7a39f6130775533c01015135680244471ca9",
+      "bytes": 49211
+    },
+    {
+      "old": "设计/v2/截图/A-jobs-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-jobs-light-1440.png",
+      "sha256": "5adefa03aa6af40ec278ddf14e519366417bb97631e54b86c549d4ed9a17ddc5",
+      "bytes": 51586
+    },
+    {
+      "old": "设计/v2/截图/A-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-light-1024.png",
+      "sha256": "0d8e04bb6aaa9206f7ecf35999e72c426062a13644d84094b70e77d0c8e71a18",
+      "bytes": 73038
+    },
+    {
+      "old": "设计/v2/截图/A-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-light-1280.png",
+      "sha256": "289b87dfb0ba7a1683487add55cce42b8bee30fa6472885d8edbfd4b32bffcbc",
+      "bytes": 79288
+    },
+    {
+      "old": "设计/v2/截图/A-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-light-1440.png",
+      "sha256": "edf5a64978bf122a0380b04fc59c015421d6dc1218b02525a85aae0ddcfd7710",
+      "bytes": 81288
+    },
+    {
+      "old": "设计/v2/截图/A-light-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-light-review.png",
+      "sha256": "0b81e8c0c62a7abc4a9bd7acaf46b0a2636f924fcbe9340e133b9a06e3d1b1fd",
+      "bytes": 60299
+    },
+    {
+      "old": "设计/v2/截图/A-news-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-dark-1024.png",
+      "sha256": "b00230df26820e917dbc276582db65ce089e30dc292c6d3936bc19fe74c908a0",
+      "bytes": 265814
+    },
+    {
+      "old": "设计/v2/截图/A-news-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-dark-1280.png",
+      "sha256": "9b080e7f4ec02ecb45d04b462bb115b6d72d6f096ddbe26a48ebfa350e8d95a5",
+      "bytes": 274466
+    },
+    {
+      "old": "设计/v2/截图/A-news-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-dark-1440.png",
+      "sha256": "7a3e947721df05c56dc7852c428fc1dfd5c975ed35e99fde34b734ea7d703f11",
+      "bytes": 277454
+    },
+    {
+      "old": "设计/v2/截图/A-news-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-light-1024.png",
+      "sha256": "1b5a864e221b6326ed756f9003f829a215e8c2ef9aae7c19173cbf3bf52e2864",
+      "bytes": 262958
+    },
+    {
+      "old": "设计/v2/截图/A-news-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-light-1280.png",
+      "sha256": "239d0a926c535edbb26d7c5ad046ebd55d47b4a8f105ac6266f3e811fe3dcb41",
+      "bytes": 271748
+    },
+    {
+      "old": "设计/v2/截图/A-news-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-news-light-1440.png",
+      "sha256": "1972a75f2ff093fe4b5d3a78d4b36642e0fc6de97d308635b1543b7cb997db7f",
+      "bytes": 274011
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-dark-1024.png",
+      "sha256": "1d90883ab375a5f670ecc5ae31cc923aefe3c9b0f358c7ed78cabac2ad88e295",
+      "bytes": 52709
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-dark-1280.png",
+      "sha256": "ea781ec9afc00c536daf493e92e69747e15564a20b7e90e79b14d58eb1960802",
+      "bytes": 58376
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-dark-1440.png",
+      "sha256": "fac64fc12c30c8e4d3035a499e36fea38e2f7e84367e8d8ab1083d05161e0efa",
+      "bytes": 59770
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-light-1024.png",
+      "sha256": "c7bc76ff685052ceec551244401c2e7995bba5f36d519a8c4fe4d8664e3d37f9",
+      "bytes": 51543
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-light-1280.png",
+      "sha256": "fd98e35561f8efe22542b5dd3bf29125594524a2e809fc3209b9638fd5c545a1",
+      "bytes": 57077
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-deliveries-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-deliveries-light-1440.png",
+      "sha256": "8653828c2e176e5c31e8760708f06ab5c9f90e90175691157d43bd7656858b9b",
+      "bytes": 58818
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-dark-1024.png",
+      "sha256": "9d50c4b60e3c097959ce6ecbda610049b949915668669c59f5dd37074ceef619",
+      "bytes": 34964
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-dark-1280.png",
+      "sha256": "313d6be990122ed2ba98623265a388adbd22c70c66af0aa8ed1bed0940898a0d",
+      "bytes": 40729
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-dark-1440.png",
+      "sha256": "96904b79ec14b88d49c0e2e6e6e560d507d6d8146b7dd81482606a38389d5f1e",
+      "bytes": 42331
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-light-1024.png",
+      "sha256": "dbc5499d22acaf0a2a36c99506e4c6b7dddd0a3261d460a0553114e13c4c22ce",
+      "bytes": 34308
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-light-1280.png",
+      "sha256": "4718dea35310ae05fe9b1908f638d50d6e061795318e488a59532a0c0130a42e",
+      "bytes": 39806
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-materials-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-materials-light-1440.png",
+      "sha256": "f1f4cad8ef8902d133a1c43b4222f3be2a733baf4cca479b804c21824d225a32",
+      "bytes": 41549
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-dark-1024.png",
+      "sha256": "5961cdf3a751a5b664402936fd7992a122a870d32ed9cea18f2811b628523557",
+      "bytes": 63449
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-dark-1280.png",
+      "sha256": "9efea349f32e3a824ba3420beefdb3b9feb649421e49023b3c2aa6e9d17e746b",
+      "bytes": 67284
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-dark-1440.png",
+      "sha256": "fe42d3eb89f492b1d1e9e1868b7ff9c5e0af019dfab208e39e1377b619cc6e72",
+      "bytes": 69188
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-light-1024.png",
+      "sha256": "8f1063b2ee289e475f510c7390dc0107c71ef3a8c3a61a8448a83d37fd57f128",
+      "bytes": 62689
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-light-1280.png",
+      "sha256": "f20e459032ad36a3a6ea3d6436a6dbc06ab955518334dea6d138a8ad37a9fa90",
+      "bytes": 66448
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-overview-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-overview-light-1440.png",
+      "sha256": "7ea4e51e35af44e327cb0b83865f763ac0c513f3be4725f24ec75f483fb2295d",
+      "bytes": 68473
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-dark-1024.png",
+      "sha256": "28f3d0d4031b657cd2e01901f5bf937a78bee26a67c725a0be0d6cf4cf29c58c",
+      "bytes": 44281
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-dark-1280.png",
+      "sha256": "5128fce9025fb047e8a7675eb87af616646f404c911c0746c7f6bfe7efae8b45",
+      "bytes": 50573
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-dark-1440.png",
+      "sha256": "c02e050c38b3cf397e561cfdce98e8779339a459f71052abad90dc52dd760b95",
+      "bytes": 52488
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-light-1024.png",
+      "sha256": "dc7729dd106a0c27bc11c6befee469a63b9fb54e52b4a289293c8ce600d0d061",
+      "bytes": 43578
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-light-1280.png",
+      "sha256": "ae0c4de190065d0cd1cd01625b67082b3584e10d581ab3c43212b77d5c652c6c",
+      "bytes": 49473
+    },
+    {
+      "old": "设计/v2/截图/A-project-film-work-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-film-work-light-1440.png",
+      "sha256": "68842c89392938fb8ab45803bc8b6ca287083272ee8e53ba8094dd8c3564fd32",
+      "bytes": 51573
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-dark-1024.png",
+      "sha256": "3f1d69d0b164cb8377ab7f0d7f5df938dc653271e9192821173a4181df7cfd84",
+      "bytes": 67658
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-dark-1280.png",
+      "sha256": "a54f07f556812bc1ad5e57ad30d92cbf293f40eef9c8d36babeb0ef008bd08e3",
+      "bytes": 69706
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-dark-1440.png",
+      "sha256": "21618a5467606dc5f485502277ae647e01535197c4303eeb46a80e9faf467a5f",
+      "bytes": 71589
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-light-1024.png",
+      "sha256": "73c15a908afaf424a0678fc4d9435458d73db4d21ed6ff6aabce50d85e8549fb",
+      "bytes": 66845
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-light-1280.png",
+      "sha256": "bb0779af33c014531359280a2ae26bb14a2a5dad56ac53feec1367de98f7a993",
+      "bytes": 68559
+    },
+    {
+      "old": "设计/v2/截图/A-project-shot-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-project-shot-light-1440.png",
+      "sha256": "487e63b822cef8cd5e57cd350af56e28dc48680b767f20bae3635ad18735697e",
+      "bytes": 70612
+    },
+    {
+      "old": "设计/v2/截图/A-projects-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-dark-1024.png",
+      "sha256": "011ebea342613b8ae2983fe8780d06c09b7c28d6e0dd6e836f31af7898e68842",
+      "bytes": 51394
+    },
+    {
+      "old": "设计/v2/截图/A-projects-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-dark-1280.png",
+      "sha256": "c4b9e8c5aa4343bbdc02fd6e597bd40dbf410a7b481b55be078c1dab3c9c6548",
+      "bytes": 56942
+    },
+    {
+      "old": "设计/v2/截图/A-projects-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-dark-1440.png",
+      "sha256": "aa39144c0117ad5704fa35303eaf4cbdbd3df8faefd36a12b85f1fbf549c0db6",
+      "bytes": 58913
+    },
+    {
+      "old": "设计/v2/截图/A-projects-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-light-1024.png",
+      "sha256": "6f26e6ec442df11b1e7fa349ae749749345a4316dedd3799ae58e57a0635ffbd",
+      "bytes": 50450
+    },
+    {
+      "old": "设计/v2/截图/A-projects-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-light-1280.png",
+      "sha256": "17a3839161cb933d0ceeec3f2c9a3bb2a87b1f5623cd78ffdbd14e33e7b82afc",
+      "bytes": 56019
+    },
+    {
+      "old": "设计/v2/截图/A-projects-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-projects-light-1440.png",
+      "sha256": "a86868ebefc85a6243ea34d184f3dca8baf6b429bcdece344d342e2384b75a1d",
+      "bytes": 58196
+    },
+    {
+      "old": "设计/v2/截图/A-research-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-dark-1024.png",
+      "sha256": "60e41a3b69a52f1ab42598b8922c750ffe09b9bad30e693d2ae36e1a6605dc84",
+      "bytes": 35999
+    },
+    {
+      "old": "设计/v2/截图/A-research-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-dark-1280.png",
+      "sha256": "efff94f1a7c1f95d14248d439cb072ab6919b2524747539b59bb32d52b897867",
+      "bytes": 41348
+    },
+    {
+      "old": "设计/v2/截图/A-research-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-dark-1440.png",
+      "sha256": "cdde374cc12ab1bae02e704648aa629f61b6d467fa784fead231257fdd372dd0",
+      "bytes": 43440
+    },
+    {
+      "old": "设计/v2/截图/A-research-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-light-1024.png",
+      "sha256": "01ce1186440af63cee1ef3763d5c0cf20505b4e35f1160967f2398f8b6d251e6",
+      "bytes": 35122
+    },
+    {
+      "old": "设计/v2/截图/A-research-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-light-1280.png",
+      "sha256": "2a3fcddcd404997dafa160e6c6cad44a97f42520d118de45bde1c53a3ffef809",
+      "bytes": 40358
+    },
+    {
+      "old": "设计/v2/截图/A-research-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-research-light-1440.png",
+      "sha256": "c60da3d63315cdb3092eef3462243e9e0c204b9944895aa60bea5e3b700bd420",
+      "bytes": 42582
+    },
+    {
+      "old": "设计/v2/截图/A-settings-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-dark-1024.png",
+      "sha256": "3e62bdd0f5cfe09be339a7b68c6fb2554424a0bf075deb332b7bfbd782c95414",
+      "bytes": 48544
+    },
+    {
+      "old": "设计/v2/截图/A-settings-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-dark-1280.png",
+      "sha256": "bf5f6195121ad8ac3d9b188adcaf5c66e188fe2ffbcd9b24d0c6df74ccd4d161",
+      "bytes": 53874
+    },
+    {
+      "old": "设计/v2/截图/A-settings-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-dark-1440.png",
+      "sha256": "379cac4745accccc97335d24a87abd61951b2df70780d1671c978c4d55646de0",
+      "bytes": 54991
+    },
+    {
+      "old": "设计/v2/截图/A-settings-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-light-1024.png",
+      "sha256": "9b176fbab43d4e7f6b99950af4528a9134ca7584969828fdb2d09fa6f5834287",
+      "bytes": 47160
+    },
+    {
+      "old": "设计/v2/截图/A-settings-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-light-1280.png",
+      "sha256": "87ea666657c512aeae5a1148719a012e12c7ffd079a09864a1cb751fa0d6daae",
+      "bytes": 52249
+    },
+    {
+      "old": "设计/v2/截图/A-settings-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-settings-light-1440.png",
+      "sha256": "43ae0e099183046447e3f5df84dbaf9420526e8b11769e5eefee0fffdfcb75dd",
+      "bytes": 54231
+    },
+    {
+      "old": "设计/v2/截图/A-亮暗对照.png",
+      "new": "archive/evidence/v2-iterations/screenshots/A-theme-comparison.png",
+      "sha256": "fbe51a9ce5a206f80cb051ee472a3e3f8696c14ea04bc69abdc2341b10527131",
+      "bytes": 295809
+    },
+    {
+      "old": "设计/v2/截图/Agent-浅色.png",
+      "new": "archive/evidence/v2-iterations/screenshots/Agent-light.png",
+      "sha256": "5c1c8a436676eab1724f4818351dd029b426b0d5b41b0dfba8ff89e8731d3134",
+      "bytes": 54347
+    },
+    {
+      "old": "设计/v2/截图/Agent-深色.png",
+      "new": "archive/evidence/v2-iterations/screenshots/Agent-dark.png",
+      "sha256": "4362ccfaf2f571a5aa48a257bcc6e45786c80d86e00d8efdedcec3698cc11c66",
+      "bytes": 54371
+    },
+    {
+      "old": "设计/v2/截图/AI日报-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ai-daily-dark-1024.png",
+      "sha256": "5031d8ed50079642f4e07ac9a47a9e9ec5026921f3e468dd7b5cf4234ffd412c",
+      "bytes": 56017
+    },
+    {
+      "old": "设计/v2/截图/AI日报-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ai-daily-dark-1440.png",
+      "sha256": "ae06e3bfe30fd25707a3fc9f4b1f3c44677886fcb1d50f6bcd670206e5aa0c4b",
+      "bytes": 77870
+    },
+    {
+      "old": "设计/v2/截图/AI日报-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ai-daily-light-1024.png",
+      "sha256": "93a5c0ae571f1ec5aa9fbd64810f87cd445992cf2d86ddc0d202349422bc5251",
+      "bytes": 56103
+    },
+    {
+      "old": "设计/v2/截图/AI日报-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ai-daily-light-1440.png",
+      "sha256": "bbd98ac47611f7b1340a7c50196c321e1a2f1e8da51d983e095de9767952e352",
+      "bytes": 78370
+    },
+    {
+      "old": "设计/v2/截图/B-agent-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-dark-1024.png",
+      "sha256": "ce31a6bb95526d0d3960e0585048a51d3ec1bcc0f5667cb84c76c613e03f04b2",
+      "bytes": 46671
+    },
+    {
+      "old": "设计/v2/截图/B-agent-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-dark-1280.png",
+      "sha256": "1ed910b0f5ddc66290fd520abfa080b3e21c42bb32baf1f089226949c4c8d5d8",
+      "bytes": 52912
+    },
+    {
+      "old": "设计/v2/截图/B-agent-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-dark-1440.png",
+      "sha256": "2e746697ac038032d140e75262033fedd406125666f76efae4d76b1eeff63384",
+      "bytes": 54586
+    },
+    {
+      "old": "设计/v2/截图/B-agent-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-light-1024.png",
+      "sha256": "fe5d616b8b2a88d701a2b47f78e440f2b152c7148a12a3724b69e39ae3555670",
+      "bytes": 45598
+    },
+    {
+      "old": "设计/v2/截图/B-agent-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-light-1280.png",
+      "sha256": "999922ecf56deb2aa590a058c10b79fbcadcc9889b20481570af425720770e91",
+      "bytes": 51672
+    },
+    {
+      "old": "设计/v2/截图/B-agent-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-agent-light-1440.png",
+      "sha256": "61d71ee1be07a9d73efd9318c256dbd95eab55b846785c1d181d20a8f0c2bafc",
+      "bytes": 53748
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-dark-1024.png",
+      "sha256": "1c98474a58ef938b0e429474293f99e04909c112d6d43fcf73213fe200077994",
+      "bytes": 58097
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-dark-1280.png",
+      "sha256": "9703afe2b13e931e45e2d6e01812275b17101c0d2fe6954d8cedef62e8d12e14",
+      "bytes": 65432
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-dark-1440.png",
+      "sha256": "7974835a617ce079b900920d8ce08fb48f3593ce26dc44ea00becab4806bc24e",
+      "bytes": 69809
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-light-1024.png",
+      "sha256": "e00fcef8dbd0251c269bb7fd5f33e07e22d9b2ccac6d8e08e61e37c2fcc97690",
+      "bytes": 57273
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-light-1280.png",
+      "sha256": "ba5508fa90df95c70d469956ba11927f65ec8ccf7d2f6790c46edf6d4bdedf12",
+      "bytes": 64636
+    },
+    {
+      "old": "设计/v2/截图/B-conversation-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-conversation-light-1440.png",
+      "sha256": "60d1ae27ba954459ad3f16f8eb8a13dec5152b4db25b128b89204ced202ad705",
+      "bytes": 69580
+    },
+    {
+      "old": "设计/v2/截图/B-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-dark-1024.png",
+      "sha256": "0ff477526f03209b9fdbaa0acdf680c13221da0a71742d1a7c7de276fa94ad10",
+      "bytes": 64366
+    },
+    {
+      "old": "设计/v2/截图/B-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-dark-1280.png",
+      "sha256": "4c5f5ec166525924fb35f681618746ef58747774dcee2ef9f01e971d3cb8092f",
+      "bytes": 104814
+    },
+    {
+      "old": "设计/v2/截图/B-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-dark-1440.png",
+      "sha256": "7701d11609d8b1946a98c5accfb3069a82bc3ef60709c2dee09cacf231919d84",
+      "bytes": 107262
+    },
+    {
+      "old": "设计/v2/截图/B-dark-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-dark-review.png",
+      "sha256": "340d424ed6a458e37e5f404fa93ff08cfcf193fe8d0166b790310b281e8511c2",
+      "bytes": 60715
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-dark-1024.png",
+      "sha256": "132b1ee2f3932b27a6b5fc885358769a3c4ad3307421c947a0c5b1fc545bf33d",
+      "bytes": 87836
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-dark-1280.png",
+      "sha256": "64190d88a9115ab189df3436a14018e9baf4c965512cd82d734195aeec23ceb7",
+      "bytes": 91060
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-dark-1440.png",
+      "sha256": "f8abe120125bb6512c666eb395de17861adbeee008cf661d275d6b924f95eeaa",
+      "bytes": 94745
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-light-1024.png",
+      "sha256": "54e31bac8941b3d29dbf5976823fed6f7c5decdda197266f2755c2b02a1d0e37",
+      "bytes": 84847
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-light-1280.png",
+      "sha256": "851073207cc54449c481711cae38e8609778eef08547debece1733e54a73756c",
+      "bytes": 87409
+    },
+    {
+      "old": "设计/v2/截图/B-ideas-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-ideas-light-1440.png",
+      "sha256": "c311e72863bcd96c283d700e36c4ce5c0ba5dd75cf911c21d4785a941562b2ce",
+      "bytes": 91828
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-dark-1024.png",
+      "sha256": "cbf959f0f35395c1dc79fe257b2ff3c4b8ed89866561ac1c43eb77d5cd12e88c",
+      "bytes": 45006
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-dark-1280.png",
+      "sha256": "4e14aa4fb18399d62c2e6b03b43b8878027b6c209f2b743abae533eedefe4643",
+      "bytes": 50500
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-dark-1440.png",
+      "sha256": "7d41d16395e7eca6ef585f56313c6186990b77118c7fef5e28b9e17f46b141cc",
+      "bytes": 52667
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-light-1024.png",
+      "sha256": "088c1e5ae5f91c6df273a025c6de99f3a13c67df5d4a30ccd3b310d86db9dbf8",
+      "bytes": 44309
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-light-1280.png",
+      "sha256": "90cebf7ea833a47e14b58433e7057d669a2f983f436be7ecd35eec095c2d6761",
+      "bytes": 49672
+    },
+    {
+      "old": "设计/v2/截图/B-jobs-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-jobs-light-1440.png",
+      "sha256": "d88bc2a52927f382e2fdfc437e42e2efcd2de3e6252d94b85044c165b0587bc4",
+      "bytes": 52078
+    },
+    {
+      "old": "设计/v2/截图/B-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-light-1024.png",
+      "sha256": "124bf124d1620310f4369311ae55e872e4ed6ad335d7624caaa4658628956f48",
+      "bytes": 64092
+    },
+    {
+      "old": "设计/v2/截图/B-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-light-1280.png",
+      "sha256": "64e4236f2d5016c33589b3e7140706394b3c6ef2048a926b5c7e3816dd8b017a",
+      "bytes": 104262
+    },
+    {
+      "old": "设计/v2/截图/B-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-light-1440.png",
+      "sha256": "6d7ce167655837f44b03edc3b45ff14fede6911b344faf50bfc1d5246cb72e73",
+      "bytes": 106884
+    },
+    {
+      "old": "设计/v2/截图/B-light-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-light-review.png",
+      "sha256": "6deada1d13fc09cbc512e4fc645c8c7a3cc34a24b21b85bc43c2a0f00ae464c4",
+      "bytes": 60360
+    },
+    {
+      "old": "设计/v2/截图/B-news-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-dark-1024.png",
+      "sha256": "9a71ff8cdf0dba511bee1a0ba8b799e45ada60f39f0bde6d7e815ec9116a8e15",
+      "bytes": 265975
+    },
+    {
+      "old": "设计/v2/截图/B-news-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-dark-1280.png",
+      "sha256": "b912ed540725c2a252d68369a6fbd795064c223e1258496a9b0edce9426b1c5a",
+      "bytes": 274605
+    },
+    {
+      "old": "设计/v2/截图/B-news-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-dark-1440.png",
+      "sha256": "3b0ccf76d1f13b9c6e3a497120ed6a0ca1b2ab55e4adb54c3c0933213dbfb335",
+      "bytes": 277604
+    },
+    {
+      "old": "设计/v2/截图/B-news-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-light-1024.png",
+      "sha256": "9878513b0dfce222ef15ff80e04486fd480df9d0f6df28e6a76b3830a0ce0c93",
+      "bytes": 263183
+    },
+    {
+      "old": "设计/v2/截图/B-news-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-light-1280.png",
+      "sha256": "632266e059b425846f21b3e043ebb2f30a60e33d547e75e070318643e9640ef8",
+      "bytes": 271937
+    },
+    {
+      "old": "设计/v2/截图/B-news-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-news-light-1440.png",
+      "sha256": "403f6e8d62f39dafd27779e5d3503f1e3d89f093f13eca85f236d3db246a2712",
+      "bytes": 274218
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-dark-1024.png",
+      "sha256": "764aa746cb25ed54b4659399c6cb5467f34bb000ed234273a24fdeeeae77f0d9",
+      "bytes": 52873
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-dark-1280.png",
+      "sha256": "879d0b2c23184b275537d017632823ce7f49ab3bad2ee4cc13241f07aa7795fe",
+      "bytes": 58446
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-dark-1440.png",
+      "sha256": "0a52dca9c75781b520d74bd0eac7786aa60c89602ffffe101c750a5fe3523ebb",
+      "bytes": 59986
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-light-1024.png",
+      "sha256": "98766cf8e943225ed7a487ca0c7fe4d0d05b5926d0236d78e4d15dbddc9992f5",
+      "bytes": 51807
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-light-1280.png",
+      "sha256": "6a3b39a153b087aab88fbae1710db1bee92598426ab58116807adee94eb8b932",
+      "bytes": 57278
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-deliveries-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-deliveries-light-1440.png",
+      "sha256": "0eace87b2fe344e6d95e95b7db3dc9c604e362662c0fee36f3a2dc3a7897d78e",
+      "bytes": 58950
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-dark-1024.png",
+      "sha256": "a656968de32e57244c2a638d679d70230dad1834a8352736682985574cc27ee3",
+      "bytes": 35171
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-dark-1280.png",
+      "sha256": "fd79aa9ff4c0762b8340ee9dd21634936c851f211edc607f9eb9e2a27a8b278d",
+      "bytes": 40759
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-dark-1440.png",
+      "sha256": "ade65b5a6a1efc013f1970e9a97c55bef00d121e3a43d26b5ea413016b49cd8b",
+      "bytes": 42420
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-light-1024.png",
+      "sha256": "e6322cc0a49aba28bb52e77bf4dcbf2849c4feb72f85c9256e92a598b8ee934b",
+      "bytes": 34558
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-light-1280.png",
+      "sha256": "4d8684aabec8f16318fed50437921678ac445364b54c5357815128e1917250ca",
+      "bytes": 40008
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-materials-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-materials-light-1440.png",
+      "sha256": "471381dbdf44eb83080c10d0d746b6055ad80c8591ff23e36f3e6a4f9abb2811",
+      "bytes": 41771
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-dark-1024.png",
+      "sha256": "e6f647778db8c625e3832025063ff67a4d0eb68e75bd959d31d209f0613bba02",
+      "bytes": 63619
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-dark-1280.png",
+      "sha256": "2c1ccc4daac4e2290604c0b4c77e3c6a4fdab075f3ed32b518b4d56bc4a1fd13",
+      "bytes": 67542
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-dark-1440.png",
+      "sha256": "6718f50806930fa04674aabf74e8c58d65242cc1493a30ff45dc671beba0ba54",
+      "bytes": 69574
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-light-1024.png",
+      "sha256": "e74213c991b7639b41fc724bde49b47b94841eeeac18aa2d32aa744465044636",
+      "bytes": 63006
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-light-1280.png",
+      "sha256": "69ed0b3831c3cac88c453e96c1af3764cb1500de4d54384f271b8f40adb4601b",
+      "bytes": 66812
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-overview-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-overview-light-1440.png",
+      "sha256": "80eecf0e5dbf9a3d6bc134008362b2490ecdbd4458ce03faf91c75e4a833266b",
+      "bytes": 68895
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-dark-1024.png",
+      "sha256": "0e04fab7982b00cd080102c4c8f744d5425303890f6d22658aa2dfd11468e64f",
+      "bytes": 44489
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-dark-1280.png",
+      "sha256": "ab286d77f44fc3b62cd275b13e88f911569fc664b93037715bf8bd5aa097a73d",
+      "bytes": 50864
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-dark-1440.png",
+      "sha256": "c371971ea513a348607d89c803bf9abfa7dfd2f787627dac69e0ef4ee76385e1",
+      "bytes": 52804
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-light-1024.png",
+      "sha256": "9840f9f4cef483bab110d48d71cd2c9fa69728362355d29d1643991871ab3fa0",
+      "bytes": 43845
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-light-1280.png",
+      "sha256": "9894ca10294c5aca1a868b1b08c254f463ea3290872dd840291112861f438e67",
+      "bytes": 49953
+    },
+    {
+      "old": "设计/v2/截图/B-project-film-work-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-film-work-light-1440.png",
+      "sha256": "638ab23d1c6f984335cb35c8876af12471bb68ac82e797733c0e49e2e88abf8d",
+      "bytes": 52027
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-dark-1024.png",
+      "sha256": "04212d03c8d0c848220b2b7b3366a9b618ffd59ca4b8ea98fa14b78e2b4ddff4",
+      "bytes": 68058
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-dark-1280.png",
+      "sha256": "512f7676858500ffd03cff5a76908f7396b9e2fe6ac88c2c72f68adab8e22b9d",
+      "bytes": 69800
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-dark-1440.png",
+      "sha256": "f78d564508ecf51d38de41d1d7e0d8fb93bcc0b6c66f75db95ebefa13de6f519",
+      "bytes": 71656
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-light-1024.png",
+      "sha256": "642356c1529ec0668976c97f7cad63c6df825f4fd6770d04b3fbf8c0a4190596",
+      "bytes": 67134
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-light-1280.png",
+      "sha256": "d14233511eeb32074e13f7b0e9514faf1980401867e4a2bc97d900ea9fd4e0af",
+      "bytes": 68722
+    },
+    {
+      "old": "设计/v2/截图/B-project-shot-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-project-shot-light-1440.png",
+      "sha256": "0ad3a94f3fa6062fa227f5a1c42cfed97afc6d25f0e206b81369d834879f71ed",
+      "bytes": 70691
+    },
+    {
+      "old": "设计/v2/截图/B-projects-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-dark-1024.png",
+      "sha256": "5738e3820c7e6c439ca3afc83b0accf0a17065d5677cb8b63c46859b0079ae4e",
+      "bytes": 51530
+    },
+    {
+      "old": "设计/v2/截图/B-projects-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-dark-1280.png",
+      "sha256": "734ba208840dc3cdeed2f9d75d725dea56fd2952e3d2dc2ce013c0acd719262c",
+      "bytes": 57241
+    },
+    {
+      "old": "设计/v2/截图/B-projects-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-dark-1440.png",
+      "sha256": "a0df877784c721d75f3ecbb01ec4ad56ddf97b4547968f068e5673672be3fcbd",
+      "bytes": 59215
+    },
+    {
+      "old": "设计/v2/截图/B-projects-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-light-1024.png",
+      "sha256": "364080ea2819a3f5d294d0b670be56fcb05d62a85ba2aafba7ef9da5d4036efa",
+      "bytes": 50714
+    },
+    {
+      "old": "设计/v2/截图/B-projects-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-light-1280.png",
+      "sha256": "38c098955818bf6fe04204e580b75a5ac8c33e70b8b58309ec41beae58effd2f",
+      "bytes": 56118
+    },
+    {
+      "old": "设计/v2/截图/B-projects-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-projects-light-1440.png",
+      "sha256": "f32c6fc433db36da0b151e7b10de4da1d56f0f144a1bf0cf0885a503c711efa7",
+      "bytes": 58298
+    },
+    {
+      "old": "设计/v2/截图/B-research-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-dark-1024.png",
+      "sha256": "61d2f957d8855087e0f4028ff664cf105d2dffd826b9a6ce2cf949c9967fdd9b",
+      "bytes": 36155
+    },
+    {
+      "old": "设计/v2/截图/B-research-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-dark-1280.png",
+      "sha256": "9d10b46cf844bc46f2ebbec8fd5e1e6cc0b6ef842584c45cfde66e4858ad6be4",
+      "bytes": 41564
+    },
+    {
+      "old": "设计/v2/截图/B-research-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-dark-1440.png",
+      "sha256": "44814b9ec1992481283c5bac699a9548424e6c69782116a02144a7605d183b83",
+      "bytes": 43626
+    },
+    {
+      "old": "设计/v2/截图/B-research-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-light-1024.png",
+      "sha256": "96cdd43fb6cbeb88b2a7da363b3a66cf18d9f6e925af964a4a5800a153006650",
+      "bytes": 35288
+    },
+    {
+      "old": "设计/v2/截图/B-research-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-light-1280.png",
+      "sha256": "d888563217b055ec9c3e03b5c7bf01f31ac2e0f3c6e6ad89973c2ef070fa48b7",
+      "bytes": 40606
+    },
+    {
+      "old": "设计/v2/截图/B-research-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-research-light-1440.png",
+      "sha256": "0df2f3ad685e02a6545ad43f7f0109df79064558a92071278c794d2b41261712",
+      "bytes": 42803
+    },
+    {
+      "old": "设计/v2/截图/B-settings-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-dark-1024.png",
+      "sha256": "b81dbed8ead9e9f72f36e41d3e34447fdef5d04a4bd132430d63f6aaae3a70a0",
+      "bytes": 48395
+    },
+    {
+      "old": "设计/v2/截图/B-settings-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-dark-1280.png",
+      "sha256": "e29e83564a5b296c851a108b2371448253f40f48c5e1b5c5bf74bf63244ceaad",
+      "bytes": 53683
+    },
+    {
+      "old": "设计/v2/截图/B-settings-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-dark-1440.png",
+      "sha256": "6a4165fdbc16cfbeacefb3d66615cd3b22051b36f640ff914f444dd990ad93ee",
+      "bytes": 55071
+    },
+    {
+      "old": "设计/v2/截图/B-settings-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-light-1024.png",
+      "sha256": "2c5b83414a13f20001266fe440f2354671bf56f3989843959ad8068870155e78",
+      "bytes": 47005
+    },
+    {
+      "old": "设计/v2/截图/B-settings-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-light-1280.png",
+      "sha256": "1abd04ba9c8c239b0d5cab67e273d7fa52f87e5f60feac96619672200fa65fa7",
+      "bytes": 52386
+    },
+    {
+      "old": "设计/v2/截图/B-settings-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-settings-light-1440.png",
+      "sha256": "7a8609f87e9a38888ad548874a294af1c3ceecc9b949741c50d18f7da6bd7478",
+      "bytes": 54304
+    },
+    {
+      "old": "设计/v2/截图/B-亮暗对照.png",
+      "new": "archive/evidence/v2-iterations/screenshots/B-theme-comparison.png",
+      "sha256": "56173c576ea5505214706cc4de8c18103e332f933da806c0be0fec28615d6885",
+      "bytes": 367959
+    },
+    {
+      "old": "设计/v2/截图/C-agent-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-dark-1024.png",
+      "sha256": "a7c90a31798b82de5d2dd65b282f5d4667493381a9aa44e76dce89b31f83715a",
+      "bytes": 46479
+    },
+    {
+      "old": "设计/v2/截图/C-agent-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-dark-1280.png",
+      "sha256": "ed9481a7c985af5b58b8562e2ee7da340a2a11cd71427a0a05f0cf7624c50407",
+      "bytes": 52698
+    },
+    {
+      "old": "设计/v2/截图/C-agent-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-dark-1440.png",
+      "sha256": "13a493a7c6e429ae6e044b870f96ba144914a779649399e9e5a7368262541a74",
+      "bytes": 54359
+    },
+    {
+      "old": "设计/v2/截图/C-agent-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-light-1024.png",
+      "sha256": "823e6d0abb1015c8871129208945f9c4b64a04883b6fd1613c441105bcfbb787",
+      "bytes": 45390
+    },
+    {
+      "old": "设计/v2/截图/C-agent-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-light-1280.png",
+      "sha256": "5045533ff128c71a5cb51ae8f333cf385c53cba56f0fe270b68889e569d26f96",
+      "bytes": 51464
+    },
+    {
+      "old": "设计/v2/截图/C-agent-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-agent-light-1440.png",
+      "sha256": "974a194ff4add0180efc87b930472255701de7c3b68f5652654f76f2427358ba",
+      "bytes": 53529
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-dark-1024.png",
+      "sha256": "76ebd5bd9e1497752c40e4741187b2d14386fe49c8776ca5d316d1b2f989c233",
+      "bytes": 57895
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-dark-1280.png",
+      "sha256": "7e2c492f92880d24e82d83e35860a8aa675d0f7dfe89aeccd210887f20aae666",
+      "bytes": 65232
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-dark-1440.png",
+      "sha256": "cdd2a1bd396a877958a852248e6024935dfed9de1c25defed0f155f11c772d9b",
+      "bytes": 69587
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-light-1024.png",
+      "sha256": "bff0c64985b835d467ebf143563ea982e7a862a258fcac35f650eadfaaf8d4c0",
+      "bytes": 57065
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-light-1280.png",
+      "sha256": "31a7b478b417e0877818c843d04789617dd3cffbc15245e36d8ab5f7d9e7afb8",
+      "bytes": 64445
+    },
+    {
+      "old": "设计/v2/截图/C-conversation-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-conversation-light-1440.png",
+      "sha256": "ef822e6e8a21f6e1df1011806fa5330453681c432dd867dfef2faa7f34664d36",
+      "bytes": 69361
+    },
+    {
+      "old": "设计/v2/截图/C-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-dark-1024.png",
+      "sha256": "9e9997a1a5dba44e492413be6051e3c04ab46c0ca1ade37effa410d3a8d2dd23",
+      "bytes": 80118
+    },
+    {
+      "old": "设计/v2/截图/C-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-dark-1280.png",
+      "sha256": "39a0be592773f6131923ea3996452b310973a89face88dd654f9c8aa94d08f90",
+      "bytes": 76466
+    },
+    {
+      "old": "设计/v2/截图/C-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-dark-1440.png",
+      "sha256": "e94a591bda49e3354e7486d028d0024d5b2ff4a03d49408a2a7875158c787e52",
+      "bytes": 79174
+    },
+    {
+      "old": "设计/v2/截图/C-dark-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-dark-review.png",
+      "sha256": "7658236d4fb11e7fc9c21dc0efe302786e94100e96039da17febd5cadf5170b1",
+      "bytes": 60637
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-dark-1024.png",
+      "sha256": "bb049fb4a0fc9e4908f2b6cd2d87ce0eb3c2d2dcf05e08eeaa4c1711e80ac658",
+      "bytes": 87357
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-dark-1280.png",
+      "sha256": "8f94c297ff7ddc56d23f7f80b0640f6dd09e7c92ce8b059cb94b297368838882",
+      "bytes": 90466
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-dark-1440.png",
+      "sha256": "c573205cf8a1ed1a87621943926b80d9839a296dc66b484e497ab22cff8cf016",
+      "bytes": 94935
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-light-1024.png",
+      "sha256": "88d27e7a1d5431ffc87190d617d81240863501470461f70a651ccb2f9007d6a9",
+      "bytes": 84767
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-light-1280.png",
+      "sha256": "cead3b9934984270ddf2b59bab4c88c76f7454ce0847784142964f0fd84d95ef",
+      "bytes": 86801
+    },
+    {
+      "old": "设计/v2/截图/C-ideas-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-ideas-light-1440.png",
+      "sha256": "bb6dcd4ebd41ca6ac6bda36995dce76d05c59650069291f4db66478b17697f85",
+      "bytes": 91586
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-dark-1024.png",
+      "sha256": "1a9175e54a2b1dc034b42d7bee7c5b59b3d599a58b69773d7f770286eae1f931",
+      "bytes": 44933
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-dark-1280.png",
+      "sha256": "30babd69a83a4b048d2edecc0a6a312ce2ef734a90e9d9fa97f034d6868a9bf9",
+      "bytes": 49862
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-dark-1440.png",
+      "sha256": "89fb85b367f296fe2a05747fd1f0b9c907b4d1b1b89d803e34a374b1fb961bf1",
+      "bytes": 51948
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-light-1024.png",
+      "sha256": "e7c100b9da64e70a238053b8a7bd4e7017cf453779d56ab4be5f44298d08b3d0",
+      "bytes": 44257
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-light-1280.png",
+      "sha256": "44316335e6ab9f9a191a59e5d42ee3d2801e336f36a566997ab5e86d17306266",
+      "bytes": 49197
+    },
+    {
+      "old": "设计/v2/截图/C-jobs-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-jobs-light-1440.png",
+      "sha256": "48d119be6782ab69dcd5eced2c8817cf5fe6ab7cba10825c56efed04fcdf71bf",
+      "bytes": 51544
+    },
+    {
+      "old": "设计/v2/截图/C-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-light-1024.png",
+      "sha256": "a4b75e68dd078fcba388569164425296edb203e3cd86c8ae72da54bb6f14b55b",
+      "bytes": 79461
+    },
+    {
+      "old": "设计/v2/截图/C-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-light-1280.png",
+      "sha256": "9afdbb944476da31a3ab1675658639a7c9d754cb98986a49ff89ac45d0b38c7f",
+      "bytes": 75689
+    },
+    {
+      "old": "设计/v2/截图/C-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-light-1440.png",
+      "sha256": "71f30daa1eb8c5058bd6d0a29d53666baf0fbc671bfef7d99c55e9d39356b163",
+      "bytes": 78602
+    },
+    {
+      "old": "设计/v2/截图/C-light-review.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-light-review.png",
+      "sha256": "da6b97ed1e075625966352c286b0dbfeac9518d63b4fe790cfb081b29d28174e",
+      "bytes": 60251
+    },
+    {
+      "old": "设计/v2/截图/C-news-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-dark-1024.png",
+      "sha256": "6d54beb1e82307ffdf39d890238d533bacb538e4e435a06dd294313dc73363ef",
+      "bytes": 265761
+    },
+    {
+      "old": "设计/v2/截图/C-news-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-dark-1280.png",
+      "sha256": "e0650d08a18e7658a41659542236f9affa0a0cd618a5cca86501d025b02a615f",
+      "bytes": 274415
+    },
+    {
+      "old": "设计/v2/截图/C-news-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-dark-1440.png",
+      "sha256": "ae881eb0c10239d227eb385aa3c8f441297bf9200b2af62186de9178d8b203f7",
+      "bytes": 277384
+    },
+    {
+      "old": "设计/v2/截图/C-news-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-light-1024.png",
+      "sha256": "7f4543dd11d5aa6573cf9be4159a7aa7fb2c24e7b04908861253596ff8bb6158",
+      "bytes": 262949
+    },
+    {
+      "old": "设计/v2/截图/C-news-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-light-1280.png",
+      "sha256": "251395af45eb4e9191cacc0a81fff4d493ef17672f4f4dc837149946a56d6ad6",
+      "bytes": 271735
+    },
+    {
+      "old": "设计/v2/截图/C-news-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-news-light-1440.png",
+      "sha256": "238bb81495f2fd2f841d26af49c493aaa8fbecaab82f57880e7e0346a75794b7",
+      "bytes": 273973
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-dark-1024.png",
+      "sha256": "65dde9c5b8b7e4de92ee295636c3497df3c0b171fff34bd3e8aa8065a4583f90",
+      "bytes": 52666
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-dark-1280.png",
+      "sha256": "8e9663bc36ed0a95cd4e022ccaebaf3b6e0a09f4cdbf9b88951a9ec5b5ecc046",
+      "bytes": 58326
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-dark-1440.png",
+      "sha256": "2006ca01b7ff55885470da5a90499592f61ac6cbacffcc81b3fb4163d089b78d",
+      "bytes": 59700
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-light-1024.png",
+      "sha256": "074e139cf365181c95cd343a9e637785e9d7d01667d695473a1dd437f65bb118",
+      "bytes": 51541
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-light-1280.png",
+      "sha256": "2d75aa2145a1dad2a95e599b9b3d620c64206d85aaf83a514e7789486ff80116",
+      "bytes": 57065
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-deliveries-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-deliveries-light-1440.png",
+      "sha256": "00b24eb3afdf1c12ba9e9f6572a78f183c4dd13566baadf6fce7af1cbb83ef07",
+      "bytes": 58781
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-dark-1024.png",
+      "sha256": "053f38bfe0306ef8d38a75a8be5f19fc8df4858f459a31e2eb572fcb388ad895",
+      "bytes": 34917
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-dark-1280.png",
+      "sha256": "2d2a78fd94d700408d88e24410b0c86960e096c0711c32cfac9011916a00d898",
+      "bytes": 40678
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-dark-1440.png",
+      "sha256": "28ea0b67c719c37313b8ef0bf54c99b92936240567cbadee49169723691b5c9c",
+      "bytes": 42263
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-light-1024.png",
+      "sha256": "06bc37553847d89ffc4035f25de4516796ec36a062fac33085c9f74166214dc9",
+      "bytes": 34298
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-light-1280.png",
+      "sha256": "c33c9c5b959d37a33ada12e83519b6e13f56df66cb686f7050aedff7e4caebb2",
+      "bytes": 39789
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-materials-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-materials-light-1440.png",
+      "sha256": "323f814f716f0e6ada7bf5fcd465202b8b7d3846a5e9ced4ee84553c5309cc2c",
+      "bytes": 41507
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-dark-1024.png",
+      "sha256": "d4c74f9b806c4d58a7f4c294f57a57c1359b4cbc3874cb6905853c33234fe034",
+      "bytes": 63401
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-dark-1280.png",
+      "sha256": "0b2571b839dc7b4159dd2f6a5797f8315f02c5641aa7e68cc5d86926b108c591",
+      "bytes": 67229
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-dark-1440.png",
+      "sha256": "f3367bc1976d7959702eeb3ce4aa29be121b979908e05dee14ef66932ee8a828",
+      "bytes": 69114
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-light-1024.png",
+      "sha256": "4c240825d728f1d8e3941b56290cb621902b0e0edf6d1db78f9a49fbbf769674",
+      "bytes": 62678
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-light-1280.png",
+      "sha256": "6caf655cb8dec42da93a98de053853ffda5b57f5a223ce0d63cb91d3e95aee2c",
+      "bytes": 66431
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-overview-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-overview-light-1440.png",
+      "sha256": "e4cf2ae78964511ee335daeca25937cfb7e818fd66136fc7171b73fb4ec1be84",
+      "bytes": 68433
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-dark-1024.png",
+      "sha256": "ced0b78f870ebd712246bb5b80bd208a1abb26de3bb2672e6fe07a9bd7384a24",
+      "bytes": 44239
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-dark-1280.png",
+      "sha256": "cef167ccfc71710a125e94e9fc57b22f76d834517a5ec9c1067f6e0a3c27f813",
+      "bytes": 50518
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-dark-1440.png",
+      "sha256": "f56e8b770c343c816ee7223eeacba9799afa2b0b2ac27e47de6bbd31b35f76e2",
+      "bytes": 52420
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-light-1024.png",
+      "sha256": "72c2375ee4d5fa3678ac053c4759db46a56a21406f317260c02e52e2a18eb344",
+      "bytes": 43571
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-light-1280.png",
+      "sha256": "cd3d6a523112bcfe0b91d16a4a98bd161098c03dcc20e259f8ca4dcba5a97949",
+      "bytes": 49460
+    },
+    {
+      "old": "设计/v2/截图/C-project-film-work-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-film-work-light-1440.png",
+      "sha256": "f8f83061b55849bfe5857c6a7cbbe627c1a86f65450a2e0ed581b26c63cd5be9",
+      "bytes": 51536
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-dark-1024.png",
+      "sha256": "ddfe96872da8492258589914a95338047c5e53cfa7af3c99d1ecf7960da7a898",
+      "bytes": 67610
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-dark-1280.png",
+      "sha256": "296fc27a65cee377ece9bb76d82480d8b90af61571ce1dc7fe40fa3ded6b2651",
+      "bytes": 69649
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-dark-1440.png",
+      "sha256": "691ed51a9f9935381c1570fe0440ee881592b9505f87758d8495bf87786cc763",
+      "bytes": 71515
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-light-1024.png",
+      "sha256": "18e12795329c7539d3127f218413fd2085d5a47bd137d575e30c40d9ccc2000e",
+      "bytes": 66833
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-light-1280.png",
+      "sha256": "ba3d519ddacde7a32d4b7cf7994978394ff4834f661bd74ab4f4e551cb85c862",
+      "bytes": 68543
+    },
+    {
+      "old": "设计/v2/截图/C-project-shot-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-project-shot-light-1440.png",
+      "sha256": "b4c6c2c29a0f5a9992bfe874b2cd6ce4336a5187752e168a8ed818bd4208cd08",
+      "bytes": 70570
+    },
+    {
+      "old": "设计/v2/截图/C-projects-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-dark-1024.png",
+      "sha256": "80f137bb8b5dd81024cc6b9bd4fbe9eb50942295690e28b0a0719fe3a874fad8",
+      "bytes": 51349
+    },
+    {
+      "old": "设计/v2/截图/C-projects-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-dark-1280.png",
+      "sha256": "982139c1562e47a779b909a0e2d019719b80c693106b5ad847397e9975e2ea07",
+      "bytes": 56891
+    },
+    {
+      "old": "设计/v2/截图/C-projects-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-dark-1440.png",
+      "sha256": "692252fa761143ef650ff6e781752d2ec0d7463c033fdae600312c2a6076eec3",
+      "bytes": 58841
+    },
+    {
+      "old": "设计/v2/截图/C-projects-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-light-1024.png",
+      "sha256": "e32af35fb5bc24fa5763055e0d863bc2321bc1d56c0a861125070a9ba677161c",
+      "bytes": 50443
+    },
+    {
+      "old": "设计/v2/截图/C-projects-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-light-1280.png",
+      "sha256": "d8227a801563728d4aa1d18614210aae7886c8e902ce69df1cd3e0000d3f9b41",
+      "bytes": 56005
+    },
+    {
+      "old": "设计/v2/截图/C-projects-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-projects-light-1440.png",
+      "sha256": "7c846814c0a746dbee489a4975f15feebc3546ea8be8818cc64f6c58e20fd9b8",
+      "bytes": 58156
+    },
+    {
+      "old": "设计/v2/截图/C-research-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-dark-1024.png",
+      "sha256": "f37a083871c25860b0261d904eaf72fead6ddb7ec41d16832c3cf8341a26981a",
+      "bytes": 35956
+    },
+    {
+      "old": "设计/v2/截图/C-research-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-dark-1280.png",
+      "sha256": "1b4da79358ecd252a0cc99a3657976f2b6d8ee889892dd8202ca12ab4e7725a5",
+      "bytes": 41296
+    },
+    {
+      "old": "设计/v2/截图/C-research-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-dark-1440.png",
+      "sha256": "bfc404695b6a753e8e122f6575c3f330b0b5da0262f28255633f0f60ad9396aa",
+      "bytes": 43369
+    },
+    {
+      "old": "设计/v2/截图/C-research-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-light-1024.png",
+      "sha256": "b8459fe0be1db0b743c0d694c7b6a41a785106073d71993ef22f9ec3e41392f7",
+      "bytes": 35112
+    },
+    {
+      "old": "设计/v2/截图/C-research-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-light-1280.png",
+      "sha256": "c5c91455e0a1f4c64bdec64f67a295bacc3ac4d50427c8f10483a538f71349d7",
+      "bytes": 40341
+    },
+    {
+      "old": "设计/v2/截图/C-research-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-research-light-1440.png",
+      "sha256": "dc33df65c70b10e516c799fc3fefa1f83f8a719255df0320d62f5b6c99e9a805",
+      "bytes": 42540
+    },
+    {
+      "old": "设计/v2/截图/C-settings-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-dark-1024.png",
+      "sha256": "e28fbe263a04c6f1658eb45b765dd094e28a4f7fb6b28996b239f62151bca8de",
+      "bytes": 48497
+    },
+    {
+      "old": "设计/v2/截图/C-settings-dark-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-dark-1280.png",
+      "sha256": "effcef9107bffe5871a11dbf1c36a1537601ee7ad81c3fd8770ae3a66ed27c57",
+      "bytes": 53821
+    },
+    {
+      "old": "设计/v2/截图/C-settings-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-dark-1440.png",
+      "sha256": "dd88a206689b5c32126127f0b4f41188928297c9f7d011a5f8647f26a09426cd",
+      "bytes": 54918
+    },
+    {
+      "old": "设计/v2/截图/C-settings-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-light-1024.png",
+      "sha256": "6ec99be62738efc5dea7db2c379df593e4ee199f74f7912d11d3fcc2e48a7fca",
+      "bytes": 47150
+    },
+    {
+      "old": "设计/v2/截图/C-settings-light-1280.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-light-1280.png",
+      "sha256": "01de96e25ed0a10b12062dc0e90a3638c82e2a9a2a5fafeafd1fd16b24ed6afb",
+      "bytes": 52234
+    },
+    {
+      "old": "设计/v2/截图/C-settings-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-settings-light-1440.png",
+      "sha256": "0607e7fefe906373172a89a7f1697f573e44cc69abc265142e369a4f3371fba5",
+      "bytes": 54192
+    },
+    {
+      "old": "设计/v2/截图/C-亮暗对照.png",
+      "new": "archive/evidence/v2-iterations/screenshots/C-theme-comparison.png",
+      "sha256": "ed606132d3ca358d63915b317b7381bb842b67b0bf373123a2244455a851b271",
+      "bytes": 293844
+    },
+    {
+      "old": "设计/v2/截图/page-agent-conversation-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-agent-conversation-dark-1440.png",
+      "sha256": "f9ea7d33cf3ca78f10c149e2e1699acc8b4ddcf15074fed46cbb04e1c5488e51",
+      "bytes": 56120
+    },
+    {
+      "old": "设计/v2/截图/page-agent-conversation-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-agent-conversation-light-1440.png",
+      "sha256": "62508fca9f70d09cccf169f793fc69b19e0ab44de0eea2ff8cbf0e8dcdbf0d04",
+      "bytes": 56010
+    },
+    {
+      "old": "设计/v2/截图/page-agent-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-agent-dark-1440.png",
+      "sha256": "fb72be23a25cf08d57d19b33100c6d41ee98fa30c512099f60bee8f2ff551508",
+      "bytes": 42830
+    },
+    {
+      "old": "设计/v2/截图/page-agent-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-agent-light-1440.png",
+      "sha256": "d9702894fee8415301eaadf1a8b67295572527720c8f25d71db94be0a7206542",
+      "bytes": 42439
+    },
+    {
+      "old": "设计/v2/截图/page-ideas-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-ideas-dark-1440.png",
+      "sha256": "6ff3c6ef1fde31a103a1fd225f413171342c6c2cfcd5315150e1cc997dd557f6",
+      "bytes": 74067
+    },
+    {
+      "old": "设计/v2/截图/page-ideas-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-ideas-light-1440.png",
+      "sha256": "7e0016e9b4edd35fd5ed3f5f6c94134e5390bed5139ac6ff91fc2da1fe17ad05",
+      "bytes": 73052
+    },
+    {
+      "old": "设计/v2/截图/page-jobs-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-jobs-dark-1440.png",
+      "sha256": "16f77b22418bb7a839d8f8530463c466062e31413f50d95c356727ce46ec421b",
+      "bytes": 42358
+    },
+    {
+      "old": "设计/v2/截图/page-jobs-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-jobs-light-1440.png",
+      "sha256": "00ea2ed4839c237728e8a463b70569db1901d5a48e376e34b95198558f2aca9b",
+      "bytes": 42186
+    },
+    {
+      "old": "设计/v2/截图/page-news-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-news-dark-1440.png",
+      "sha256": "855e7a552af6b2795197da67128e6ee7c8953068c6bb82325ab5f023c59f121e",
+      "bytes": 55937
+    },
+    {
+      "old": "设计/v2/截图/page-news-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-news-light-1440.png",
+      "sha256": "0cc6ffcdc64ce469ad62006a58a654263ee67f25d08cc3078e1828c03641d812",
+      "bytes": 54992
+    },
+    {
+      "old": "设计/v2/截图/page-projects-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-projects-dark-1440.png",
+      "sha256": "0847a841e07ff96af488ce6aa555cee575aa9e824b0fa9b77c52e1b4be9c7f1b",
+      "bytes": 38403
+    },
+    {
+      "old": "设计/v2/截图/page-projects-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-projects-light-1440.png",
+      "sha256": "1df0945fbfff9a419ebd2d03410eb292f27b58bc55519f582438eed0773363be",
+      "bytes": 38035
+    },
+    {
+      "old": "设计/v2/截图/page-research-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-research-dark-1440.png",
+      "sha256": "9078847bc1ab84277b1052f12cbddf8f243b8b24d0ece72d73699accaacb702f",
+      "bytes": 32750
+    },
+    {
+      "old": "设计/v2/截图/page-research-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-research-light-1440.png",
+      "sha256": "9b2414a6f1e7dd612f0ac9430fc5ba5d04c37f9c8474b66cde1720fc09740222",
+      "bytes": 32073
+    },
+    {
+      "old": "设计/v2/截图/page-settings-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-settings-dark-1440.png",
+      "sha256": "4cf50357524a71f9bfcac0f26ace882a94bc90e2a04492cbedb14a0f5d2521b6",
+      "bytes": 44497
+    },
+    {
+      "old": "设计/v2/截图/page-settings-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/page-settings-light-1440.png",
+      "sha256": "d066bea6365e5230c21c3d017657d0062f265cecad119618d806e9d69260a0d6",
+      "bytes": 43967
+    },
+    {
+      "old": "设计/v2/截图/新闻正文-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-reader-dark-1024.png",
+      "sha256": "4949349356aba11887f07bfe2f0c189ea4eb5125d4f3be6dd5f0cd4d63b9f4bf",
+      "bytes": 74699
+    },
+    {
+      "old": "设计/v2/截图/新闻正文-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-reader-dark-1440.png",
+      "sha256": "76da6b3ef9d9d69541e05b5d9c6985538a945e8201e4fa7a3eaa623c48a1eeab",
+      "bytes": 140162
+    },
+    {
+      "old": "设计/v2/截图/新闻正文-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-reader-light-1024.png",
+      "sha256": "b224427078da2537bf3b5974b8818ffb83951044a97c9704d3a7352c0ed2c53d",
+      "bytes": 75648
+    },
+    {
+      "old": "设计/v2/截图/新闻正文-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-reader-light-1440.png",
+      "sha256": "4ac999af0133cebd62d68ba11c774757268a4e21e0d5ae6d54295b89c87b959a",
+      "bytes": 141836
+    },
+    {
+      "old": "设计/v2/截图/日报一致性-print-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/daily-consistency-print-dark.png",
+      "sha256": "284c9992e3e0a7991e8678162b3329ee0423a78569f882711bc06a5bd7b4e1b5",
+      "bytes": 136310
+    },
+    {
+      "old": "设计/v2/截图/日报一致性-print-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/daily-consistency-print-light.png",
+      "sha256": "284c9992e3e0a7991e8678162b3329ee0423a78569f882711bc06a5bd7b4e1b5",
+      "bytes": 136310
+    },
+    {
+      "old": "设计/v2/截图/灵感-浅色.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ideas-light.png",
+      "sha256": "7e0016e9b4edd35fd5ed3f5f6c94134e5390bed5139ac6ff91fc2da1fe17ad05",
+      "bytes": 73052
+    },
+    {
+      "old": "设计/v2/截图/灵感-深色.png",
+      "new": "archive/evidence/v2-iterations/screenshots/ideas-dark.png",
+      "sha256": "6ff3c6ef1fde31a103a1fd225f413171342c6c2cfcd5315150e1cc997dd557f6",
+      "bytes": 74067
+    },
+    {
+      "old": "设计/v2/截图/灵感新增草稿恢复-修复.png",
+      "new": "archive/evidence/v2-iterations/screenshots/idea-new-draft-restored.png",
+      "sha256": "2d3613028bd1d5c8099e1174faaeba64b1ac52e4b34858610fd70d4e2dc9972d",
+      "bytes": 72079
+    },
+    {
+      "old": "设计/v2/截图/灵感编辑草稿-修复.png",
+      "new": "archive/evidence/v2-iterations/screenshots/idea-edit-draft-fixed.png",
+      "sha256": "dc8a0aba43704c1e39df124e61ea3631039fd336dd16cb715d1d1a0a4481a118",
+      "bytes": 76227
+    },
+    {
+      "old": "设计/v2/截图/资料核对-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/import-check-dark.png",
+      "sha256": "2d3f6831ec9a336ea4cebeb0025c4928a343f720886281227cb888f0883f2ed2",
+      "bytes": 54575
+    },
+    {
+      "old": "设计/v2/截图/资料核对-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/import-check-light.png",
+      "sha256": "f48de67dfdd4ad1c7cef04a180bc03b4159a1d2b45b477bb0819b962fffc1fc1",
+      "bytes": 54400
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-daily-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-daily-dark.png",
+      "sha256": "385954e408211b11f6cec4b6707b8cbd4c3f93588066a150047a7f98e2b83200",
+      "bytes": 89972
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-daily-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-daily-light.png",
+      "sha256": "2075a2027fe68aca8bcc30cc43ea6ae57b38a5126cb0e4392092971a46c2d448",
+      "bytes": 90403
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-dark.png",
+      "sha256": "9e2dbaa474603ea3df5d3e56d6fd5cf06b07fd535fc57d93c759e271a641cd99",
+      "bytes": 115574
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-e2-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-e2-dark.png",
+      "sha256": "2f3fc26026faf5381c070ad4854c7a57549e773ebd1246e2efbb1bb808e42b82",
+      "bytes": 152642
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-e2-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-e2-light.png",
+      "sha256": "bd27503765ffe684a00039d83ab2d980f06d6d68e486222910f2938271a68537",
+      "bytes": 154660
+    },
+    {
+      "old": "设计/v2/截图/资讯-news-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-news-light.png",
+      "sha256": "56835fd19fa8c91b6d104091dacd695f49889d269f4ad54fd97ddbba36cf338b",
+      "bytes": 116005
+    },
+    {
+      "old": "设计/v2/截图/资讯列表-dark-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-feed-dark-1024.png",
+      "sha256": "e86a8c672cdf2e902e01c9d78b85c33c483678786263c44131f3a4910a41f91d",
+      "bytes": 74803
+    },
+    {
+      "old": "设计/v2/截图/资讯列表-dark-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-feed-dark-1440.png",
+      "sha256": "f481dfe5fb7c560d2e7845669550ca3937855659bc75e2a5ef5feeef85ef54b6",
+      "bytes": 91370
+    },
+    {
+      "old": "设计/v2/截图/资讯列表-light-1024.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-feed-light-1024.png",
+      "sha256": "f40acaffb2629600cb7a39abce447f6f7964c3936ba40385c92e039c61fee3bf",
+      "bytes": 75590
+    },
+    {
+      "old": "设计/v2/截图/资讯列表-light-1440.png",
+      "new": "archive/evidence/v2-iterations/screenshots/news-feed-light-1440.png",
+      "sha256": "964459e3833d2a683d1c3eb61e7551ae6d09a357beb67aedc962d565c7c9dbab",
+      "bytes": 91939
+    },
+    {
+      "old": "设计/v2/截图/镜头列表-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/shot-list-dark.png",
+      "sha256": "ab7ff3c027cb6f28758aab3e252f19b8a46ea1059d18c2e82c709d157e2c3b7e",
+      "bytes": 47219
+    },
+    {
+      "old": "设计/v2/截图/镜头列表-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/shot-list-light.png",
+      "sha256": "f0cf1b670bded0922f5d2a85d6db520415e1b4a949e599d4231e467acd84e5bd",
+      "bytes": 46444
+    },
+    {
+      "old": "设计/v2/截图/镜头详情-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/shot-detail-dark.png",
+      "sha256": "d8f0e4d2e71ac5611488ea353cafcab973dbbfac2b8e0e2c7ad7f280ec612bc1",
+      "bytes": 55930
+    },
+    {
+      "old": "设计/v2/截图/镜头详情-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/shot-detail-light.png",
+      "sha256": "e8b107c9fcdfe3c9715656e484209d90c83110b3662371d92e00fc788d168fc2",
+      "bytes": 55300
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-code-work.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-code-work.png",
+      "sha256": "efe48082afe16289174054104a82dba746a77783e40d0220197f14f958832fad",
+      "bytes": 40300
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-film-import-check.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-film-import-check.png",
+      "sha256": "f1ced1f23c331d940bd5ee6998c7026097b651e4dc59cd5f574f9258542065b0",
+      "bytes": 55149
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-film-item-d2.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-film-item-d2.png",
+      "sha256": "e60797bbf710425db1a3a2b8e39632d07f54a69e8e39c8c2b13884f414c13f9a",
+      "bytes": 65351
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-film-overview.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-film-overview.png",
+      "sha256": "1ee5cf17683bc4ed6aef7496f3543f4cda4ae8d53ce54a1f602ce0fddb9a3940",
+      "bytes": 63509
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-film-work.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-film-work.png",
+      "sha256": "f0cf1b670bded0922f5d2a85d6db520415e1b4a949e599d4231e467acd84e5bd",
+      "bytes": 46444
+    },
+    {
+      "old": "设计/v2/截图/项目-projects-new.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects-new.png",
+      "sha256": "18dcedbc3b8091e6708cb172b27eff381fd20062a38877dcb1f9920fe7832eee",
+      "bytes": 34547
+    },
+    {
+      "old": "设计/v2/截图/项目-projects.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-projects.png",
+      "sha256": "4121a7c258081f01c5caf563ff2871a88058dc4c076528e7ebaec371f3fcfaa4",
+      "bytes": 49052
+    },
+    {
+      "old": "设计/v2/截图/项目入口-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-index-dark.png",
+      "sha256": "10dd680c82ac94a8c527098128b1714d830a44e3b404cbdea032c8cf7417dfc2",
+      "bytes": 49589
+    },
+    {
+      "old": "设计/v2/截图/项目入口-light.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-index-light.png",
+      "sha256": "4121a7c258081f01c5caf563ff2871a88058dc4c076528e7ebaec371f3fcfaa4",
+      "bytes": 49052
+    },
+    {
+      "old": "设计/v2/截图/项目跨年-1024-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/project-cross-year-1024-dark.png",
+      "sha256": "9821b8e16f8c4b5cb1f4f9f171d14e8ca854804c91d0c19d7e1752c5608a706a",
+      "bytes": 60981
+    },
+    {
+      "old": "设计/v2/截图/首屏对比入口.png",
+      "new": "archive/evidence/v2-iterations/screenshots/direction-index.png",
+      "sha256": "12fc9a3ffc7cfda71156bbccad744e02551744ec3ec77bbde6e48e72cdf3e095",
+      "bytes": 384481
+    },
+    {
+      "old": "设计/v2/截图/首页跨年-1024-dark.png",
+      "new": "archive/evidence/v2-iterations/screenshots/home-cross-year-1024-dark.png",
+      "sha256": "188168affd12bc12a6265c2a0b5fc52fd4a3e5ad31717059aeb4978cf8b68df8",
+      "bytes": 77714
+    },
+    {
+      "old": "设计/v2/方向A.html",
+      "new": "design/workspace-a.html",
+      "sha256": "a0e16680cc8536952503d5fe2169b81dc9d4b09b4f98bb4bb9cfca04faca856c",
+      "bytes": 1684
+    },
+    {
+      "old": "设计/v2/方向B.html",
+      "new": "design/workspace-b.html",
+      "sha256": "a4e814a6759a3181af0414b89ef91766a691afaed5d9a7bc78310555da2af282",
+      "bytes": 1675
+    },
+    {
+      "old": "设计/v2/方向C.html",
+      "new": "design/workspace-c.html",
+      "sha256": "7ee2a3a5a76c9fcbd1ae4295aaf293dc7e2c015398bc05a9b872d90d93c845ac",
+      "bytes": 1687
+    },
+    {
+      "old": "设计/v2/验证/project-checks.cjs",
+      "new": "archive/evidence/v2-iterations/validation/project-checks.cjs",
+      "sha256": "d38f56671b2158a36595c4b030536184db9f1b9e94975632b5aa35d42c1705e7",
+      "bytes": 14334
+    },
+    {
+      "old": "设计/v2/验证/verify-首屏历史.cjs",
+      "new": "archive/evidence/v2-iterations/validation/verify-home-history.cjs",
+      "sha256": "649d1f44ffac75a04c14da54d3eebbb62133cb28e9b625183fac0871d71e5cb3",
+      "bytes": 9954
+    },
+    {
+      "old": "设计/v2/验证/verify.cjs",
+      "new": "archive/evidence/v2-iterations/validation/verify.cjs",
+      "sha256": "82f05e35ed211ab9669e7a8c27bbc4584154773422b76632bf7c2fea1ee7b082",
+      "bytes": 27076
+    },
+    {
+      "old": "设计/v2/验证/出厂kit.png",
+      "new": "archive/evidence/v2-iterations/validation/factory-kit.png",
+      "sha256": "a5790250acc17ba1c1d66f0bbc2a7ad76bdc24efe0ca178a9ad53f6cd5ca89b8",
+      "bytes": 57737
+    },
+    {
+      "old": "设计/v2/验证/截图像素测量.json",
+      "new": "archive/evidence/v2-iterations/validation/screenshot-measurements.json",
+      "sha256": "ec377076a67af9d6459d4aee4088acbb42482e0bbc6990d14e1cdfba1c6b2c5d",
+      "bytes": 1061
+    },
+    {
+      "old": "设计/v2/验证/日报-v2-dark.pdf",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2-dark.pdf",
+      "sha256": "ec5ec6d3d1d996d1719254832d3e8fda79a409e865c60f104a35543d86cc5882",
+      "bytes": 189869
+    },
+    {
+      "old": "设计/v2/验证/日报-v2-dark.txt",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2-dark.txt",
+      "sha256": "19d1fddcb00682ed6fba3332602aff468cb8dfe2102c82e72b42f290215bcbfc",
+      "bytes": 2563
+    },
+    {
+      "old": "设计/v2/验证/日报-v2-light.pdf",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2-light.pdf",
+      "sha256": "dc6acc9e76e2d8c815b518f7a0332c60cbb0fbe35a5353b4fc9adfc1a801d393",
+      "bytes": 189825
+    },
+    {
+      "old": "设计/v2/验证/日报-v2-light.txt",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2-light.txt",
+      "sha256": "19d1fddcb00682ed6fba3332602aff468cb8dfe2102c82e72b42f290215bcbfc",
+      "bytes": 2563
+    },
+    {
+      "old": "设计/v2/验证/日报-v2.pdf",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2.pdf",
+      "sha256": "dc6acc9e76e2d8c815b518f7a0332c60cbb0fbe35a5353b4fc9adfc1a801d393",
+      "bytes": 189825
+    },
+    {
+      "old": "设计/v2/验证/日报-v2.txt",
+      "new": "archive/evidence/v2-iterations/validation/daily-v2.txt",
+      "sha256": "19d1fddcb00682ed6fba3332602aff468cb8dfe2102c82e72b42f290215bcbfc",
+      "bytes": 2563
+    },
+    {
+      "old": "设计/v2/验证/浏览器验收.json",
+      "new": "archive/evidence/v2-iterations/validation/browser-report.json",
+      "sha256": "4041c28f464ad57a62307c2e62a93b8a6b95bc6f7c5c6c4fe214aca81b861cbb",
+      "bytes": 661532
+    },
+    {
+      "old": "设计/v2/验证/资讯阅读尺寸.json",
+      "new": "archive/evidence/v2-iterations/validation/news-reading-dimensions.json",
+      "sha256": "c8688f845626fab14909ae9601e138c6b6915cb86874a2f85e7092dea6018508",
+      "bytes": 348
+    },
+    {
+      "old": "设计/v2/验证/运行日志.txt",
+      "new": "archive/evidence/v2-iterations/validation/run.log",
+      "sha256": "abf43411a65316e74b62f8d85af06004eb7832de1e88e832c8032a33858d43ec",
+      "bytes": 27
+    },
+    {
+      "old": "设计/v2/验证/首屏历史运行日志.txt",
+      "new": "archive/evidence/v2-iterations/validation/home-history.log",
+      "sha256": "ad99e8ea51dbb85528052462d87e2c9d41d5cd2450a4d3a353a8c3f58bd18cf0",
+      "bytes": 27
+    },
+    {
+      "old": "设计/v2/验证/首屏历史验收.json",
+      "new": "archive/evidence/v2-iterations/validation/home-history-report.json",
+      "sha256": "ade03cc6c5071ec246da363a59d0f2106a691ca27b63da681d0c88c2478d3ee8",
+      "bytes": 195796
+    },
+    {
+      "old": "设计/workspace.css",
+      "new": "archive/design-v1/workspace.css",
+      "sha256": "eb664df6719119447f2efa3e271c38a192dbea681467dde2c9a9b6419a88acab",
+      "bytes": 14851
+    },
+    {
+      "old": "设计/参考/项目管理/ftrack-任务更新.png",
+      "new": "research/project-references/legacy-production-tools/ftrack-task-update.png",
+      "sha256": "fd2b8c4ddb9a58cdd4a4871db3fe6353a1b8293775d3ec734df99eb302daa1cf",
+      "bytes": 306335
+    },
+    {
+      "old": "设计/参考/项目管理/ftrack-镜头任务.png",
+      "new": "research/project-references/legacy-production-tools/ftrack-shot-tasks.png",
+      "sha256": "353a8c0336529849b6e5e8096f2638afb904ef317865257800810d048575fce9",
+      "bytes": 153557
+    },
+    {
+      "old": "设计/参考/项目管理/ftrack-项目入口.png",
+      "new": "research/project-references/legacy-production-tools/ftrack-project-index.png",
+      "sha256": "738a1876353a5eca802413b45687bfb623a39ce0d451c52e15df8556fd7a0cf4",
+      "bytes": 1032718
+    },
+    {
+      "old": "设计/参考/项目管理/Kitsu-审阅.png",
+      "new": "research/project-references/legacy-production-tools/Kitsu-review.png",
+      "sha256": "ebf7a318adb68da5d32b6dc949a227b11ebff58f7a73e745445605dab4ba0e12",
+      "bytes": 558786
+    },
+    {
+      "old": "设计/参考/项目管理/Kitsu-镜头管理.png",
+      "new": "research/project-references/legacy-production-tools/Kitsu-shot-tracking.png",
+      "sha256": "c96f08263519da0821a4d1efacf03af12c1a01c6d4258f5e8fdd319e305fe9df",
+      "bytes": 167767
+    },
+    {
+      "old": "设计/参考/项目管理/Linear-任务看板.png",
+      "new": "research/project-references/legacy-production-tools/Linear-task-board.png",
+      "sha256": "723f733998acfdd2dc8fddf8610117390af3a9c4f2259b9315f4520fc9f3f009",
+      "bytes": 263463
+    },
+    {
+      "old": "设计/参考/项目管理/Linear-里程碑.png",
+      "new": "research/project-references/legacy-production-tools/Linear-milestones.png",
+      "sha256": "c3a1b48269c36cb154edb007a71f5ad32de98717a76c7d55ef71db077b43ea6d",
+      "bytes": 226647
+    },
+    {
+      "old": "设计/参考/项目管理/Linear-项目概览.png",
+      "new": "research/project-references/legacy-production-tools/Linear-project-overview.png",
+      "sha256": "66bcae6aa781134d9cdd81099f798d51d7119df3f0fbb3a9085fa9377d2a3e6c",
+      "bytes": 525528
+    },
+    {
+      "old": "设计/参考/项目管理/Linear-项目看板.png",
+      "new": "research/project-references/legacy-production-tools/Linear-project-board.png",
+      "sha256": "67599fc86398622fb827fa6c093badef7c2707317e51b3f06c12f22302111690",
+      "bytes": 275751
+    },
+    {
+      "old": "设计/参考/项目管理/参考说明.md",
+      "new": "research/project-references/legacy-production-tools/README.md",
+      "sha256": "d9df65ccefcefde9ea2c2e7bbb29b5a9848ae20a62d92853844d95f6950d3184",
+      "bytes": 6188
+    },
+    {
+      "old": "设计/工作台.html",
+      "new": "archive/design-v1/workbench.html",
+      "sha256": "cbbd0957a492e7eb2c4d15b6cc5a0d91a81f0cbcc8e01841efdc5c54ca65375b",
+      "bytes": 2514
+    },
+    {
+      "old": "设计/截图/agent-1024.png",
+      "new": "archive/design-v1/screenshots/agent-1024.png",
+      "sha256": "fad6d9c38b1208eddf93fd78e5aaad1d1d95fd09754adc0240d18319911613e5",
+      "bytes": 52084
+    },
+    {
+      "old": "设计/截图/agent-1440.png",
+      "new": "archive/design-v1/screenshots/agent-1440.png",
+      "sha256": "593946d234366293f6b5a91c63ef015c2d178144c002418cbbd8608e4f289d8d",
+      "bytes": 80919
+    },
+    {
+      "old": "设计/截图/Agent-过程与结果.png",
+      "new": "archive/design-v1/screenshots/agent-process-result.png",
+      "sha256": "b2fa621940c3b30dfde7c749ff804b91df40ac0770038cdff6930cdefae049bb",
+      "bytes": 72320
+    },
+    {
+      "old": "设计/截图/digest-1024.png",
+      "new": "archive/design-v1/screenshots/digest-1024.png",
+      "sha256": "ef889d4dd9885253c30f34a3a399494e74640f7c698de13c839548900ec66821",
+      "bytes": 101107
+    },
+    {
+      "old": "设计/截图/digest-1440.png",
+      "new": "archive/design-v1/screenshots/digest-1440.png",
+      "sha256": "9154ad0a27b49d9d2141533ce17d91ddf02bacd9e5263314a687d401c4ef636b",
+      "bytes": 128467
+    },
+    {
+      "old": "设计/截图/ideas-1024.png",
+      "new": "archive/design-v1/screenshots/ideas-1024.png",
+      "sha256": "6c7526b84365dcdd89439e779656625d318d4fee26589aac5122659471b65047",
+      "bytes": 49071
+    },
+    {
+      "old": "设计/截图/ideas-1440.png",
+      "new": "archive/design-v1/screenshots/ideas-1440.png",
+      "sha256": "aad9e2e3dc53f06f926ca442679221db6ace75d5519c0728f1a7d39aa5962d72",
+      "bytes": 78098
+    },
+    {
+      "old": "设计/截图/jobs-1024.png",
+      "new": "archive/design-v1/screenshots/jobs-1024.png",
+      "sha256": "84837a4586058d82aeb798efdf22a3e4b4990156deb1b67947c289bc283d401e",
+      "bytes": 66595
+    },
+    {
+      "old": "设计/截图/jobs-1440.png",
+      "new": "archive/design-v1/screenshots/jobs-1440.png",
+      "sha256": "1b1bff6e57537d68978a4690128de1987b757f726afbcce819422c96a6185196",
+      "bytes": 93792
+    },
+    {
+      "old": "设计/截图/projects-1024.png",
+      "new": "archive/design-v1/screenshots/projects-1024.png",
+      "sha256": "5e60263cb8aed895b33de84e913a269e2ab98cceae30bc71f8ac662fdef89ded",
+      "bytes": 70683
+    },
+    {
+      "old": "设计/截图/projects-1440.png",
+      "new": "archive/design-v1/screenshots/projects-1440.png",
+      "sha256": "a7bfb0cac1e0b755bbf1fb2e7608029ef2f5024213bcfa9bbc0e7441ebe37c51",
+      "bytes": 98326
+    },
+    {
+      "old": "设计/截图/research-1024.png",
+      "new": "archive/design-v1/screenshots/research-1024.png",
+      "sha256": "5bdac358a382e416b57f29dc9fc57baf6e38e0cbb14f53e61f769ffc0d2f22fc",
+      "bytes": 68209
+    },
+    {
+      "old": "设计/截图/research-1440.png",
+      "new": "archive/design-v1/screenshots/research-1440.png",
+      "sha256": "55a94750be749e98a86b1f96e7618f1787c8cf522f761c6d1d039812efccd6d5",
+      "bytes": 97241
+    },
+    {
+      "old": "设计/截图/settings-1024.png",
+      "new": "archive/design-v1/screenshots/settings-1024.png",
+      "sha256": "2c043b8a83d70a895defa9611567422f8cd891c8b61d92292a59bda619372d50",
+      "bytes": 78803
+    },
+    {
+      "old": "设计/截图/settings-1440.png",
+      "new": "archive/design-v1/screenshots/settings-1440.png",
+      "sha256": "71627c24c2257643f57b93fa6aefa507f0f818742f61018aba9a81ee601d932d",
+      "bytes": 107038
+    },
+    {
+      "old": "设计/截图/today-1024.png",
+      "new": "archive/design-v1/screenshots/today-1024.png",
+      "sha256": "14bc75117040b55649a745e09f4e35afb58c683fa606daf6f9d8d84ebb346dff",
+      "bytes": 101109
+    },
+    {
+      "old": "设计/截图/today-1440.png",
+      "new": "archive/design-v1/screenshots/today-1440.png",
+      "sha256": "8431462cd27d7cb7d9b0843d493134e3d9453158066935c57895ae9574003692",
+      "bytes": 130342
+    },
+    {
+      "old": "设计/截图/事件-来源与分析.png",
+      "new": "archive/design-v1/screenshots/event-sources-analysis.png",
+      "sha256": "1898b8499d704ee7d05c444b129572794a72e3c387012b5c3f8ebcc2dee252d0",
+      "bytes": 106665
+    },
+    {
+      "old": "设计/截图/审阅入口-1440.png",
+      "new": "archive/design-v1/screenshots/review-index-1440.png",
+      "sha256": "7a16947c9205891a8b4465eee75920642d3050eb08224ebc87b56cdd308f63c2",
+      "bytes": 198706
+    },
+    {
+      "old": "设计/截图/打印-current.png",
+      "new": "archive/design-v1/screenshots/print-current.png",
+      "sha256": "5b23b9947a422c0ebc308b5302b4f5cc50fd8cb62036512d4ab6760a68ea6b3b",
+      "bytes": 114137
+    },
+    {
+      "old": "设计/截图/打印-previous.png",
+      "new": "archive/design-v1/screenshots/print-previous.png",
+      "sha256": "84b7cd3ba6470de38afdae7f6d85e50cf6fa892e1fe9c1cc49c68696b599496f",
+      "bytes": 51304
+    },
+    {
+      "old": "设计/截图/方向A-1024.png",
+      "new": "archive/design-v1/screenshots/direction-a-1024.png",
+      "sha256": "235d8d3f86ec87b065cd7988a7ed2c5a5b81ca34cf38bdcec02796189c87a3d1",
+      "bytes": 64484
+    },
+    {
+      "old": "设计/截图/方向A-1280.png",
+      "new": "archive/design-v1/screenshots/direction-a-1280.png",
+      "sha256": "753b773224166e4a8c0f917824501f394fe2e5305eb4824260ec472c0b3b2f33",
+      "bytes": 66077
+    },
+    {
+      "old": "设计/截图/方向A-1440.png",
+      "new": "archive/design-v1/screenshots/direction-a-1440.png",
+      "sha256": "50c2703344287666971a27afe9d32e17e1f6796a1f67681a3cc4128384c7690d",
+      "bytes": 80415
+    },
+    {
+      "old": "设计/截图/方向B-1024.png",
+      "new": "archive/design-v1/screenshots/direction-b-1024.png",
+      "sha256": "9529fc3a69dfe5ac081727ebfb65be7369da8fd9740b3c2ec4e8f629fb78d9c5",
+      "bytes": 95368
+    },
+    {
+      "old": "设计/截图/方向B-1280.png",
+      "new": "archive/design-v1/screenshots/direction-b-1280.png",
+      "sha256": "9923de486f54ac33fca61a7c78d70012ae51c85adb44a57b6723b559afbff556",
+      "bytes": 94049
+    },
+    {
+      "old": "设计/截图/方向B-1440.png",
+      "new": "archive/design-v1/screenshots/direction-b-1440.png",
+      "sha256": "5bc4aaeb72ad1b1c3b1a499ac236a9b2e04f45a9d2b9ee3b66bad23f2ec2e91c",
+      "bytes": 95215
+    },
+    {
+      "old": "设计/截图/方向C-1024.png",
+      "new": "archive/design-v1/screenshots/direction-c-1024.png",
+      "sha256": "69905da5beb05ee01dacf2d43b5a950571ee768f099c408ff9da026ba183ef9d",
+      "bytes": 75160
+    },
+    {
+      "old": "设计/截图/方向C-1280.png",
+      "new": "archive/design-v1/screenshots/direction-c-1280.png",
+      "sha256": "d7a3e776381607d3b6251e32fd61e03b33e80dc7d49be3d913e8c08a2dc64606",
+      "bytes": 76883
+    },
+    {
+      "old": "设计/截图/方向C-1440.png",
+      "new": "archive/design-v1/screenshots/direction-c-1440.png",
+      "sha256": "730cbdf2e383f260d61138cd99350895388196436474c949ff573d2888aac33a",
+      "bytes": 78408
+    },
+    {
+      "old": "设计/截图/资料变更-待确认.png",
+      "new": "archive/design-v1/screenshots/import-pending.png",
+      "sha256": "caa2b2554b3531aa70a043400c89af77a6a840799dacd3f6ebb9f841d1e6359f",
+      "bytes": 85900
+    },
+    {
+      "old": "设计/方向A-制作桌面.html",
+      "new": "archive/design-v1/workspace-a.html",
+      "sha256": "daf5f253f0a4a8b71eb1d7326f87d3ed6583e7615c6be26d1eef0e0b7452c6bd",
+      "bytes": 3548
+    },
+    {
+      "old": "设计/方向B-日刊优先.html",
+      "new": "archive/design-v1/workspace-b.html",
+      "sha256": "2689a0ca437c218973abaf381c5f97ed02767b64ac2c84f857292fd95d2f7564",
+      "bytes": 3353
+    },
+    {
+      "old": "设计/方向C-场记分栏.html",
+      "new": "archive/design-v1/workspace-c.html",
+      "sha256": "74ab5ebc88a0e70cad9e8597d96d3318354f42d4c6ab45f93421d2d449d33551",
+      "bytes": 3716
+    },
+    {
+      "old": "设计/日报打印.html",
+      "new": "archive/design-v1/daily-print.html",
+      "sha256": "14f89244d255b191368064ce9e94252ff11f52871c3425c452781463a5bb1c18",
+      "bytes": 787
+    },
+    {
+      "old": "设计/旧版审阅入口-已否决.html",
+      "new": "archive/design-v1/review-index-rejected.html",
+      "sha256": "219f3f98c6d9c8d648b385c2977925265e5bd986c0801913318720bc51b79e15",
+      "bytes": 5938
+    },
+    {
+      "old": "设计/需求落点与验收.md",
+      "new": "archive/design-v1/requirements-coverage.md",
+      "sha256": "00d752621f16a6cab716a3efa638a4d36f2fc409ab8868cf84127d60e69a6902",
+      "bytes": 6838
+    },
+    {
+      "old": "设计/验证/measure-images.cjs",
+      "new": "archive/design-v1/validation/measure-images.cjs",
+      "sha256": "416245af16308afbd819d8dcc789e823e3647874e05f82f454330f19c1f290d2",
+      "bytes": 2837
+    },
+    {
+      "old": "设计/验证/verify-design.cjs",
+      "new": "archive/design-v1/validation/verify-design.cjs",
+      "sha256": "4176ef3885bbc0ff428234f5c51e77acc60c39da34852a4d238b3eac51cc05ba",
+      "bytes": 23429
+    },
+    {
+      "old": "设计/验证/截图像素测量.json",
+      "new": "archive/design-v1/validation/screenshot-measurements.json",
+      "sha256": "f908111a55a74d9ca5d0f94c55023da4d969c0f41d93d5a341f799f44bbd9440",
+      "bytes": 14472
+    },
+    {
+      "old": "设计/验证/整期摘要-v1-演示-文本.txt",
+      "new": "archive/design-v1/validation/daily-digest-v1-demo-text.txt",
+      "sha256": "80d6a23c65ccc992b513e6ce2b6e9f89918257eb608a2e72f3ecc8b8f206e68a",
+      "bytes": 898
+    },
+    {
+      "old": "设计/验证/整期摘要-v1-演示.pdf",
+      "new": "archive/design-v1/validation/daily-digest-v1-demo.pdf",
+      "sha256": "4f582f6fb45406da5258f7f61514d11e8329cdb3c669bc5dc155cbbeef82dc63",
+      "bytes": 133412
+    },
+    {
+      "old": "设计/验证/整期摘要-v2-演示-文本.txt",
+      "new": "archive/design-v1/validation/daily-digest-v2-demo-text.txt",
+      "sha256": "2a5fe75565160db7dc010b1e05b9461c3a818f981965557201f8701f4ab58ba2",
+      "bytes": 2095
+    },
+    {
+      "old": "设计/验证/整期摘要-v2-演示.pdf",
+      "new": "archive/design-v1/validation/daily-digest-v2-demo.pdf",
+      "sha256": "60f2f35763b23f6b5bdd44d7f41e727b445893d1f4c854fa8301451d6285c544",
+      "bytes": 196810
+    },
+    {
+      "old": "设计/验证/浏览器验收.json",
+      "new": "archive/design-v1/validation/browser-report.json",
+      "sha256": "725085d211c16911c68b0acfea11273ba894715f0cb9f0a1af669ce6a56faccd",
+      "bytes": 100698
+    },
+    {
+      "old": "设计/验证/运行日志.txt",
+      "new": "archive/design-v1/validation/run.log",
+      "sha256": "4ddd26e1aff4608edbbcca1fc77717d8348608cc25a0dfa6da2492d55ffb5ca5",
+      "bytes": 4617
+    },
+    {
+      "old": "设计/验证/验证说明.md",
+      "new": "archive/design-v1/validation/validation-notes.md",
+      "sha256": "261fe0f40957a91c390fec7c898caf997d041ed54592640d4388c02b400eabb6",
+      "bytes": 3397
+    },
+    {
+      "old": "设计规范.md",
+      "new": "docs/design-spec.md",
+      "sha256": "cdf0139bda45c9a30144a3de351f2d51c03b0a17a5957d62b8d47972670d8a91",
+      "bytes": 23842
+    },
+    {
+      "old": "调研/AIHOT参考调研.md",
+      "new": "research/reports/aihot-source-research.md",
+      "sha256": "844d5ca201da2a0bf3ebf2dfa92b5f17ad0ee8112ec370ce410985a4bea8fe9d",
+      "bytes": 9586
+    },
+    {
+      "old": "调研/AIHOT资讯改稿依据.md",
+      "new": "research/reports/aihot-news-design.md",
+      "sha256": "e2ad67d6dd32a4f05c8c2bb09bc52b2fb8f04590c5a8e7663d2aa508fa2d84dd",
+      "bytes": 5352
+    },
+    {
+      "old": "调研/Skill适配独立复核.md",
+      "new": "research/reports/skill-adapter-review.md",
+      "sha256": "03bdfe2adcf520efda9d1e38f03bac91722591de6f46e8723ffc1a3aece56326",
+      "bytes": 4949
+    },
+    {
+      "old": "调研/v2导航与灵感草稿修复.md",
+      "new": "research/reports/navigation-and-idea-draft-fixes.md",
+      "sha256": "6af34bfbc45bbe9e8633871463d8de8c580f445bb606d1726d89f30ee542f559",
+      "bytes": 2485
+    },
+    {
+      "old": "调研/v2项目三级结构落地.md",
+      "new": "research/reports/project-hierarchy-history.md",
+      "sha256": "1ee1488c5daf6cab543657f5f69bf4f69008bee1c8a7cd28f476e8e905e01c80",
+      "bytes": 4646
+    },
+    {
+      "old": "调研/夜间自主推进记录.md",
+      "new": "research/reports/overnight-decisions.md",
+      "sha256": "89e2cc32f2b38a67588d07012951f4c7ec1129ba8a91cbaabc91463d1f8de343",
+      "bytes": 8720
+    },
+    {
+      "old": "调研/子代理启动诊断.md",
+      "new": "research/reports/subagent-startup-diagnostics.md",
+      "sha256": "8382fdf43cd42a1c1e79b0854aed199d5aabe2ec8565fb36ecdf3be6757e159d",
+      "bytes": 10864
+    },
+    {
+      "old": "调研/设计信息架构建议原报告.md",
+      "new": "research/reports/information-architecture-report.md",
+      "sha256": "def0182c3802f1e1d3872c3eefd5f8ee85d372f314fcf0b316e4f1109984d42a",
+      "bytes": 23910
+    },
+    {
+      "old": "调研/设计独立复核-第一轮.md",
+      "new": "research/reports/design-review-round-1.md",
+      "sha256": "9729a45c02c761bd4c233e1aa23f420b102d6e24048be4387c06a5bb917d09f0",
+      "bytes": 5387
+    },
+    {
+      "old": "调研/设计规范-v1-已否决.md",
+      "new": "research/reports/design-spec-v1-rejected.md",
+      "sha256": "5abd7242781826e8f3b9f0a45bcb91d1011a91325eb3f147864df0b9a71d6724",
+      "bytes": 11548
+    },
+    {
+      "old": "调研/非Electron技术查证原报告.md",
+      "new": "research/reports/non-electron-feasibility-report.md",
+      "sha256": "66d86dca860cff106df24d8612a2775be2e4fdac85d15b4bb5c7ed643c3a5b9e",
+      "bytes": 16476
+    }
+  ],
+  "snapshot": "archive/evidence/pre-migration-snapshot.zip",
+  "snapshot_sha256": "0dfc0d400816839842234e8f25f321cfdc11a2b332213516fbb9f69ad17d4af1"
+}

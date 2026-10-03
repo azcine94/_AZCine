@@ -1,0 +1,21 @@
+/* S00 仅补空态与检查状态，沿用冻结的B壳。 */
+.nav-item:hover { text-decoration:none; }
+.nav-glyph { width:var(--s-5); height:var(--s-5); display:grid; place-items:center; font-family:var(--mono); font-size:var(--fs-s); }
+.foundation-empty { min-height:160px; display:flex; flex-direction:column; justify-content:center; gap:var(--s-2); padding:var(--s-5) 0; }
+.foundation-empty h2 { font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.foundation-empty p { color:var(--t2); max-width:640px; }
+.foundation-section + .foundation-section { margin-top:var(--s-7); }
+.foundation-section { max-width:960px; }
+.foundation-section h2 { margin-bottom:var(--s-3); }
+.foundation-check { margin-top:var(--s-5); padding:var(--s-5); border-radius:var(--r-panel); background:var(--island-2); }
+.foundation-check p { margin-top:var(--s-2); }
+.foundation-check[data-state=error] h3 { color:var(--bad); }
+.foundation-check[data-state=success] h3 { color:var(--ok); }
+.foundation-preview { margin-top:var(--s-6); }
+.foundation-preview summary { min-height:var(--control-h); cursor:pointer; padding:var(--s-2); }
+.foundation-preview .preview-actions { display:flex; flex-wrap:wrap; gap:var(--s-2); margin-top:var(--s-3); }
+.foundation-job { margin-top:var(--s-4); padding:var(--s-4); border-radius:var(--r-ctl); background:var(--island); color:var(--t2); display:flex; justify-content:space-between; align-items:center; }
+.foundation-job a { min-height:var(--control-h); display:flex; align-items:center; }
+.foundation-link { display:inline-flex; min-height:var(--control-h); align-items:center; }
+.today-card .foundation-empty { min-height:144px; }
+:root[data-theme=dark] .review-card .card-description { color:var(--feature-secondary); }

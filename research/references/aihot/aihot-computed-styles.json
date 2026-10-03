@@ -1,0 +1,21 @@
+{
+  "url": "https://aihot.news/",
+  "title": "",
+  "body": {
+    "text": "{\"error\":\"blocked\",\"code\":567,\"requestId\":\"3842366756105834693\",\"help\":\"https://aihot.news",
+    "tag": "BODY",
+    "class": "",
+    "font": "\"Times New Roman\"",
+    "size": "16px",
+    "line": "normal",
+    "weight": "400",
+    "color": "rgb(0, 0, 0)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "padding": "0px",
+    "radius": "0px",
+    "width": 1440
+  },
+  "headings": [],
+  "buttons": [],
+  "stories": []
+}
