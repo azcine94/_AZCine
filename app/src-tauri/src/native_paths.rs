@@ -2,7 +2,12 @@ use crate::storage::StorageError;
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
-pub use windows_impl::{choose_folder, open_folder};
+pub use windows_impl::{choose_folder, open_folder, open_ranking_source};
+
+#[cfg(not(windows))]
+pub fn open_ranking_source(_owner: isize, _board: crate::model_ranking::Board) -> Result<(), StorageError> {
+    Err(StorageError::new("ranking_browser_unsupported", "当前平台尚未接入系统浏览器，请手动打开榜单的官方地址。"))
+}
 
 #[cfg(not(windows))]
 pub fn choose_folder(_owner: isize) -> Result<Option<PathBuf>, StorageError> {
@@ -66,6 +71,21 @@ mod windows_impl {
     pub fn open_folder(owner: isize, path: &Path) -> Result<(), StorageError> {
         let path = path.to_path_buf();
         run_in_sta("azcine-open-folder", move || open_folder_sta(owner, &path))
+    }
+
+    // Board selects one of two fixed HTTPS pages. No frontend URL, command-line
+    // arguments, shell command, process-name lookup or browser credential access.
+    pub fn open_ranking_source(owner: isize, board: crate::model_ranking::Board) -> Result<(), StorageError> {
+        run_in_sta("azcine-open-ranking", move || {
+            let address: Vec<u16> = board.source_url().encode_utf16().chain(std::iter::once(0)).collect();
+            let result = unsafe {
+                ShellExecuteW(owner_hwnd(owner), w!("open"), PCWSTR(address.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL)
+            };
+            let status = result.0 as isize;
+            if status > 32 { Ok(()) } else {
+                Err(StorageError::new("ranking_browser_failed", &format!("Windows 未能打开官方榜单（返回 {status}），请重试或手动打开官方地址。")))
+            }
+        })
     }
 
     fn run_in_sta<T, F>(name: &'static str, task: F) -> Result<T, StorageError>

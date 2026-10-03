@@ -23,6 +23,13 @@ const env = {
   RUSTUP_TOOLCHAIN: '1.99.0-x86_64-pc-windows-msvc',
   WEBVIEW2_USER_DATA_FOLDER: process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(root, '.tooling', 'webview-dev'),
 };
+if (mode === 'dev') {
+  const instance = path.join(root, '.tooling', 'dev-instance');
+  env.AZCINE_DEV_INSTANCE_DIR = instance;
+  env.WEBVIEW2_USER_DATA_FOLDER = path.join(instance, 'webview');
+  console.log(`开发实例配置：${path.join(instance, 'config')}`);
+  console.log(`开发实例数据：${path.join(instance, 'data')}`);
+}
 // Rust is added to this owned child only. No system/user PATH or Pi runtime changes.
 for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
 env.PATH = `${path.dirname(cargo)}${path.delimiter}${process.env.PATH || process.env.Path || ''}`;

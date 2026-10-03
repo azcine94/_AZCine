@@ -15,6 +15,8 @@ import { ProjectsOverview, ProjectEditor, DeliveryList } from './projects-panels
 import { deriveDeliveries } from './projects-contract.ts';
 import { usePi } from './use-pi.ts';
 import { AgentPanel, PiSettings } from './pi-panels.tsx';
+import { useModelRanking } from './use-model-ranking.ts';
+import { ModelRankingPanel } from './model-ranking-panel.tsx';
 
 const iconPaths: Record<PageId, ReactNode> = {
   today: <><rect x="3" y="4" width="18" height="17" rx="3" /><path d="M8 2v4m8-4v4M3 10h18m-13 5h3" /></>,
@@ -66,7 +68,6 @@ function Today({ model, projects }: { model: WorkspaceController; projects: Proj
 function Placeholder({ route }: { route: Route }) {
   switch (route) {
     case 'news': return <Empty title="还没有资讯刊期">资讯采集与整理将在 S07 接入，这里不会填充示例新闻。</Empty>;
-    case 'models': return <Empty title="还没有模型榜快照">Arena Text Overall 前 30 名将在 S09 接入，不显示虚构排名。</Empty>;
     case 'ideas': return <Empty title="灵感记录尚未接入">卡片记录将在 S06 接入。</Empty>;
     case 'jobs': return <Empty title="后台队列尚未接入">本阶段没有运行中的业务任务。关闭桌面窗口即退出，暂不收托盘。</Empty>;
     default: return <Empty title="没有这个页面">请从左侧导航打开页面。</Empty>;
@@ -91,6 +92,7 @@ export default function App() {
   const workspace = useWorkspace();
   const projects = useProjects(workspace.workspace?.root ?? null);
   const pi = usePi(workspace.workspace?.root ?? null);
+  const rankings = useModelRanking(workspace.loadError ? null : workspace.workspace?.root ?? null, route === 'models');
   const target = projectTarget(route);
   const activePage = navigationPage(route);
   useLayoutEffect(() => {
@@ -109,7 +111,7 @@ export default function App() {
       <main className="workspace" data-page={route}>
         <header className="page-heading"><div className="page-name"><h1 tabIndex={-1} ref={heading}>{title}</h1></div><span className="meta">{activePage === 'projects' ? '文档与交付' : '本地工作台'}</span></header>
         <div ref={scrollArea} className={`workspace-scroll${target && projects.drafts[target.projectId] && workspace.workspace?.root && !workspace.loadError ? ' workspace-scroll--project-document' : ''}`} role="region" aria-label={`${title}内容`} tabIndex={0}>
-        {route === 'today' ? (workspace.workspace?.root ? <Today model={workspace} projects={projects} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} /> : <WorkspaceGate model={workspace} />) : route === 'settings' ? <><DataSettings model={workspace} /><PiSettings model={pi} /><section className="foundation-section">
+        {route === 'today' ? (workspace.workspace?.root ? <Today model={workspace} projects={projects} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'models' ? <ModelRankingPanel model={rankings} hasRoot={!!workspace.workspace?.root && !workspace.loadError} rootError={workspace.loadError} /> : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} /> : <WorkspaceGate model={workspace} />) : route === 'settings' ? <><DataSettings model={workspace} /><PiSettings model={pi} /><section className="foundation-section">
           <h2>桌面连接检查</h2><p className="subtle">独立检查 Rust 与测试库，不修改待办记录；检查产物保留。</p>
           <div className="foundation-check" data-check-state={state.status} role="status" aria-live="polite" aria-busy={state.status === 'loading'}><CheckResult state={state} /></div>
           <div className="check-actions"><button className="pill on" onClick={() => void check()} disabled={!connected || state.status === 'loading'}>检查桌面连接</button>{!connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>

@@ -2,6 +2,9 @@ mod diagnostics;
 mod storage;
 mod native_paths;
 mod projects;
+#[path = "model-ranking.rs"] mod model_ranking;
+#[path = "model-ranking-commands.rs"] mod model_ranking_commands;
+use model_ranking_commands::*;
 #[path = "pi-jsonl.rs"] mod pi_jsonl;
 #[path = "pi-model-config.rs"] mod pi_model_config;
 #[path = "pi-config-store.rs"] mod pi_config_store;
@@ -31,13 +34,38 @@ async fn with_storage<T: Send + 'static>(app: tauri::AppHandle, work: impl FnOnc
         if guard.is_none() {
             let mut config = app.path().app_local_data_dir().map_err(|_| StorageError::new("config_path", "无法定位本机应用配置目录。"))?;
             let mut default_root = app.path().document_dir().map(|dir| dir.join("AZCineData")).unwrap_or_default();
-            // Explicit debug-test roots only; release never accepts environment path overrides.
+            // Development and explicit validation roots only. Release never
+            // accepts environment path overrides or initializes a default root.
+            #[cfg(debug_assertions)]
+            let mut initialize_dev_root = false;
             #[cfg(debug_assertions)]
             {
+                if let Some(instance) = std::env::var_os("AZCINE_DEV_INSTANCE_DIR") {
+                    let instance = std::path::PathBuf::from(instance);
+                    if !instance.is_absolute() {
+                        return Err(StorageError::new("config_path", "开发实例目录必须为绝对路径。"));
+                    }
+                    config = instance.join("config");
+                    default_root = instance.join("data");
+                    initialize_dev_root = true;
+                }
+                // Existing explicitly isolated validation sessions retain their
+                // manual first-selection behavior and supplied roots.
+                if std::env::var_os("AZCINE_TEST_CONFIG_DIR").is_some()
+                    || std::env::var_os("AZCINE_TEST_DEFAULT_ROOT").is_some() {
+                    initialize_dev_root = false;
+                }
                 if let Some(test_config) = std::env::var_os("AZCINE_TEST_CONFIG_DIR") { config = test_config.into(); }
                 if let Some(test_default) = std::env::var_os("AZCINE_TEST_DEFAULT_ROOT") { default_root = test_default.into(); }
             }
-            *guard = Some(storage::Manager::new(config, default_root)?);
+            let manager = storage::Manager::new(config, default_root.clone())?;
+            #[cfg(debug_assertions)]
+            let mut manager = manager;
+            #[cfg(debug_assertions)]
+            if initialize_dev_root && manager.workspace()?.root.is_none() {
+                manager.select_root(&default_root)?;
+            }
+            *guard = Some(manager);
         }
         work(guard.as_mut().unwrap())
     }).await.map_err(|_| StorageError::new("storage_interrupted", "数据操作意外中断，未报告成功；请刷新后核对。"))?
@@ -117,7 +145,7 @@ pub fn run() {
         .manage(StorageState::default())
         .manage(pi_manager::PiManager::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model])
+        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source])
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")
         .run(pi_commands::on_run_event);
