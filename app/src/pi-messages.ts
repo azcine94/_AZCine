@@ -4,6 +4,7 @@ export interface MessagePart {
   kind: 'text' | 'thinking' | 'image' | 'toolCall' | 'unknown';
   text: string;
   title?: string;
+  callId?: string;
 }
 
 export interface MessageView {
@@ -129,6 +130,7 @@ function toolCallProjection(block: Record<string, unknown>): Projection {
         parts: [{
           kind: 'toolCall',
           title: block.name,
+          callId: block.id,
           text,
         }],
         valid: true,
@@ -166,7 +168,7 @@ function blockProjection(value: unknown, mode: ContentMode): Projection {
     if (
       typeof value.thinking !== 'string'
       || (
-        value.redacted !== undefined
+        value.redacted !== undefined && value.redacted !== null
         && typeof value.redacted !== 'boolean'
       )
     ) {
@@ -177,7 +179,7 @@ function blockProjection(value: unknown, mode: ContentMode): Projection {
       parts: [{
         kind: 'thinking',
         title: value.redacted === true ? '思考（已遮蔽）' : '思考',
-        text: value.thinking,
+        text: value.redacted === true ? '思考内容已遮蔽。' : value.thinking,
       }],
       valid: true,
     };
