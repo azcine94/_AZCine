@@ -7,7 +7,7 @@
     "dev": "node scripts/run-desktop.mjs dev",
     "dev:web": "npm --prefix app run dev:web",
     "check": "npm --prefix app run check",
-    "test": "node --test tests/dev-scripts.test.mjs && npm --prefix app test",
+    "test": "node --test tests/dev-scripts.test.mjs tests/dev-environment.test.mjs && npm --prefix app test",
     "test:rust": "node scripts/run-desktop.mjs test:rust",
     "build:web": "npm --prefix app run build:web"
   },

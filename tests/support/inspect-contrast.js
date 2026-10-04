@@ -11,6 +11,8 @@
     // Closed <details> descendants may retain layout rectangles in Chromium but
     // are not painted. checkVisibility also accounts for those hidden subtrees.
     if (!rect.width || !rect.height || !element.checkVisibility({ visibilityProperty: true, opacityProperty: true }) || style.visibility === 'hidden' || style.display === 'none' || element.disabled) continue;
+    // aria-hidden marks decorative content; its visible functional label is checked separately.
+    if (element.closest('[aria-hidden="true"]')) continue;
     if ([...element.childNodes].some(node => node.nodeType === 3 && node.textContent.trim())) {
       const bg = background(element);
       const contrast = ratio(mix(rgb(style.color), bg), bg);

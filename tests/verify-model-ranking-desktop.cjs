@@ -7,8 +7,8 @@ const {validationRun}=require('./support/validation-run.cjs');
  if(!run.startsWith(path.resolve('artifacts/validation')+path.sep)||!owner)throw Error('Explicit retained test root and owned PID required');
  const {out,hashes}=validationRun('model-ranking-live',['app/src','app/src-tauri/src','app/vite.config.ts','app/package.json','tests/verify-model-ranking-desktop.cjs']);
  const report={mode:'real desktop IPC/SQLite/public HTTPS; temporary per-test-process proxy; explicit fault injection only in failure checks',run,owner,before:hashes(),checks:[],network:[],pageErrors:[],screenshots:[]};
- const check=(name,fn,detail)=>{assert.ok(fn,name);report.checks.push({name,passed:true,detail});console.log('PASS',name)};
- const b=await chromium.connectOverCDP('http://127.0.0.1:'+(process.env.AZCINE_CDP_PORT||9237));const page=b.contexts()[0].pages().find(p=>new URL(p.url()).origin==='http://127.0.0.1:'+(process.env.AZCINE_WEB_PORT||1420));
+ const check=(name,fn,detail)=>{report.checks.push({name,passed:!!fn,detail});assert.ok(fn,name);console.log('PASS',name)};
+ const b=await chromium.connectOverCDP('http://127.0.0.1:'+(process.env.AZCINE_CDP_PORT||9237));let page;const viewDeadline=Date.now()+30000;while(!(page=b.contexts().flatMap(c=>c.pages()).find(p=>new URL(p.url()).origin==='http://127.0.0.1:'+(process.env.AZCINE_WEB_PORT||1420)))){if(Date.now()>viewDeadline)throw Error('Owned desktop view unavailable');await new Promise(r=>setTimeout(r,100));}
 
  // Optional test-only transport through an existing local proxy. Actual public
  // responses and headers are retained; this never supplies ranking fixtures.
@@ -17,7 +17,7 @@ const {validationRun}=require('./support/validation-run.cjs');
   const {execFile}=require('node:child_process');
   await page.route(/^https:\/\/datasets-server\.huggingface\.co\//,async route=>{
    const url=route.request().url(),file=path.join(out,'public-headers-'+require('node:crypto').randomUUID()+'.txt');
-   try{const body=await new Promise((resolve,reject)=>execFile('curl.exe',['--silent','--show-error','--max-time','30','--proxy',process.env.AZCINE_VALIDATION_PROXY,'--dump-header',file,url],{encoding:'utf8',maxBuffer:3*1024*1024,windowsHide:true},(error,stdout)=>error?reject(error):resolve(stdout)));
+   try{const body=await new Promise((resolve,reject)=>execFile('curl.exe',['--silent','--show-error','--max-time','30','--proxy',process.env.AZCINE_VALIDATION_PROXY,'--dump-header',file,'--header','Origin: '+new URL(page.url()).origin,url],{encoding:'utf8',maxBuffer:3*1024*1024,windowsHide:true},(error,stdout)=>error?reject(error):resolve(stdout)));
     const blocks=fs.readFileSync(file,'utf8').trim().split(/\r?\n\r?\n/),lines=blocks.at(-1).split(/\r?\n/),status=Number(lines[0].split(' ')[1]),headers={};
     for(const line of lines.slice(1)){const colon=line.indexOf(':');if(colon>0)headers[line.slice(0,colon).toLowerCase()]=line.slice(colon+1).trim();}
     delete headers['content-length'];delete headers['content-encoding'];await route.fulfill({status,headers,body});
@@ -26,7 +26,7 @@ const {validationRun}=require('./support/validation-run.cjs');
  }
  const pending=[];let recordNetwork=true;
  page.on('pageerror',e=>report.pageErrors.push(e.message));
- page.on('response',response=>{if(recordNetwork&&response.url().startsWith('https://datasets-server.huggingface.co/'))pending.push((async()=>{const body=await response.json();report.network.push({url:response.url(),status:response.status(),revision:response.headers()['x-revision'],body});})().catch(e=>report.network.push({error:String(e)})))});
+ page.on('response',response=>{if(recordNetwork&&(response.url().startsWith('https://datasets-server.huggingface.co/')||response.url()==='https://models.dev/api.json'))pending.push((async()=>{const text=await response.text();let body;try{body=JSON.parse(text);}catch{body={raw:text};}report.network.push({url:response.url(),status:response.status(),revision:response.headers()['x-revision'],body});})().catch(e=>report.network.push({error:String(e)})))});
  const ipc=(command,args)=>page.evaluate(({command,args})=>window.__TAURI_INTERNALS__.invoke(command,args),{command,args});
  const states=()=>ipc('model_ranking_workspace');
  const until=async predicate=>{const deadline=Date.now()+70000;while(!await predicate()){if(Date.now()>deadline)throw Error('Timed out waiting for actual IPC state');await page.waitForTimeout(200)}};
@@ -37,8 +37,15 @@ const {validationRun}=require('./support/validation-run.cjs');
    await page.getByRole('button',{name:'使用此目录',exact:true}).click();
   }
   await page.locator('nav a[href="#models"]').click();
-  await until(async()=> (await states()).every(x=>x.snapshot&&x.snapshot.rows.length===50));
-  await idle();
+  await idle();report.initialSourceRetries=[];
+  for(const board of ['agent','text-to-image']){
+   await page.getByRole('button',{name:board==='agent'?'Agent 综合榜':'文生图综合榜',exact:true}).click();await idle();
+   for(let attempt=0;attempt<3&&!(await states()).find(s=>s.board===board).snapshot;attempt++){
+    report.initialSourceRetries.push({board,attempt:attempt+1,reason:await page.locator('.ranking-board').innerText()});
+    await page.getByRole('button',{name:'刷新榜单',exact:true}).click();await idle();
+   }
+  }
+  assert.ok((await states()).every(x=>x.snapshot&&x.snapshot.rows.length===50),'Public source still unavailable after bounded explicit UI retries');
   // A user may have opened the newly launched window before CDP attaches. In
   // that case acquire new live receipts via the normal refresh buttons.
   for(const board of ['agent','text-to-image'].filter(board=>!report.network.some(n=>n.status===200&&new URL(n.url).searchParams.get('config')===(board==='agent'?'agent':'text_to_image')))){
@@ -50,7 +57,7 @@ const {validationRun}=require('./support/validation-run.cjs');
   }
   await Promise.all(pending);recordNetwork=false;
   const saved=await states(); fs.writeFileSync(path.join(out,'initial-saved.json'),JSON.stringify(saved,null,2));
-  const source=config=>{const n=report.network.find(n=>n.status===200&&new URL(n.url).searchParams.get('config')===config);assert.ok(n,config+' live response');return n.body.rows.map(x=>x.row)};
+  const source=config=>{const pages=report.network.filter(n=>n.status===200&&new URL(n.url).searchParams.get('config')===config).sort((a,b)=>Number(new URL(a.url).searchParams.get('offset'))-Number(new URL(b.url).searchParams.get('offset')));assert.ok(pages.length,config+' live response');const offsets=new Map(pages.map(n=>[Number(new URL(n.url).searchParams.get('offset')),n]));return [...offsets].sort((a,b)=>a[0]-b[0]).flatMap(([,n])=>n.body.rows.map(x=>x.row)).filter(row=>row.category==='overall')};
   const expectedMetric=r=>({value:r.score*100,lower:r.score_ci_lower*100,upper:r.score_ci_upper*100});
   for(const s of saved){const base=source(s.board==='agent'?'agent':'text_to_image').slice(0,50);assert.deepEqual(s.snapshot.rows.map(r=>r.model),base.map(r=>r.model_name));
    for(let j=0;j<50;j++){const row=s.snapshot.rows[j],raw=base[j];assert.equal(row.rank,raw.rank);assert.equal(row.organization,raw.organization);assert.equal(row.license,raw.license);assert.equal(row.rankLow,null);assert.equal(row.rankHigh,null);
@@ -60,6 +67,10 @@ const {validationRun}=require('./support/validation-run.cjs');
    }
    check('自动取数后 '+s.board+' 50 行全部字段与真实接口一致',true,{dataDate:s.snapshot.dataUpdatedAt,first:base[0].model_name,last:base[49].model_name});
   }
+  const priceSource=report.network.find(n=>n.url==='https://models.dev/api.json'&&n.status===200);assert.ok(priceSource,'real Models.dev price response');
+  const pricing=saved.find(s=>s.board==='agent').snapshot.pricing;assert.ok(pricing&&pricing.capturedAt&&pricing.rows.length===50,'50 explicit price matches or gaps');let priced=0;
+  for(const row of pricing.rows){if(!row.price)continue;const raw=priceSource.body[row.price.providerId]?.models?.[row.price.modelId];assert.ok(raw,'identified service/model exists in actual price source');assert.equal(row.price.input,raw.cost.input);assert.equal(row.price.output,raw.cost.output);priced++;}
+  check('Agent报价与实际服务商模型价格逐项一致，缺价保留空值',priced>0,{priced,gaps:50-priced,capturedAt:pricing.capturedAt});
   check('主入口没有要求用户文件导入',await page.getByRole('button',{name:/导入/}).count()===0);
   const expected=saved.map(s=>s.snapshotId);
   await page.reload();await page.locator('nav a[href="#models"]').click();await page.waitForSelector('.ranking-table tbody tr');
