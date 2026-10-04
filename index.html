@@ -1,1 +1,41 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AZCine · 设计入口</title><meta http-equiv="refresh" content="0;url=design/index.html"></head><body><p><a href="design/index.html">打开 AZCine 当前设计</a></p><p><a href="design/project-document.html">直接查看项目文档</a></p></body></html>
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AZCine · UI 总览</title>
+  <link rel="stylesheet" href="app/src/styles/tokens.css">
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.7 var(--font);height:100vh}main{max-width:760px;margin:8vh auto;padding:40px;background:var(--island);border-radius:var(--r-island)}h1{margin:0 0 16px;font-size:28px}p{color:var(--t2)}code{font:13px var(--mono);background:var(--island-2);padding:4px 8px;border-radius:var(--r-xs)}a{color:var(--acc)}#preview{display:none;width:100%;height:100vh;border:0;background:var(--bg)}body.ready main{display:none}body.ready #preview{display:block}#status{margin-top:24px}small{color:var(--t2)}.paths{display:grid;gap:12px;margin:24px 0}.paths div{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+<main id="intro">
+  <h1>AZCine · UI 总览</h1>
+  <p>这是独立的设计入口。页面、通用控件与桌面应用共享 React 组件和样式，修改源码后实时更新。</p>
+  <p>先在本 Worktree 根目录运行 <code>npm run dev</code>，再刷新此 HTML。启动器自动提供当前分支的预览地址，不需要填写端口。</p>
+  <div class="paths"><div><strong>主题与颜色</strong><code>app/src/styles/tokens.css</code></div><div><strong>通用组件</strong><code>app/src/components/ui/</code></div><div><strong>页面与状态清单</strong><code>app/src/ui-preview/catalog.ts</code></div></div>
+  <p>总览包含主页面、设置、详情、编辑、状态切换、交互控件和源码查看；使用虚构资料，不执行真实采集、模型调用或业务保存。</p>
+  <p id="status" role="status">等待本分支开发服务启动。</p>
+  <p><a id="direct" hidden target="_blank" rel="noopener">在浏览器单独打开 UI 总览 ↗</a></p>
+  <small>历史原型保留在 <a href="design/index.html">design/index.html</a>，当前样式以共享源码为准。此入口需要开发服务，未生成离线构建快照。</small>
+</main>
+<iframe id="preview" title="AZCine UI 总览"></iframe>
+<script src=".tooling/ui-preview-url.js"></script>
+<script>
+(() => {
+  const entry=window.AZCINE_UI_OVERVIEW;
+  const status=document.getElementById('status'),frame=document.getElementById('preview'),direct=document.getElementById('direct');
+  if(!entry||!/^http:\/\/127\.0\.0\.1:\d+\/ui\.html$/.test(entry.url))return;
+  direct.href=entry.url;direct.hidden=false;status.textContent='正在连接本 Worktree 的 UI 总览…';
+  const timeout=setTimeout(()=>{status.textContent='开发服务尚未响应。请运行 npm run dev 后刷新；也可以点击上方链接直接打开。';},7000);
+  window.addEventListener('message',event=>{
+    if(event.source!==frame.contentWindow||event.origin!==new URL(entry.url).origin||event.data?.type!=='azcine-ui-ready')return;
+    clearTimeout(timeout);
+    if(event.data.workspace!==entry.workspace){frame.removeAttribute('src');status.textContent='该端口当前不属于本 Worktree，请在本目录重新启动开发服务后刷新。';return;}
+    document.body.classList.add('ready');
+  });
+  frame.src=entry.url;
+})();
+</script>
+</body>
+</html>

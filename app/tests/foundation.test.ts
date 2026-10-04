@@ -9,7 +9,7 @@ test('Given八个页面 When解析hash Then正常路由且无隐藏研究页', (
   assert.equal(new Set(pages.map(page => page.id)).size, 8);
   for (const page of pages) {
     assert.equal(resolveRoute(`#${page.id}`), page.id);
-    assert.equal(pageTitle(page.id), page.title);
+    assert.equal(pageTitle(page.id), page.id === 'settings' ? '常用设置' : page.title);
   }
   assert.equal(resolveRoute(''), 'today');
   for (const hash of ['#research', '#<script>', '#projects/unknown', '#%invalid']) assert.equal(resolveRoute(hash), 'missing');

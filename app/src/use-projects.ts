@@ -1,6 +1,6 @@
 // Project drafts and pending saves survive routed page changes at App scope.
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './desktop-api.ts';
 import { parseProject, parseProjects, parseProjectContent } from './projects-contract.ts';
 import type { ProjectContent, ProjectDocument, ProjectUndo } from './projects-contract.ts';
 import { workspaceError } from './workspace-contract.ts';

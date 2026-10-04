@@ -1,7 +1,7 @@
 // Page-independent source drafts, previews and immutable save requests.
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, isTauri } from './desktop-api.ts';
+import { listen } from './desktop-api.ts';
 import { equalConfig, normalizedConfig, parseFeedPreview, parseMaterialPage, parseNewsSnapshot, parseNewsSource, validateSource } from './news-contract.ts';
 import type { CollectionRun, FeedPreview, MaterialPage, NewsSnapshot, NewsSource, SaveSourceRequest, SourceConfig } from './news-contract.ts';
 import { workspaceError } from './workspace-contract.ts';

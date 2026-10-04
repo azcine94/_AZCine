@@ -1,3 +1,4 @@
+import { Button } from './components/ui/button.tsx';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ProjectBlock } from './projects-contract.ts';
@@ -58,7 +59,7 @@ export function ProjectAddMenu({ disabled, onAdd, primary = false, onOpen }: {
   }} onKeyDown={event => {
     if (expanded && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(true); }
   }}>
-    <button ref={triggerRef} type="button" className={primary ? 'pill on' : 'doc-button'} aria-disabled={disabled} aria-haspopup="menu" aria-expanded={expanded} aria-controls={menuId} onClick={() => {
+    <Button variant={primary ? 'app-pill' : 'app-document'} className={primary ? 'on' : undefined} ref={triggerRef} type="button" aria-disabled={disabled} aria-haspopup="menu" aria-expanded={expanded} aria-controls={menuId} onClick={() => {
       if (disabled) return;
       if (expanded) close(true); else openAt(0);
     }} onKeyDown={event => {
@@ -69,15 +70,15 @@ export function ProjectAddMenu({ disabled, onAdd, primary = false, onOpen }: {
     }}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16" /></svg>
       {primary ? '添加内容' : '添加文档内容'}
-    </button>
+    </Button>
     <div ref={panelRef} id={menuId} className="project-add-menu__panel" popover="manual" role="menu" aria-label="添加文档内容">
-      {expanded && choices.map((choice, index) => <button key={choice.kind} type="button" role="menuitem" className="project-add-menu__item" tabIndex={active === index ? 0 : -1} onFocus={() => setActive(index)} onKeyDown={event => navigate(event, index)} onClick={() => {
+      {expanded && choices.map((choice, index) => <Button variant="app-control" key={choice.kind} type="button" role="menuitem" className="project-add-menu__item" tabIndex={active === index ? 0 : -1} onFocus={() => setActive(index)} onKeyDown={event => navigate(event, index)} onClick={() => {
         if (disabled) return;
         close(true); onAdd(choice.kind);
       }}>
         <span className="project-add-menu__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={choice.path} /></svg></span>
         <span><strong>{choice.name}</strong><span className="project-add-menu__description">{choice.description}</span></span>
-      </button>)}
+      </Button>)}
     </div>
   </div>;
 }

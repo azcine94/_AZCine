@@ -1,4 +1,4 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from './desktop-api.ts';
 import { parsePiModels, parsePiState } from './pi-contract.ts';
 import type { PiModel, PiState, PromptDisposition } from './pi-contract.ts';
 export interface PiImage { id: string; name: string; data: string; mimeType: string }

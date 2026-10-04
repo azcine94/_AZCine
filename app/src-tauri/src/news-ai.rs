@@ -4,8 +4,8 @@ use serde_json::{Value,json};
 use crate::{news_editorial_types::*,pi_config_store::ConfigStore,pi_launch_plan::PiPaths,pi_redactor::Redactor,pi_rpc::RpcProcess,storage::StorageError};
 
 #[derive(Default)]
-pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
-pub struct AiWorker { rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice }
+pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
+pub struct AiWorker { rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>> }
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
 fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError>{
     let value=rpc.request(command,fields,Duration::from_secs(30)).map_err(|e|error(e.code,e.message))?;
@@ -13,10 +13,11 @@ fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError
     Ok(value.get("data").cloned().unwrap_or(Value::Null))
 }
 impl AiWorker {
-    pub fn connect(root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>)->Result<Self,StorageError>{
+    pub fn connect(root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>,observer:crate::news_processing::Observer)->Result<Self,StorageError>{
+        observer(crate::news_processing::ProgressEvent::Phase("connecting"));
         let map=|e:crate::pi_model_config::ConfigError|error(e.code,e.message);
         let runtime=crate::pi_runtime::resolve(resources).map_err(map)?;let mut paths=PiPaths::prepare(root).map_err(map)?;
-        let store=ConfigStore::open(root).map_err(map)?;store.initialize_defaults().map_err(map)?;
+        let store=ConfigStore::open(&paths.root).map_err(map)?;store.initialize_defaults().map_err(map)?;
         let docs=store.private_documents().map_err(map)?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
         // Application-owned private task configuration: never change interactive Pi settings.
         paths.agent=paths.pi_root.join("news-private-agent");crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
@@ -34,13 +35,24 @@ impl AiWorker {
         for argument in ["--no-session","--no-tools","--no-extensions","--no-skills","--no-prompt-templates","--no-themes"]{args.push(argument.into());}
         let cwd=root.join("pi/workspaces/news");crate::pi_launch_plan::no_link(&cwd).map_err(map)?;
         std::fs::create_dir_all(&cwd).map_err(|_|error("news_ai_workspace","无法创建本应用资讯任务目录。"))?;
-        let settled=Arc::new(AtomicBool::new(false));let flag=settled.clone();
-        let rpc=Arc::new(RpcProcess::spawn(&runtime.node,&args,&cwd,&env,move|event|{if event["type"]=="agent_settled"{flag.store(true,Ordering::Release);}}).map_err(|e|error(e.code,e.message))?);
+        let settled=Arc::new(AtomicBool::new(false));let flag=settled.clone();let output=Arc::new(Mutex::new(String::new()));let streamed=output.clone();let public=observer.clone();let mask=Redactor::from_documents(&docs[0],&docs[1]);
+        let stream_emit=Mutex::new(Instant::now()-Duration::from_secs(1));
+        let rpc=Arc::new(RpcProcess::spawn(&runtime.node,&args,&cwd,&env,move|event|{
+            if event["type"]=="agent_settled"{flag.store(true,Ordering::Release);}
+            if event["type"]=="message_update"&&event["assistantMessageEvent"]["type"]=="thinking_start"{public(crate::news_processing::ProgressEvent::Phase("thinking"));}
+            if event["type"]=="message_update"&&event["assistantMessageEvent"]["type"]=="text_delta"{
+                if let Some(delta)=event["assistantMessageEvent"]["delta"].as_str(){if let Ok(mut text)=streamed.lock(){if text.len()+delta.len()<=2*1024*1024{text.push_str(delta);}let emit=stream_emit.lock().map(|mut at|{if at.elapsed()<Duration::from_millis(250){false}else{*at=Instant::now();true}}).unwrap_or(false);if emit{let count=text.chars().count();let safe=mask.text(&text,true);let preview:String=safe.chars().take(20000).collect();public(crate::news_processing::ProgressEvent::Text(preview,count));}}}
+            }
+        }).map_err(|e|error(e.code,e.message))?);
+        observer(crate::news_processing::ProgressEvent::Process(rpc.id().map_err(|e|error(e.code,e.message))?,rpc.clone()));
+        if cancelled.load(Ordering::Acquire){let _=rpc.shutdown(Duration::ZERO);return Err(error("news_cancelled","资讯任务已取消，未发送资料给模型。"));}
+        observer(crate::news_processing::ProgressEvent::Phase("checkingModel"));
         let models=Self::available(&rpc)?;let state=request(&rpc,"get_state",json!({}))?;
         let choice=preferred.cloned().or_else(||state.get("model").and_then(|m|Some(ModelChoice{provider:m["provider"].as_str()?.into(),id:m["id"].as_str()?.into()}))).or_else(||models.first().cloned());
         let Some(model)=choice.filter(|m|models.contains(m)) else {let _=rpc.shutdown(Duration::from_secs(1));return Err(error("news_model_unavailable","本应用原版Pi没有可用的资讯模型。请在设置中配置模型；材料、旧事件与旧刊保留，没有使用假回复。"));};
         request(&rpc,"set_model",json!({"provider":model.provider,"modelId":model.id}))?;
-        Ok(Self{rpc,settled,cancelled,redactor,model})
+        observer(crate::news_processing::ProgressEvent::Model(model.clone()));
+        Ok(Self{rpc,settled,cancelled,redactor,model,observer,output})
     }
     fn available(rpc:&RpcProcess)->Result<Vec<ModelChoice>,StorageError>{
         let data=request(rpc,"get_available_models",json!({}))?;
@@ -49,6 +61,8 @@ impl AiWorker {
     pub fn process(&self)->Arc<RpcProcess>{self.rpc.clone()}
     pub fn prompt(&self,message:&str)->Result<String,StorageError>{
         if self.cancelled.load(Ordering::Acquire){return Err(error("news_cancelled","资讯任务已取消，未发布未完成结果。"));}
+        if let Ok(mut text)=self.output.lock(){text.clear();}
+        (self.observer)(crate::news_processing::ProgressEvent::Phase("sending"));
         let session=request(&self.rpc,"new_session",json!({}))?;
         if session["cancelled"]!=false{return Err(error("news_cancelled","原版Pi未确认新资讯会话，没有发送。"));}
         request(&self.rpc,"set_model",json!({"provider":self.model.provider,"modelId":self.model.id}))?;
@@ -57,6 +71,7 @@ impl AiWorker {
         self.settled.store(false,Ordering::Release);
         let accepted=request(&self.rpc,"prompt",json!({"message":message}))?;
         if accepted["disposition"]!="started"{return Err(error("news_ai_not_started","资讯请求未开始，未把排队或接受回执当作完成。"));}
+        (self.observer)(crate::news_processing::ProgressEvent::Phase("waitingModel"));
         let deadline=Instant::now()+Duration::from_secs(180);
         while !self.settled.load(Ordering::Acquire){
             if self.cancelled.load(Ordering::Acquire){let _=self.rpc.shutdown(Duration::ZERO);return Err(error("news_cancelled","资讯任务已取消；已完成结果与材料保留。"));}
@@ -64,11 +79,12 @@ impl AiWorker {
             if Instant::now()>=deadline {let _=self.rpc.shutdown(Duration::ZERO);return Err(error("news_ai_timeout","模型整理超过180秒，已停止本任务进程树；未自动付费重试，材料保留。"));}
             thread::sleep(Duration::from_millis(25));
         }
+        (self.observer)(crate::news_processing::ProgressEvent::Phase("readingResult"));
         let history=request(&self.rpc,"get_messages",json!({}))?;
         let last=history["messages"].as_array().ok_or_else(invalid_reply)?.iter().rev().find(|m|m["role"]=="assistant").ok_or_else(invalid_reply)?;
-        if last["stopReason"]!="stop"||last.get("errorMessage").is_some_and(|v|v.as_str().is_some_and(|s|!s.is_empty())){return Err(error("news_ai_incomplete","模型未正常完成或返回错误，没有发布部分回复。请核对模型后手动重试。"));}
+        if last["stopReason"]!="stop"||last.get("errorMessage").is_some_and(|v|v.as_str().is_some_and(|s|!s.is_empty())){let reason=last["errorMessage"].as_str().filter(|v|!v.is_empty()).map(|v|self.redactor.text(v,false).chars().take(2000).collect::<String>()).unwrap_or_else(||format!("结束原因：{}",last["stopReason"].as_str().unwrap_or("未提供")));return Err(error("news_ai_incomplete",&format!("模型未正常完成，没有发布部分回复。{reason}")));}
         let text=last["content"].as_array().ok_or_else(invalid_reply)?.iter().filter(|v|v["type"]=="text").filter_map(|v|v["text"].as_str()).collect::<Vec<_>>().join("\n");
-        if text.trim().is_empty()||text.len()>2*1024*1024{return Err(invalid_reply());}Ok(self.redactor.text(&text,false))
+        if text.trim().is_empty()||text.len()>2*1024*1024{return Err(invalid_reply());}let safe=self.redactor.text(&text,false);(self.observer)(crate::news_processing::ProgressEvent::Text(safe.chars().take(20000).collect(),safe.chars().count()));Ok(safe)
     }
 }
 impl Drop for AiWorker{fn drop(&mut self){let _=self.rpc.shutdown(Duration::from_secs(1));}}

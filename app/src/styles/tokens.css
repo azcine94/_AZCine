@@ -1,7 +1,16 @@
-/* 来源：product_6.0 出厂 tokens；项目补充值在文件末尾，与根目录设计规范.md同步。
+/* 唯一主题真源。shadcn 语义变量引用已有 AZCine tokens，保留当前外观。
    出厂 token（浮岛）。这是兜底：没样板、没更好的想法时用它；有自己的体系就换成自己的。
    要换皮只改这里。深浅两套都在，用哪套按需求文档定。 */
 :root {
+  --background: var(--bg); --foreground: var(--text);
+  --card: var(--island); --card-foreground: var(--text);
+  --popover: var(--island); --popover-foreground: var(--text);
+  --primary: var(--ink); --primary-foreground: var(--ink-fg);
+  --secondary: var(--island-2); --secondary-foreground: var(--text);
+  --muted: var(--island-2); --muted-foreground: var(--t2);
+  --accent: var(--acc-soft); --accent-foreground: var(--acc);
+  --destructive: var(--bad); --border: var(--line); --input: var(--line-2); --ring: var(--acc);
+  --radius: var(--r-ctl);
   /* 面：底 → 岛 → 岛里升一级。层级靠明度，不靠边框和投影 */
   --bg: #0F0F11;
   --island: #17181B;

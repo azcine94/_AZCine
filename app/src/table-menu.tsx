@@ -1,3 +1,4 @@
+import { Button } from './components/ui/button.tsx';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useAnchoredPopover } from './use-anchored-popover.ts';
@@ -36,7 +37,7 @@ export function TableMenu({ label, children, disabled, actions, extra }: {
     }
     event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
   }}>
-    <button ref={triggerRef} type="button" className="table-menu__trigger" aria-label={label} aria-disabled={disabled} aria-haspopup="menu" aria-expanded={open && !disabled} aria-controls={instance} onClick={() => { if (!disabled) setOpen(!open); }}>{children ?? '⋯'}</button>
-    <div ref={panelRef} id={instance} className="table-menu__panel" role="menu" aria-label={label} popover="manual" data-project-commit>{open && !disabled && <>{extra}{actions.map(action => <button key={action.name} type="button" role="menuitem" disabled={action.disabled} onClick={() => { close(true); action.run(); }}>{action.name}</button>)}</>}</div>
+    <Button variant="app-control" ref={triggerRef} type="button" className="table-menu__trigger" aria-label={label} aria-disabled={disabled} aria-haspopup="menu" aria-expanded={open && !disabled} aria-controls={instance} onClick={() => { if (!disabled) setOpen(!open); }}>{children ?? '⋯'}</Button>
+    <div ref={panelRef} id={instance} className="table-menu__panel" role="menu" aria-label={label} popover="manual" data-project-commit>{open && !disabled && <>{extra}{actions.map(action => <Button variant="app-control" key={action.name} type="button" role="menuitem" disabled={action.disabled} onClick={() => { close(true); action.run(); }}>{action.name}</Button>)}</>}</div>
   </div>;
 }

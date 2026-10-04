@@ -1,3 +1,4 @@
+import { Button } from './components/ui/button.tsx';
 // Loaded only by the development preview entry. No IPC, storage or model requests.
 import { useMemo, useRef, useState } from 'react';
 import { AgentChat } from './pi-agent-panel.tsx';
@@ -68,14 +69,14 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
       else if(command==='pi_name_session'&&typeof fields.name==='string'){setActive(before=>({...before,name:fields.name as string}));setSessionName('');}
       else if(command==='pi_select_model'){const next=MODELS.find(value=>value.provider===fields.provider&&value.id===fields.id);if(next)setSelectedModel(next);}
     },
-    saveModel:async()=>false,recoverQueue:()=>{},acceptedInputs:[],recoverAccepted:()=>{},modelForm,setModelForm,sessionName,setSessionName,
+    saveModel:async()=>false,saveConfiguration:async()=>null,recoverQueue:()=>{},acceptedInputs:[],recoverAccepted:()=>{},modelForm,setModelForm,sessionName,setSessionName,
     processChoices:choices,chooseProcess:(key,open)=>setChoices(before=>({...before,[key]:open})),
     rememberChatScroll:(key,top,following)=>{scroll.current[key]={top,following};},readChatScroll:key=>scroll.current[key],displayRunStart:0,
   };
   return <div className="pi-preview-workspace">
     <div className="pi-preview-strip"><span className="pi-preview-label">演示数据</span><span className="pi-preview-disclaimer">虚构会话 · 不调用模型，不保存记录</span>
-      <div className="pi-preview-scenarios" role="group" aria-label="示例状态">{([['complete','已完成'],['running','执行中'],['error','失败'],['interrupted','已中断']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={scenario===value} onClick={()=>{setScenario(value);setNotice(null);}}>{label}</button>)}</div>
-      <button type="button" onClick={onExit}>切回真实会话</button>
+      <div className="pi-preview-scenarios" role="group" aria-label="示例状态">{([['complete','已完成'],['running','执行中'],['error','失败'],['interrupted','已中断']] as const).map(([value,label])=><Button variant="app-control" type="button" key={value} aria-pressed={scenario===value} onClick={()=>{setScenario(value);setNotice(null);}}>{label}</Button>)}</div>
+      <Button variant="app-control" type="button" onClick={onExit}>切回真实会话</Button>
     </div>
     <AgentChat model={controller} preview/>
   </div>;

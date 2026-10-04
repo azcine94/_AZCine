@@ -15,13 +15,15 @@ pub struct DomainRule { pub domain: Domain, pub enabled: bool, pub rule: String,
 pub struct EditorialConfig {
     pub model: Option<ModelChoice>, pub domains: Vec<DomainRule>, pub featured_score: u32,
     pub overview_limit: usize, pub auto_collect: bool, pub auto_daily: bool, pub daily_time: String,
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    pub collection_proxy: Option<String>,
 }
 impl Default for EditorialConfig {
     fn default() -> Self { Self { model: None, domains: vec![
         DomainRule { domain: Domain::Frontiers, enabled: true, rule: "大模型能力、研究、开放模型与开发工具；关注实际变化及证据限制。".into(), min_score: 50, daily_limit: 5 },
         DomainRule { domain: Domain::Industry, enabled: true, rule: "AI行业、产品、政策与商业动态；区分发布事实、营销说法和推测。".into(), min_score: 50, daily_limit: 5 },
         DomainRule { domain: Domain::Visual, enabled: true, rule: "AI视频、图片及影视CG应用；关注制作流程、工具能力和可验证的局限。".into(), min_score: 50, daily_limit: 5 },
-    ], featured_score: 75, overview_limit: 3, auto_collect: false, auto_daily: false, daily_time: "09:00".into() } }
+    ], featured_score: 75, overview_limit: 3, auto_collect: false, auto_daily: false, daily_time: "09:00".into(), collection_proxy: None } }
 }
 pub fn validate_config(config: &EditorialConfig) -> Result<(), StorageError> {
     let time: Vec<_> = config.daily_time.split(':').collect();
@@ -32,7 +34,9 @@ pub fn validate_config(config: &EditorialConfig) -> Result<(), StorageError> {
             || r.rule.trim().is_empty() || r.rule.chars().count()>2000 || r.min_score>100 || r.daily_limit>5)
         || config.model.as_ref().is_some_and(|m|m.provider.trim().is_empty()||m.id.trim().is_empty()||m.provider.len()>200||m.id.len()>300) {
         return Err(StorageError::new("news_config_invalid", "请填写三个领域的规则、0–100评分、有效数量和北京时间HH:MM；输入保留。"));
-    } Ok(())
+    }
+    if let Some(proxy) = &config.collection_proxy { crate::news_http::proxy_server(proxy)?; }
+    Ok(())
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all="camelCase", deny_unknown_fields)]
@@ -88,3 +92,15 @@ pub struct EditorialSnapshot {
     pub pending: usize, pub next_daily_at: Option<String>,
 }
 pub fn invalid_reply() -> StorageError { StorageError::new("news_ai_invalid", "模型结果缺字段、引用不对应或超过范围，没有发布；材料与已有结果保留，可只重试失败部分。") }
+
+#[derive(Clone,Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct ProcessingSelection { pub scope:String,pub material_id:Option<String>,pub batch_size:usize }
+impl ProcessingSelection {
+    pub fn validate(&self)->Result<(),StorageError>{
+        if !(1..=20).contains(&self.batch_size)||!matches!(self.scope.as_str(),"single"|"all")
+            ||self.scope=="single"&&self.material_id.as_ref().is_none_or(|v|v.len()!=32||!v.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)))
+            ||self.scope=="all"&&self.material_id.is_some(){return Err(StorageError::new("news_scope_invalid","请选择单条资料或明确选择全部处理，每批1至20条；没有启动任务。"));}Ok(())
+    }
+}
+pub fn legacy_batch_size()->usize{BATCH_SIZE}

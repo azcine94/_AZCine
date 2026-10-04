@@ -1,6 +1,6 @@
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Serialize, de::DeserializeOwned};
-use crate::{news_editorial_types::*, news_types::{Material, MAX_REVISION, uuid}, news_store::{now, hash}, storage::{Store, StorageError}};
+use crate::{news_editorial_types::*, news_types::{Material, MAX_REVISION, uuid}, news_store::{now, hash, row_count}, storage::{Store, StorageError}};
 
 fn db_error(_: rusqlite::Error) -> StorageError { StorageError::new("news_editorial_save_failed", "资讯整理记录未能保存，已有事件与刊期保留；请检查磁盘或权限后重试保存。") }
 fn encode<T: Serialize>(value: &T) -> Result<String, StorageError> { serde_json::to_string(value).map_err(|_| invalid_reply()) }
@@ -85,6 +85,18 @@ impl Store {
         let mut query=self.db.prepare(&sql).map_err(db_error)?;
         query.query_map(params![start,end],material).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
     }
+    pub fn pending_materials(&self,page:usize,source_id:Option<&str>,query:&str)->Result<crate::news_types::MaterialPage,StorageError>{
+        if page>100000||query.chars().count()>200{return Err(invalid_reply());}
+        let at=now();let condition="EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) AND (?1 IS NULL OR m.source_id=?1) AND (?2='' OR instr(lower(m.title),lower(?2))>0 OR instr(lower(COALESCE(m.summary,'')),lower(?2))>0) AND COALESCE(m.published_at,m.discovered_at)<=?3";
+        let total:usize=self.db.query_row(&format!("SELECT count(*) FROM news_materials m WHERE {condition}"),params![source_id,query,at],|r|row_count(r,0)).map_err(db_error)?;
+        let mut rows=self.db.prepare(&format!("{MATERIAL_SELECT} WHERE {condition} ORDER BY m.discovered_at DESC,m.id LIMIT 6 OFFSET ?4")).map_err(db_error)?;
+        let items=rows.query_map(params![source_id,query,at,(page*6) as i64],material).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
+        Ok(crate::news_types::MaterialPage{items,total,page,page_size:6})
+    }
+    pub fn pending_daily_total(&self)->Result<usize,StorageError>{
+        let end=chrono::Utc::now();let start=end-chrono::Duration::hours(24);
+        self.db.query_row("SELECT count(*) FROM news_materials m WHERE COALESCE(m.published_at,m.discovered_at)>=?1 AND COALESCE(m.published_at,m.discovered_at)<=?2 AND EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id)",params![start.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true)],|r|row_count(r,0)).map_err(db_error)
+    }
     pub fn editorial_events(&self)->Result<Vec<Event>,StorageError>{
         let mut query=self.db.prepare("SELECT payload FROM news_events ORDER BY json_extract(payload,'$.latestAt') DESC,id").map_err(db_error)?;
         let rows=query.query_map([],|r|r.get::<_,String>(0)).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;rows.iter().map(|v|decode(v)).collect()
@@ -99,10 +111,16 @@ impl Store {
     pub fn editorial_run_exists(&self,id:&str)->Result<bool,StorageError>{self.db.query_row("SELECT EXISTS(SELECT 1 FROM news_editorial_runs WHERE id=?1)",[id],|r|r.get(0)).map_err(db_error)}
     pub fn save_editorial_run(&self,run:&EditorialRun)->Result<(),StorageError>{self.db.execute("INSERT INTO news_editorial_runs(id,payload) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",params![run.id,encode(run)?]).map_err(db_error)?;Ok(())}
     pub fn start_editorial_run(&self,id:&str,kind:&str,date:Option<String>)->Result<(EditorialRun,Preferences,Vec<Material>),StorageError>{
+        self.start_selected_editorial_run(id,kind,date,None)
+    }
+    pub fn start_selected_editorial_run(&self,id:&str,kind:&str,date:Option<String>,selection:Option<&ProcessingSelection>)->Result<(EditorialRun,Preferences,Vec<Material>),StorageError>{
+        if let Some(s)=selection{s.validate()?;}
         if !uuid(id)||!matches!(kind,"organize"|"daily"){return Err(invalid_reply());}
         let end=chrono::Utc::now();let start=if kind=="daily"{end-chrono::Duration::hours(24)}else{chrono::DateTime::parse_from_rfc3339("0001-01-01T00:00:00Z").map_err(|_|invalid_reply())?.with_timezone(&chrono::Utc)};let preferences=self.news_preferences()?;
         let mut run=EditorialRun{id:id.into(),kind:kind.into(),status:"running".into(),started_at:now(),finished_at:None,window_start:start.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),window_end:end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),config_revision:preferences.revision,config:preferences.config.clone(),sources:self.news_sources()?,event_id:None,event_revision:None,total:0,processed:0,error:None,schedule_date:date};
-        let input=self.editorial_candidates(&run.window_start,&run.window_end)?;run.total=input.len();self.save_editorial_run(&run)?;Ok((run,preferences,input))
+        let mut input=self.editorial_candidates(&run.window_start,&run.window_end)?;
+        if let Some(s)=selection { if s.scope=="single" {input.retain(|m|Some(&m.id)==s.material_id.as_ref());if input.len()!=1{return Err(StorageError::new("news_material_not_pending","所选资料已处理或不属于当前待处理范围，请重新读取；没有启动其他资料。"));}} }
+        run.total=input.len();self.save_editorial_run(&run)?;Ok((run,preferences,input))
     }
     pub fn save_editorial_batch(&mut self,run:&mut EditorialRun,preferences:&Preferences,input:&[Material],reply:&EditorialReply,model:&ModelChoice)->Result<(),StorageError>{
         validate_reply(reply,input)?;let mut processed=run.processed;let tx=self.db.transaction().map_err(db_error)?;

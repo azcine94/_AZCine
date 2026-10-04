@@ -1,3 +1,5 @@
+import { Feedback } from './components/ui/feedback.tsx';
+import { Button } from './components/ui/button.tsx';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ConversationView, ProcessView, ToolView } from './pi-process-view.ts';
 import { activityText, processHasIssue } from './pi-process-view.ts';
@@ -17,10 +19,10 @@ function ToolRow({value,choice,onChoice,onBeforeChange}:{value:ToolView;choice:b
   const issue = ['error','interrupted','incomplete'].includes(value.status);
   const open = choice ?? issue;
   return <div className="pi-call" data-call-id={value.id} data-status={value.status}>
-    <button type="button" className="pi-call-toggle" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(!open);}}>
+    <Button variant="app-control" type="button" className="pi-call-toggle" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(!open);}}>
       <PiIcon type="tool"/><span className="pi-call-title">调用工具：<code>{value.name}</code></span>
       <span className="pi-call-status">{states[value.status] ?? '状态待确认'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
-    </button>
+    </Button>
     <div className="pi-call-description">{value.path&&<p className="pi-call-path">{value.path}</p>}
       {value.output&&<p className="pi-call-preview">{value.output}</p>}
       {value.notice&&<p className="pi-call-notice">{value.notice}</p>}
@@ -36,22 +38,22 @@ function Thinking({text,title,expanded,onChoice,onBeforeChange}:{text:string;tit
     measure();const observer=new ResizeObserver(measure);observer.observe(el);return()=>observer.disconnect();},[text,expanded]);
   // The preview is only a display clip; the full original string remains available.
   return <div className="pi-thinking"><p ref={paragraph} className={!expanded?'pi-thinking-preview':undefined}>{text}</p>
-    {long&&<button type="button" className="pi-inline-action" aria-expanded={expanded} onClick={()=>{onBeforeChange();onChoice(!expanded);}}>{expanded?'收起全文':`展开${title}全文`}</button>}</div>;
+    {long&&<Button variant="app-control" type="button" className="pi-inline-action" aria-expanded={expanded} onClick={()=>{onBeforeChange();onChoice(!expanded);}}>{expanded?'收起全文':`展开${title}全文`}</Button>}</div>;
 }
 function Process({value,choices,onChoice,onBeforeChange}:{value:ProcessView;choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void}) {
   const id = useId(), issue = processHasIssue(value), open = choices[value.key] ?? (value.live || issue);
   const count = new Set(value.entries.filter(entry=>entry.kind==='tool').map(entry=>entry.id)).size;
   const title = (value.live ? activityText(value.activity) : issue ? '工作过程' : '已工作') + (issue?' · 有异常':'');
   return <section className="pi-process" data-process-key={value.key} data-live={value.live}>
-    <button className="pi-process-toggle" type="button" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(value.key,!open);}}>
+    <Button variant="app-control" className="pi-process-toggle" type="button" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(value.key,!open);}}>
       <span className={value.live?'pi-process-activity':'pi-process-symbol'}><PiIcon type={value.live?'activity':issue?'tool':'more'}/></span>
       <strong>{title}</strong>{count>0&&<span className="pi-process-count">{count} 次工具调用</span>}
       <span className="pi-process-toggle-label">{open?'收起':'展开'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
-    </button>
+    </Button>
     <div id={id} className="pi-process-content" hidden={!open}>{value.entries.map(entry=>entry.kind==='thinking'
       ? <Thinking key={entry.key} text={entry.text} title={entry.title} expanded={choices[entry.key+'/full']??false} onChoice={open=>onChoice(entry.key+'/full',open)} onBeforeChange={onBeforeChange}/>
       :<ToolRow key={entry.key} value={entry} choice={choices[entry.key+'/details']} onChoice={open=>onChoice(entry.key+'/details',open)} onBeforeChange={onBeforeChange}/>)}
-      {value.errors.map((error,index)=><p key={index} className="form-error" role="alert">{error}</p>)}</div>
+      {value.errors.map((error,index)=><Feedback as="p" tone="error" key={index} className="form-error" role="alert">{error}</Feedback>)}</div>
   </section>;
 }
 export function Conversation({items,choices,onChoice,onBeforeChange}:{items:ConversationView[];choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void}) {
@@ -62,5 +64,5 @@ export function Conversation({items,choices,onChoice,onBeforeChange}:{items:Conv
       {item.status==='streaming'&&<span className="pi-answer-state">接收中</span>}
       {item.status==='incomplete'&&<span className="pi-answer-state">回复未完整结束</span>}
       {item.status==='interrupted'&&<span className="pi-answer-state">已中断</span>}
-      {item.error&&<p className="form-error" role="alert">{item.error}</p>}</article>)}</>;
+      {item.error&&<Feedback as="p" tone="error" className="form-error" role="alert">{item.error}</Feedback>}</article>)}</>;
 }

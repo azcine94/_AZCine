@@ -71,7 +71,7 @@ pub(crate) fn recover_runs(db: &Connection, root: &std::path::Path) -> Result<()
     Ok(())
 }
 fn source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, i64, String)> { Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)) }
-fn row_count(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<usize> {
+pub(crate) fn row_count(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<usize> {
     let value: i64 = row.get(index)?;
     usize::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
 }

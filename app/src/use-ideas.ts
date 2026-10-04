@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from './desktop-api.ts';
 import { contentFor, emptyIdeaDraft, ideaDraft, parseIdea, parseIdeas, sameIdeaContent, validateIdea } from './ideas-contract.ts';
 import type { Idea, IdeaDraft, SaveIdea } from './ideas-contract.ts';
 import { workspaceError } from './workspace-contract.ts';
