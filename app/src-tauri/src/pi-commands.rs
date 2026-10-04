@@ -45,7 +45,10 @@ pub async fn pi_save_model(app:tauri::AppHandle,window:tauri::WebviewWindow,inpu
 fn begin_exit(app:&tauri::AppHandle){
     if app.state::<PiExit>().0.compare_exchange(0,1,Ordering::AcqRel,Ordering::Acquire).is_err(){return;}
     app.state::<PiManager>().set_exiting(true);
+    app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
     let app=app.clone();tauri::async_runtime::spawn_blocking(move||{
+        let active=app.state::<crate::news_ai::AiControl>().active.lock().ok().and_then(|v|v.clone());
+        if let Some(active)=active { if active.shutdown(std::time::Duration::ZERO).is_err(){app.state::<PiManager>().set_exiting(false);app.state::<PiExit>().0.store(0,Ordering::Release);return;} }
         match app.state::<PiManager>().disconnect(notify(&app)){
             Ok(_)=>{app.state::<PiExit>().0.store(2,Ordering::Release);app.exit(0);},
             Err(_)=>{app.state::<PiManager>().set_exiting(false);app.state::<PiExit>().0.store(0,Ordering::Release);if let Some(window)=app.get_webview_window("main"){let _=window.show();let _=window.set_focus();}let _=app.emit_to("main","azcine-pi-changed",());},

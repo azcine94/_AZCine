@@ -7,6 +7,7 @@ import './styles/app.css';
 import './styles/workspace.css';
 import './styles/projects.css';
 import './styles/pi.css';
+import './styles/news.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('AZCine root element is missing.');
