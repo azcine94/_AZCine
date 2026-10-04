@@ -10,9 +10,11 @@ Windows 个人影视 CG + AI coding 工作台，采用 Tauri 2 / React / TypeScr
 npm run dev
 ```
 
-打开真实 Tauri 桌面窗口。开发模式首次自动初始化本目录专用数据根，可保存待办、完成/恢复，管理公司项目文档、文字/list/勾选清单、项目标签、独立交期和指定 list 的交付汇总；大表按 100 行分页。模型榜已接入Agent与文生图Overall各前50的自动获取/保存及Agent输入输出价格。资讯已接18个RSS/Atom信源管理、手动采集、原版Pi整理/分析、固定日报与整期复制/PDF；灵感支持保存编辑、筛选、删除撤销及防重转待办。三分支已合入本地main并完成限定集成验证；资讯模型效果仅用显式回放，正式用户验收未确认。导入核对尚未接入，个人项目内部待定。
+打开真实 Tauri 桌面窗口。正常开发读取原应用的数据目录定位配置，使用同一份原main业务库，不自动创建本目录专用数据库。可保存待办、完成/恢复，管理公司项目文档、文字/list/勾选清单、项目标签、独立交期和指定 list 的交付汇总；大表按 100 行分页。模型榜已接入Agent与文生图Overall各前50的自动获取/保存及Agent输入输出价格。资讯已接18个RSS/Atom信源管理、手动采集、原版Pi整理/分析、固定日报与整期复制/PDF；灵感支持保存编辑、筛选、删除撤销及防重转待办。模型榜/资讯/灵感已完成限定集成验证；Agent最新改版也已合入本地main，最新代码未重验。资讯模型效果仅用显式回放，正式用户验收未确认。导入核对尚未接入，个人项目内部待定。
 
-独立Worktree也在各自根目录使用同一条 `npm run dev`，打开所在目录的版本，不要求指定模块。正常开发入口已使用所在目录 `.tooling/dev-instance/` 下独立的config/data/webview，并打印配置/数据路径；首次无定位配置时由Rust初始化独立根，已有实例继续使用原配置，失败不重建。Vite缓存在各目录 `.tooling/vite-cache/`。旧开发进程需正常停止后重新运行命令才能获得新环境，不复制或迁移原用户数据；正式版本仍按原数据根选择行为。启动器自动检测可用端口、同步Vite/Tauri devUrl与CSP，并有限重试端口竞争；实际目录、端口及自有PID输出并保存于不入Git的 `.tooling/instance/run-state.json`，启动锁防止同目录重复运行。远程调试默认关闭。已在两个真实Worktree验证独立启动/保存和关闭一方不影响另一方，详细范围见[开发计划](docs/development-plan.md)。
+独立Worktree也在各自根目录使用同一条 `npm run dev`，打开所在目录的版本，不要求指定模块。流程仍为独立分支开发、交接后合main；后续从最新main开始打磨，业务数据库共用原应用定位配置，Windows位置为 `%LOCALAPPDATA%/com.azcine.workbench/data-root.json`。本机当前原数据根是 `C:/Users/A/Documents/AZCineData`，业务库是其 `db/azcine.sqlite3`；源码不写死该机器路径。缺原定位配置或数据被另一窗口占用时明确报错，不回退新空库。当前只能一个桌面窗口持有库锁，先关闭另一窗口再打开分支。
+
+Pi配置/认证/会话仍使用各Worktree `.tooling/dev-instance/data/pi/`，WebView使用 `.tooling/dev-instance/webview/`，Vite缓存使用 `.tooling/vite-cache/`；明确测试根继续隔离。旧分支数据库和原Pi目录全部保留，本次不复制/合并/迁移数据。旧源码分支须带上最新main的数据入口改动才使用这套行为，不跨目录改其源码。启动器自动检测可用端口、同步Vite/Tauri devUrl与CSP，并有限重试端口竞争；配置/业务根/Pi根/端口/自有PID打印并保存于不入Git的 `.tooling/instance/run-state.json`，启动锁防同目录重复运行。远程调试默认关闭。旧独立库入口的验证记录不覆盖新共用库入口；本轮未运行测试、构建或真实启动，范围见[开发计划](docs/development-plan.md)。
 
 Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立复核尚未完成；没有模型不会生成假回复。主窗关闭目前退出。资讯本地自动采集和北京时间日报调度已接，默认关闭、仅电脑及应用实际运行时执行；通用任务队列、托盘和登录自启仍留待。当前实际进度、留待和暂停点分别看[开发计划](docs/development-plan.md)与[当前工作](docs/current-work.md)，不把可运行等同全产品完成。
 

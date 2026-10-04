@@ -1,18 +1,14 @@
 # 当前工作
 
-> 更新：2026-10-04。仅保留当前任务和暂停点；实现、主测、独立复核、用户验收和发布分别记录。
+> 更新：2026-10-04。实现、合入main、技术验证、用户验收和发布分别记录。
 
-- **当前任务**：按用户提供的 `azcine-agent-design-handoff.zip` 和确认图实施Agent聊天局部改版；用户随后分别明确授权测试/类型检查/构建/真实桌面UI，以及product_6.0原reviewer。两项授权只覆盖本轮；项目默认不测试/不委派规则继续有效。
-- **文档真源**：`E:/Coding_Work/_AZCine` 的AGENTS、README与docs；维护者仍为本主目录Codex会话。功能Worktree只读真源，不维护其旧文档副本。
-- **源码/目录**：`feat/agent-design` / `C:/Users/A/.herdr/worktrees/_AZCine/feat-agent-design`；基线main `61d3ecaf8b1b2200b751988c46fe5fa976f7084d`，当前源码提交 `12a5c89853ac6815e0d181b315600bda947f68d5`，已本地提交、未合main。
-- **实际改动**：紧凑会话栏/页头、800px聊天列、底部常驻输入；思考和工具同区无外框，调用ID关联结果且历史可恢复，保留普通正文、用户折叠与向上阅读位置，失败/截断/中断有真实标记。原模型设置、会话、图片输入校验、IME、followUp/steer/停止与草稿取回路径保留。Rust仅修原子调用ID的脱敏一致性，保留完整秘密与正文前缀保护；未改Pi/runtime/协议/数据库/依赖或其他模块业务。
-- **主测结果**：根12＋前端126、Rust144、类型检查/前端构建通过；显式IPC/UI回放45、真实桌面29项通过。真实Tauri、原版Pi和本地read工具/会话重开/错误/取消实际执行，模型返回明确localhost fixture，未做付费真实推理或真实图片识别。亮暗三尺寸已截图并看图；原overflow每尺寸4条均来自未展开details的不绘制后代，分类及原报告保留，实际可见控件无溢出。证据/范围/哈希/失败记录见 `artifacts/validation/agent-design-20261004-110943/summary.md`。
-- **独立复核暂停点**：原reviewer已审三轮。第一轮3项P2修复，第二轮确认并提出非字符串ID限定建议（已采纳）；第三轮新增名称输入法组合Escape问题，已最小修复且新增UI回归通过，但此最终修复尚未独立复审。原review阶段明确要求同阶段三轮不过则停止、标留待，因此不启动第四轮、不宣称最终独立通过；继续复审及合main须用户明确决定。主测不能代替独立审查或用户验收。
-- **保留/启动**：在上述功能目录根执行 `npm run dev` 打开真实桌面，启动器自动处理端口、配置/虚构数据/WebView。所有本轮自有桌面已正常关闭，启动器exit0且锁释放；主目录用户原桌面未关闭。首次普通启动中生成的合成测试实例整目录原样留存在本Worktree `artifacts/validation/agent-desktop-first-normal-instance-retained`，避免普通入口带入测试模型；其他隔离测试根/截图/失败输入全部保留，未删除。源码分支/Worktree保留；未推送、发版或创建PR。
-- **范围外留待**：原生Skills/扩展资源加载与提问、RPC/TUI独占交接、业务草案/导入、统一后台/托盘/自启、桌宠、完整备份迁移恢复，以及真实模型效果和用户正式验收；不由本次改版自动启动。
-
-| 任务 | 当前状态 | 后续 |
-|---|---|---|
-| Agent选定改版 | feat/agent-design 12a5c89已实现/本地提交，主测通过（模型回放） | 第三轮修复后的最终独立复审留待；未合main，用户验收未确认 |
-| 主目录main/文档维护 | 模型榜072f469、资讯5d5377d、灵感bccec874已合；业务fecbfbf、启动器61d3eca的原集成结论继续有效 | 本轮仅局部更新文档；源码合并/推送/发布按明确授权 |
-| 原模块分支与其他Worktree | 模型榜/资讯/灵感源码与目录、feat/inspire-part及旧隔离验证目录均保留 | 本轮未修改、删除或续开发；既有技术/用户验收边界见开发计划 |
+- **当前任务已完成**：按用户交接将Agent整分支12a5c89＋06a2251合入本地main，合并提交29ef06e528f7487f783afc49d9b98622c01e619c；另将正常开发入口共用原main业务数据的调整fd96230f2f0d7946670e9578207461abd8cb5a24合入main。保留其他模块与文档真源。未推送、发布、清理、启动桌面或运行新验证。
+- **最新用户决定**：开发流程不变，仍独立分支开发、交接、合main；后续从最新main开始在分支打磨模块，业务数据库只用一套原库。此决定取代此前正常开发每Worktree建虚构业务库及“先不合并”的暂停点；不授权自动开发其他功能、测试、子Agent或清理。
+- **原始数据定位**：原本机应用定位配置C:/Users/A/AppData/Local/com.azcine.workbench/data-root.json实际指向C:/Users/A/Documents/AZCineData；业务库db/azcine.sqlite3。新入口读取此定位配置，不写死机器路径、不复制/覆盖/合并分支旧库。保留原库写锁，当前只允许一个桌面窗口使用；缺定位/库占用报错，不回退分支空库。旧源码分支需带上最新main入口改动才使用该行为，本轮未改其他开发会话源码。
+- **实例边界**：端口、WebView/Vite缓存和本机运行状态仍独立；Pi认证、配置、Skills/扩展与会话仍在各Worktree的.tooling/dev-instance/data/pi，不读取或复制宿主/原main认证。明确测试config/default根继续隔离，新入口不创建分支SQLite业务库。
+- **文档真源**：E:/Coding_Work/_AZCine的AGENTS、README与docs，由本主目录Codex会话维护；Worktree副本保留但不独立维护。此次局部更新规则/运行说明、Agent最新视觉、需求/结构/进度；旧current-work已保存在当前集成证据目录。
+- **源码与分支**：Agent目录C:/Users/A/.herdr/worktrees/_AZCine/feat-agent-design，分支feat/agent-design，HEAD06a2251b79533300638a05a0b81ef5bb2964b8b8；数据入口改动在fix/shared-main-data / C:/Users/A/.herdr/worktrees/_AZCine/fix-shared-main-data，基线29ef06e、HEADfd96230；均已合入main，目录/分支保留。main后续文档提交不改变这两个源码版本。
+- **Agent最终实现**：224会话栏和聊天区各自成岛，间距24；最近会话/浅灰新会话/选中行、移除刷新；已发送用户气泡亮暗固定黑底白字。740聊天列、14正文、右下实际模型/只读思考标签、自定义向上菜单；DEV懒加载虚构示例。思考和工具统一折在“已工作”下，回答在区外；真实发送/排队/插入/停止、附件校验与草稿路径保留。
+- **当前验证界限**：06a2251与fd96230本轮未运行测试、类型检查、构建或UI验证，也未调用子Agent。12a5c89历史主测及中间版本亮暗三尺寸截图不覆盖最终两栏/气泡或新共享库入口。原reviewer三轮，第三轮IME修复尚未最终独立复审；继续复审须用户明确要求，不标最终独立通过。真实模型、Codex菜单/整体1:1及正式用户验收仍留待。
+- **交接与证据**：Agent原交接C:/Users/A/.herdr/worktrees/_AZCine/feat-agent-design/artifacts/validation/handoff-20261004-151152/handoff.md；本轮集成材料artifacts/validation/integration-agent-shared-data-20261004-152553/。仅依据交接和实际提交，不读取其他会话私有聊天。原数据库、隔离库、历史证据及分支/Worktree均保留。
+- **后续暂停点**：等待用户分配各模块打磨任务；本轮不自动续开发。原生资源/TUI、草案/导入、统一后台/托盘/自启、桌宠及完整数据保障仍按需求留待。

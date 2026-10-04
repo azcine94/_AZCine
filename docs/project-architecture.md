@@ -127,7 +127,9 @@ flowchart TD
 
 Rust写正式业务库，Pi写自己的原生会话；AI输出在应用外部校验成草案，本人核对后才事务更新。React不直写SQLite，设计稿不进入生产执行链。实际字段/命令以 `lib.rs`、`pi-commands.rs` 和TS/Rust契约代码为准，本文不另抄一套接口。
 
-Agent局部改版目前在 `feat/agent-design`（12a5c89），未合main。`App`仍持有`usePi`的草稿/回执；新增控制器展示选择、会话/代次滚动记忆及观测到的运行起点，不写原生会话。`pi-process-view`仅适配已脱敏快照，用实际调用ID合并消息与事件，保正文顺序、孤立/重复ID和异常标识；`pi-process-panel`渲染独立展开项，`pi-agent-panel`承接聊天布局/滚动/输入，`pi-panels`保留模型设置与RuntimeInfo。Rust仅收窄调用ID的前缀裁切：原子字符串ID按完整秘密脱敏，非原子子树和正文仍保留流式前缀保护；未修改原版Pi、RPC协议、数据库或依赖。
+Agent `feat/agent-design` 的12a5c89＋06a2251已由29ef06e合入main。`App`仍持有`usePi`的草稿/回执；控制器持有展示选择、会话/代次滚动记忆及观测到的运行起点，不写原生会话。`pi-process-view`仅适配已脱敏快照，用实际调用ID合并消息与事件，保正文顺序、孤立/重复ID和异常标识；`pi-process-panel`渲染独立展开项，`pi-agent-panel`承接聊天布局/滚动/输入，`pi-panels`保留模型设置与RuntimeInfo。Agent的Rust改动仅收窄调用ID前缀裁切：原子字符串ID按完整秘密脱敏，非原子子树和正文仍保留流式前缀保护；未修改原版Pi、RPC协议、数据库或依赖。
+
+开发展示另由 `pi-agent-panel` 在 `import.meta.env.DEV` 下显式懒加载 `pi-agent-demo.tsx`，复用同一个 `AgentChat`/过程渲染。示例控制器、三段虚构会话、四种状态与三个示例模型全部在React内存中，不调用IPC/模型/存储；App持有的真实usePi控制器与草稿保留，退出示例重新显示。此补充已随06a2251合入main，最新界面未重验。
 
 ## 3. 用户数据根（不是源码根）
 
@@ -181,7 +183,7 @@ SQLite单业务写入者、根锁；当前统一schema 5。`storage.rs` 按实�
 
 `scripts/dev-environment.mjs` 根据Git common目录定位主环境，逐资源组区分独立目录、共享链接与缺失资源；仅复用main的组比对工具链/Cargo锁、Node声明/锁或runtime锁，并按白名单准备缺失联接。独立目录使用自身匹配环境，不覆盖已有目录；外部资源链接、上级目录联接或共享版本不符明确失败。`scripts/run-desktop.mjs` 动态检测本机端口，启动独立Vite、等待真实地址就绪并有限重试，生成本机Tauri devUrl/CSP覆盖。`.tooling/instance/launcher.lock` 防同目录重复启动，`run-state.json` 记录自有PID/路径/端口/退出结果；只停止所启动的PID树，调试端口显式启用。
 
-正常 `scripts/run-desktop.mjs dev` 为自有子进程设置本源码根 `.tooling/dev-instance/`，debug宿主使用其中config/data，首次无定位配置时初始化独立数据根，WebView使用其中webview；正式版本不接受该覆盖。显式测试根仍有覆盖能力，已有配置或数据不因失败重建。Vite缓存移至 `.tooling/vite-cache/`，runner配置加载避免写入共享node_modules临时缓存。端口与运行状态由启动器自动维护；这些目录不入Git、不共享业务数据/认证/会话。
+正常 `scripts/run-desktop.mjs dev` 为自有子进程标记使用原main业务数据；debug宿主通过本机应用原定位配置读取统一业务根，不再初始化分支业务库，缺定位/库占用时失败、不回退空库。`PiPaths::prepare`在该正常开发标记下仍将原版Pi配置/认证/会话定位到本源码根 `.tooling/dev-instance/data/pi/`，资讯专用Pi也使用同一实例的模型配置；不复制或读取原main/宿主认证。WebView使用实例webview，Vite缓存使用 `.tooling/vite-cache/`。明确测试config/default根覆盖仍保持原隔离行为；正式版本不接受开发环境覆盖。启动状态区分业务data与piData并报告模式；不入Git，不写死本机源码/业务路径。此调整fd96230已合main，未运行新验证；旧独立库运行证据不覆盖该共享入口。
 
 ### 灵感与资讯
 
