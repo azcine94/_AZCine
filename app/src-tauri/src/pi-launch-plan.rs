@@ -50,6 +50,21 @@ pub struct PiPaths {
 }
 impl PiPaths {
     pub fn prepare(root: &Path) -> Result<Self, ConfigError> {
+        // Sharing the business database does not share native Pi auth/sessions.
+        // Release and explicitly isolated validation continue to use their root.
+        #[cfg(debug_assertions)]
+        let instance_root = if std::env::var_os("AZCINE_DEV_USE_MAIN_DATA").as_deref() == Some(std::ffi::OsStr::new("1"))
+            && std::env::var_os("AZCINE_TEST_CONFIG_DIR").is_none()
+            && std::env::var_os("AZCINE_TEST_DEFAULT_ROOT").is_none() {
+            let instance = std::env::var_os("AZCINE_DEV_INSTANCE_DIR").map(PathBuf::from)
+                .ok_or_else(|| error("pi_root_required", "开发实例目录缺失，未改用原 main 的 Pi 认证或会话。"))?;
+            if !instance.is_absolute() { return Err(error("pi_root_required", "开发实例目录必须为绝对路径。")); }
+            no_link(&instance)?;
+            fs::create_dir_all(&instance).map_err(io_error)?;
+            Some(owned_dir(&fs::canonicalize(instance).map_err(io_error)?, "data")?)
+        } else { None };
+        #[cfg(debug_assertions)]
+        let root = instance_root.as_deref().unwrap_or(root);
         if !root.is_absolute() || !root.is_dir() { return Err(error("pi_root_required", "请先选择有效的 AZCine 数据目录。")); }
         let root = fs::canonicalize(root).map_err(io_error)?;
         let pi_root = owned_dir(&root, "pi")?;

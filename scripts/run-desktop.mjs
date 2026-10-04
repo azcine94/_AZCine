@@ -30,6 +30,9 @@ const env = {
 if (mode === 'dev') {
   const instance = path.join(root, '.tooling', 'dev-instance');
   env.AZCINE_DEV_INSTANCE_DIR = instance;
+  // Business data follows the original application locator; Pi and caches
+  // still belong to this Worktree. Explicit validation overrides stay isolated.
+  env.AZCINE_DEV_USE_MAIN_DATA = '1';
   env.WEBVIEW2_USER_DATA_FOLDER = process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(instance, 'webview');
 }
 for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER']) delete env[key];
@@ -72,7 +75,18 @@ if (mode === 'dev') {
     const source = JSON.parse(readFileSync(path.join(app, 'src-tauri/tauri.conf.json'), 'utf8'));
     devConfig = path.join(root, '.tooling', 'instance', 'tauri-dev.json');
     writeFileSync(devConfig, JSON.stringify({ build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
-    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config: env.AZCINE_TEST_CONFIG_DIR || path.join(root, '.tooling', 'dev-instance', 'config'), data: env.AZCINE_TEST_DEFAULT_ROOT || path.join(root, '.tooling', 'dev-instance', 'data'), webview: env.WEBVIEW2_USER_DATA_FOLDER };
+    const isolated = !!(env.AZCINE_TEST_CONFIG_DIR || env.AZCINE_TEST_DEFAULT_ROOT);
+    // Report the real locator target without opening the business database or
+    // reading Pi credentials. Rust remains responsible for validating it.
+    const config = env.AZCINE_TEST_CONFIG_DIR || (isolated ? path.join(root, '.tooling', 'dev-instance', 'config') : path.join(env.LOCALAPPDATA, 'com.azcine.workbench'));
+    const locatorPath = path.join(config, 'data-root.json');
+    let locatedRoot = null;
+    if (existsSync(locatorPath)) {
+      try { const locator = JSON.parse(readFileSync(locatorPath, 'utf8')); if (typeof locator.root === 'string' && path.isAbsolute(locator.root)) locatedRoot = locator.root; }
+      catch { /* Rust displays the original locator error; no empty-root fallback. */ }
+    }
+    const data = env.AZCINE_TEST_DEFAULT_ROOT || locatedRoot || (isolated ? path.join(root, '.tooling', 'dev-instance', 'data') : null);
+    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : path.join(root, '.tooling', 'dev-instance', 'data'), webview: env.WEBVIEW2_USER_DATA_FOLDER };
     writeFileSync(path.join(root, '.tooling', 'instance', 'run-state.json'), JSON.stringify(state, null, 2));
     console.log('AZCine Worktree 开发实例：' + JSON.stringify(state));
     break;

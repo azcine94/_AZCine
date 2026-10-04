@@ -61,9 +61,15 @@ async fn with_storage<T: Send + 'static>(app: tauri::AppHandle, work: impl FnOnc
                     if !instance.is_absolute() {
                         return Err(StorageError::new("config_path", "开发实例目录必须为绝对路径。"));
                     }
-                    config = instance.join("config");
-                    default_root = instance.join("data");
-                    initialize_dev_root = true;
+                    if std::env::var_os("AZCINE_DEV_USE_MAIN_DATA").as_deref() != Some(std::ffi::OsStr::new("1"))
+                        || std::env::var_os("AZCINE_TEST_CONFIG_DIR").is_some()
+                        || std::env::var_os("AZCINE_TEST_DEFAULT_ROOT").is_some() {
+                        config = instance.join("config");
+                        default_root = instance.join("data");
+                        initialize_dev_root = true;
+                    } else if !config.join("data-root.json").is_file() {
+                        return Err(StorageError::new("main_data_required", "原 main 数据目录定位配置不存在，未创建分支空库。请先恢复原应用的数据目录配置。"));
+                    }
                 }
                 // Existing explicitly isolated validation sessions retain their
                 // manual first-selection behavior and supplied roots.
