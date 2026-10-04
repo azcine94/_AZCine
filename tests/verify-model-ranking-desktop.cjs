@@ -8,7 +8,22 @@ const {validationRun}=require('./support/validation-run.cjs');
  const {out,hashes}=validationRun('model-ranking-live',['app/src','app/src-tauri/src','app/vite.config.ts','app/package.json','tests/verify-model-ranking-desktop.cjs']);
  const report={mode:'real desktop IPC/SQLite/public HTTPS; temporary per-test-process proxy; explicit fault injection only in failure checks',run,owner,before:hashes(),checks:[],network:[],pageErrors:[],screenshots:[]};
  const check=(name,fn,detail)=>{assert.ok(fn,name);report.checks.push({name,passed:true,detail});console.log('PASS',name)};
- const b=await chromium.connectOverCDP('http://127.0.0.1:9237');const page=b.contexts()[0].pages().find(p=>p.url().startsWith('http://127.0.0.1:1420'));
+ const b=await chromium.connectOverCDP('http://127.0.0.1:'+(process.env.AZCINE_CDP_PORT||9237));const page=b.contexts()[0].pages().find(p=>new URL(p.url()).origin==='http://127.0.0.1:'+(process.env.AZCINE_WEB_PORT||1420));
+
+ // Optional test-only transport through an existing local proxy. Actual public
+ // responses and headers are retained; this never supplies ranking fixtures.
+ if(process.env.AZCINE_VALIDATION_PROXY){
+  report.transport='real public HTTPS through explicit curl proxy relay in this validator';
+  const {execFile}=require('node:child_process');
+  await page.route(/^https:\/\/datasets-server\.huggingface\.co\//,async route=>{
+   const url=route.request().url(),file=path.join(out,'public-headers-'+require('node:crypto').randomUUID()+'.txt');
+   try{const body=await new Promise((resolve,reject)=>execFile('curl.exe',['--silent','--show-error','--max-time','30','--proxy',process.env.AZCINE_VALIDATION_PROXY,'--dump-header',file,url],{encoding:'utf8',maxBuffer:3*1024*1024,windowsHide:true},(error,stdout)=>error?reject(error):resolve(stdout)));
+    const blocks=fs.readFileSync(file,'utf8').trim().split(/\r?\n\r?\n/),lines=blocks.at(-1).split(/\r?\n/),status=Number(lines[0].split(' ')[1]),headers={};
+    for(const line of lines.slice(1)){const colon=line.indexOf(':');if(colon>0)headers[line.slice(0,colon).toLowerCase()]=line.slice(colon+1).trim();}
+    delete headers['content-length'];delete headers['content-encoding'];await route.fulfill({status,headers,body});
+   }catch(error){report.network.push({url,transportError:String(error)});await route.abort();}
+  });
+ }
  const pending=[];let recordNetwork=true;
  page.on('pageerror',e=>report.pageErrors.push(e.message));
  page.on('response',response=>{if(recordNetwork&&response.url().startsWith('https://datasets-server.huggingface.co/'))pending.push((async()=>{const body=await response.json();report.network.push({url:response.url(),status:response.status(),revision:response.headers()['x-revision'],body});})().catch(e=>report.network.push({error:String(e)})))});
@@ -50,7 +65,6 @@ const {validationRun}=require('./support/validation-run.cjs');
   await page.reload();await page.locator('nav a[href="#models"]').click();await page.waitForSelector('.ranking-table tbody tr');
   check('刷新页面重读 SQLite 且同日不重复自动取数',JSON.stringify((await states()).map(s=>s.snapshotId))===JSON.stringify(expected));
   const contrast=fs.readFileSync('tests/support/inspect-contrast.js','utf8');
-  execFileSync('pwsh.exe',['-NoProfile','-File','artifacts/validation/model-ranking-auto-2026-10-04/show-owned-window.ps1','-OwnerPid',String(owner)]);
   for(const theme of ['light','dark'])for(const [width,height]of [[1440,900],[1280,800],[1024,768]]){
    if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('.theme-button').click();
    execFileSync('pwsh.exe',['-NoProfile','-File','tests/support/native-window.ps1','-OwnerPid',String(owner),'-Action','resize','-Width',String(width),'-Height',String(height)]);
@@ -58,7 +72,7 @@ const {validationRun}=require('./support/validation-run.cjs');
    for(const board of ['agent','text-to-image']){
     await page.getByRole('button',{name:board==='agent'?'Agent 综合榜':'文生图综合榜',exact:true}).click();
     const s=saved.find(s=>s.board===board);
-    check(`${theme}/${width}/${board} 显示完整50行与日期`,await page.locator('.ranking-table tbody tr').count()===50&&(await page.locator('.ranking-times').innerText()).includes(s.snapshot.dataUpdatedAt));
+    check(`${theme}/${width}/${board} 显示完整50行与采集时间`,await page.locator('.ranking-table tbody tr').count()===50&&await page.locator('.ranking-times time').getAttribute('datetime')===s.snapshot.capturedAt);
     assert.deepEqual(await page.locator('.ranking-model-name').allTextContents(),s.snapshot.rows.map(r=>r.model));
     const layout=await page.evaluate(()=>{const region=document.querySelector('.ranking-table-scroll'),r=region.getBoundingClientRect();return{pageFits:document.body.scrollWidth<=innerWidth+1,regionFits:r.left>=0&&r.right<=innerWidth+1,client:region.clientWidth,scroll:region.scrollWidth,rows:[...document.querySelectorAll('.ranking-table tbody tr')].every(r=>r.cells[1].getBoundingClientRect().top===r.cells[2].getBoundingClientRect().top)}});
     check(`${theme}/${width}/${board} 页面不溢出且横向区域有边界`,layout.pageFits&&layout.regionFits&&layout.rows,layout);

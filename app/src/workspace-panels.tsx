@@ -3,6 +3,8 @@ import type { TodoFilter } from './workspace-contract.ts';
 import type { WorkspaceController } from './use-workspace.ts';
 import type { ProjectDocument } from './projects-contract.ts';
 import { DateInput } from './date-input.tsx';
+import { useEffect } from 'react';
+import type { Idea } from './ideas-contract.ts';
 
 function Feedback({ model }: { model: WorkspaceController }) {
   return <div className="workspace-feedback" aria-live="polite">
@@ -28,14 +30,19 @@ export function DataSettings({ model }: { model: WorkspaceController }) {
   return <section className="foundation-section data-panel"><h2>数据目录</h2><p className="path-text" data-current-root>{model.workspace.root}</p><div className="form-actions"><button className="pill" disabled={!!model.busy || model.loading} onClick={() => void model.openRoot()}>打开目录</button><button className="pill" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取</button></div><p className="meta">目录迁移与备份在 S13 接入；现在不会直接改用新空库或删除旧目录。</p><Feedback model={model} /></section>;
 }
 const filters: { id: TodoFilter; title: string }[] = [{ id: 'incomplete', title: '未完成' }, { id: 'today', title: '今天' }, { id: 'completed', title: '已完成' }];
-export function TodoPanel({ model, projects, projectsLoading = false, projectsError = '' }: {
-  model: WorkspaceController; projects: ProjectDocument[]; projectsLoading?: boolean; projectsError?: string;
+export function TodoPanel({ model, projects, projectsLoading = false, projectsError = '', ideas = [], targetId = null }: {
+  model: WorkspaceController; projects: ProjectDocument[]; projectsLoading?: boolean; projectsError?: string; ideas?: Idea[]; targetId?: string | null;
 }) {
   const disabled = !!model.busy || model.loading || !!model.loadError;
   const draftLocked = disabled || !!model.pendingCreate;
   const projectLocked = draftLocked || projectsLoading || !!projectsError;
   const projectHint = projectsLoading ? '正在读取公司项目，可以先不关联。' : projectsError ? `公司项目未能读取：${projectsError}` : projects.length ? '公司项目可选，不关联也能保存。' : '暂无公司项目，可以先不关联。';
   const todos = filterTodos(model.workspace?.todos ?? [], model.filter, model.today);
+  useEffect(() => {
+    if (!targetId) return;
+    const row = document.querySelector<HTMLElement>(`[data-todo-id="${targetId}"]`);
+    row?.scrollIntoView({ block: 'center' }); row?.focus({ preventScroll: true });
+  }, [targetId, model.filter, model.workspace?.todos]);
   const state = model.loading ? '正在读取待办…' : model.busy === 'save-todo' ? '正在保存…' : model.busy ? '正在更新…' : model.notice || '日期和项目可不填';
   return <div className="todo-panel" data-working={!!model.busy || model.loading} onClickCapture={event => {
     if (event.target instanceof Element && event.target.closest('[aria-disabled="true"]')) { event.preventDefault(); event.stopPropagation(); }
@@ -51,8 +58,9 @@ export function TodoPanel({ model, projects, projectsLoading = false, projectsEr
     <div className="todo-feedback" aria-live="polite" aria-busy={!!model.busy || model.loading}><p role="status" className="meta">{state}</p>{model.error && <p className="form-error" role="alert">{model.error}</p>}{model.loadError && model.loadError !== model.error && <p className="form-error" role="alert">{model.loadError}</p>}</div>
     {model.pendingCreate && <div className="pending-note"><p>保存结果尚未确认，原输入与请求已保留；重试不重复建项。</p><button type="button" className="pill" aria-disabled={disabled} onClick={() => void model.reconcileCreate()}>重新核对保存结果</button></div>}
     <div className="form-actions todo-filters" aria-label="待办筛选">{filters.map(filter => <button key={filter.id} className={`pill${model.filter === filter.id ? ' on' : ''}`} aria-pressed={model.filter === filter.id} onClick={() => model.setFilter(filter.id)}>{filter.title}</button>)}</div>
-    {todos.length === 0 ? <p className="todo-empty">{model.filter === 'completed' ? '还没有已完成的待办。' : model.filter === 'today' ? '今天没有到期待办，未设日期的事项仍在“未完成”。' : '暂无待办，先记下一件事。'}</p> : <ul className="todo-list">{todos.map(todo => <li key={todo.id} data-todo-id={todo.id}>
+    {todos.length === 0 ? <p className="todo-empty">{model.filter === 'completed' ? '还没有已完成的待办。' : model.filter === 'today' ? '今天没有到期待办，未设日期的事项仍在“未完成”。' : '暂无待办，先记下一件事。'}</p> : <ul className="todo-list">{todos.map(todo => <li key={todo.id} data-todo-id={todo.id} data-targeted={targetId === todo.id} tabIndex={targetId === todo.id ? -1 : undefined}>
       <div className="todo-row"><button className="todo-toggle" aria-pressed={todo.completed} aria-label={`${todo.completed ? '恢复' : '完成'}待办：${todo.title}`} aria-disabled={disabled} onClick={() => void model.changeCompletion(todo, !todo.completed)}><span className="todo-check" aria-hidden="true">{todo.completed ? '✓' : ''}</span><span className={todo.completed ? 'todo-done' : ''}>{todo.title}</span></button><span className="meta todo-date">{todo.dueDate ?? '未设日期'}</span></div>{todo.projectId && <a className="foundation-link todo-project" href={`#projects/${todo.projectId}`}>{projects.find(project => project.id === todo.projectId)?.name ?? '打开关联公司项目'}</a>}
+      {ideas.find(idea => idea.todoId === todo.id) && <a className="todo-source" href={`#ideas/${ideas.find(idea => idea.todoId === todo.id)!.id}`}>查看来源灵感</a>}
     </li>)}</ul>}
     <div className="form-actions todo-footer"><span className="meta">{model.undo ? '最近一次状态修改' : '保存在本机'}</span><div className="todo-undo-slot">{model.undo && <button className="text-action" aria-disabled={disabled} onClick={() => { if (model.undo) void model.changeCompletion(model.undo.todo, model.undo.completed, true); }}>撤销</button>}</div><button className="text-action" aria-disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取待办</button></div>
   </div>;

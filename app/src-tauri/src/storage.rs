@@ -7,12 +7,16 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 const DATABASE: &str = "db/azcine.sqlite3";
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
 // an arbitrary database found at the final DATABASE path.
 const INITIALIZING: &str = ".azcine-initializing-v1";
+
+#[cfg(test)]
+#[path = "storage-integration-tests.rs"]
+pub(crate) mod integration_tests;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -164,11 +168,41 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
             project_id TEXT, completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)), revision INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))) STRICT;").map_err(db_error)?;
     crate::projects::create_schema(&tx)?;
+    crate::ideas::create_schema(&tx)?;
     crate::news_store::create_schema(&tx)?;
     crate::news_editorial_store::create_schema(&tx)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
+}
+
+// The two independent branches both shipped version 3 with different schemas.
+// Recognize each complete legacy layout before any migration; never reinterpret
+// a version number, rebuild partial tables, or lower a database version.
+fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), StorageError> {
+    let incompatible = || StorageError::new("incompatible_database", "数据库版本与模块结构不一致，未迁移或覆盖。请保留原目录并核对来源版本。");
+    let group = |names: &[&str]| -> Result<bool, StorageError> {
+        let mut count = 0;
+        for name in names {
+            if db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?1)", [name], |r| r.get::<_, bool>(0)).map_err(db_error)? { count += 1; }
+        }
+        if count == 0 { Ok(false) } else if count == names.len() { Ok(true) } else { Err(incompatible()) }
+    };
+    let ideas = group(&["ideas", "idea_requests"])?;
+    let news = group(&["news_sources", "news_source_requests", "news_batches", "news_runs", "news_materials", "news_material_keys"])?;
+    let editorial = group(&["news_preferences", "news_preference_requests", "news_editorial_runs", "news_events", "news_event_versions", "news_processed", "news_editions", "news_automation_sources"])?;
+    let recognized = match version {
+        1 | 2 => !ideas && !news && !editorial,
+        3 => ideas != news && !editorial,
+        4 => !ideas && news && editorial,
+        5 => ideas && news && editorial,
+        _ => false,
+    };
+    if !recognized { return Err(incompatible()); }
+    if ideas { crate::ideas::validate_schema(db)?; }
+    if news { crate::news_store::validate_schema(db)?; }
+    if editorial { crate::news_editorial_store::validate_schema(db)?; }
+    Ok((ideas, news, editorial))
 }
 
 impl Store {
@@ -236,13 +270,14 @@ impl Store {
         }
         // Validate required schema before a first selection can persist its locator.
         db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos LIMIT 0").map_err(db_error)?;
+        let (has_ideas, has_news, has_editorial) = legacy_modules(&db, version)?;
         // Retain the journal file instead of deleting test artifacts after each commit.
         // S13 exports a consistent snapshot, not a copy of an active journal.
         configure_journal(&db)?;
         db.pragma_update(None, "foreign_keys", true).map_err(db_error)?;
-        if version >= 3 { crate::news_store::validate_schema(&db)?; }
         if version < SCHEMA_VERSION {
-            // Recognized v1/v2 only; preserve existing identity, todos and projects.
+            // All additions and the version advance commit together. Existing
+            // identity, records, request receipts and ranking snapshots stay intact.
             let tx = db.transaction().map_err(db_error)?;
             if version == 1 {
                 let invalid_links: i64 = tx.query_row("SELECT count(*) FROM todos WHERE project_id IS NOT NULL", [], |row| row.get(0)).map_err(db_error)?;
@@ -251,13 +286,15 @@ impl Store {
             }
             tx.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
             tx.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
-            if version < 3 { crate::news_store::create_schema(&tx)?; }
-            crate::news_editorial_store::create_schema(&tx)?;
+            if !has_ideas { crate::ideas::create_schema(&tx)?; }
+            if !has_news { crate::news_store::create_schema(&tx)?; }
+            if !has_editorial { crate::news_editorial_store::create_schema(&tx)?; }
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
         db.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
+        crate::ideas::validate_schema(&db)?;
         crate::news_store::validate_schema(&db)?;
         crate::news_editorial_store::validate_schema(&db)?;
         crate::news_store::recover_runs(&db, &root)?;

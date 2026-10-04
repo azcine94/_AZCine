@@ -9,6 +9,7 @@ import './styles/projects.css';
 import './styles/pi.css';
 import './styles/model-ranking.css';
 import './styles/news.css';
+import './styles/ideas.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('AZCine root element is missing.');

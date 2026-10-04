@@ -14,7 +14,7 @@ export function useNewsEditorial(root: string | null) {
   const [editionId, setEditionId] = useState(''); const [limit, setLimit] = useState(50);
   const [loading, setLoading] = useState(false); const [busy, setBusy] = useState(''); const busyRef = useRef('');
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [loadError, setLoadError] = useState('');
-  const [copyText, setCopyText] = useState(''); const reads = useRef(0); const loadedRoot = useRef<string | null>(null);
+  const [copyText, setCopyText] = useState(''); const [copyEditionId, setCopyEditionId] = useState(''); const reads = useRef(0); const loadedRoot = useRef<string | null>(null);
   function putDraft(p: Preferences) { draftRef.current = p; setDraft(p); }
   function putPending(p: SavePreferences | null) { pendingRef.current = p; setPending(p); }
   function acceptPreferences(p: Preferences, request?: SavePreferences) {
@@ -51,8 +51,8 @@ export function useNewsEditorial(root: string | null) {
   const analyze = (id: string, revision: number) => action('analysis', async () => { parseEvent(await invoke('analyze_news_event', { id, revision })); await refresh(); setNotice('事件分析已保存；判断与未验证项单独展示。'); });
   async function cancel() { try { await invoke('cancel_news_editorial'); setNotice('已请求取消；终态以任务记录为准，已完成结果保留。'); await refresh(); } catch (e) { setError(workspaceError(e)); } }
   const exportPdf = (id: string) => action('export', async () => { const path = await invoke<string | null>('export_news_edition', { id }); setNotice(path === null ? '已取消导出，刊期保留。' : `整期PDF已导出：${path}`); });
-  const copy = (id: string) => action('copy', async () => { const text = await invoke<string>('news_edition_text', { id }); setCopyText(text); try { await navigator.clipboard.writeText(text); setNotice('已复制完整刊期，与所选版本及PDF内容一致。'); } catch { setNotice('剪贴板受限，完整刊期已展开，可手动全选复制。'); } });
+  const copy = (id: string) => action('copy', async () => { const edition = snapshotRef.current?.editions.find(e => e.id === id); const label = edition ? `${edition.date} 第${edition.version}版` : '刚才所选刊期'; const text = await invoke<string>('news_edition_text', { id }); setCopyEditionId(id); setCopyText(text); try { await navigator.clipboard.writeText(text); setNotice(`已复制${label}的完整内容，与该版PDF一致。`); } catch { setNotice(`剪贴板受限，选回${label}可手动全选复制。`); } });
   const active = !!busy && ['organize', 'daily', 'analysis'].includes(busy) || !!snapshot?.runs.some(r => ['running', 'saving'].includes(r.status));
-  return { connected, snapshot, draft, pending, loading, busy, active, error, notice, loadError, tab, setTab, domain, setDomain, editionId, setEditionId, limit, setLimit, copyText, setCopyText, changeConfig, rebase, save, reconcile, refresh, organize, cancel, analyze, exportPdf, copy };
+  return { connected, snapshot, draft, pending, loading, busy, active, error, notice, loadError, tab, setTab, domain, setDomain, editionId, setEditionId, limit, setLimit, copyText, copyEditionId, setCopyText, changeConfig, rebase, save, reconcile, refresh, organize, cancel, analyze, exportPdf, copy };
 }
 export type EditorialController = ReturnType<typeof useNewsEditorial>;

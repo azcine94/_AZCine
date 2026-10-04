@@ -219,7 +219,7 @@ fn given_sqlite_readonly_or_full_when_save_then_no_false_success_or_partial_rece
 fn given_valid_v1_when_open_then_atomic_migration_preserves_identity_and_all_todo_fields() {
     let out = run(); let root = out.join("legacy"); legacy(&root, false);
     let mut store = Store::open(&root, false).unwrap();
-    assert_eq!(schema_version(&store.db), 4); assert!(table_exists(&store.db, "news_sources")); assert!(table_exists(&store.db, "projects")); assert!(table_exists(&store.db, "project_requests"));
+    assert_eq!(schema_version(&store.db), 5); assert!(table_exists(&store.db, "news_sources")); assert!(table_exists(&store.db, "ideas")); assert!(table_exists(&store.db, "projects")); assert!(table_exists(&store.db, "project_requests"));
     let identity: String = store.db.query_row("SELECT value FROM app_meta WHERE key='identity'", [], |r| r.get(0)).unwrap(); assert_eq!(identity, "0123456789abcdef0123456789abcdef");
     let todos = store.todos().unwrap(); assert_eq!(todos.len(), 1); let t = &todos[0];
     assert_eq!(t.id, id(50)); assert_eq!(t.title, "原待办"); assert_eq!(t.due_date.as_deref(), Some("2028-02-29"));

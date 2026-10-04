@@ -20,6 +20,7 @@ use news_commands::*;
 use news_editorial_commands::*;
 #[path = "news-export.rs"] mod news_export;
 use news_export::*;
+mod ideas;
 #[path = "pi-jsonl.rs"] mod pi_jsonl;
 #[path = "pi-model-config.rs"] mod pi_model_config;
 #[path = "pi-config-store.rs"] mod pi_config_store;
@@ -123,6 +124,32 @@ async fn project_request(app: tauri::AppHandle, window: tauri::WebviewWindow, re
     with_storage(app, move |manager| manager.store()?.project_request(&request_id)).await
 }
 
+#[tauri::command]
+async fn list_ideas(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Vec<ideas::Idea>, StorageError> {
+    main_window(&window)?;
+    with_storage(app, |manager| manager.store()?.ideas()).await
+}
+#[tauri::command]
+async fn idea_request(app: tauri::AppHandle, window: tauri::WebviewWindow, request_id: String) -> Result<Option<ideas::Idea>, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.idea_request(&request_id)).await
+}
+#[tauri::command]
+async fn save_idea(app: tauri::AppHandle, window: tauri::WebviewWindow, input: ideas::SaveIdea) -> Result<ideas::Idea, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.save_idea(input)).await
+}
+#[tauri::command]
+async fn set_idea_deleted(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, revision: i64, deleted: bool) -> Result<ideas::Idea, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.set_idea_deleted(&id, revision, deleted)).await
+}
+#[tauri::command]
+async fn convert_idea(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, revision: i64) -> Result<ideas::Idea, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.convert_idea(&id, revision)).await
+}
+
 fn owner_handle(window: &tauri::WebviewWindow) -> Result<isize, StorageError> {
     main_window(window)?;
     #[cfg(windows)]
@@ -162,7 +189,7 @@ pub fn run() {
         .manage(news_ai::AiControl::default())
         .manage(pi_manager::PiManager::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_editorial_snapshot, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source])
+        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_editorial_snapshot, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea])
         .setup(|app| { news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")
