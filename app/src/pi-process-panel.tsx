@@ -41,7 +41,7 @@ function Thinking({text,title,expanded,onChoice,onBeforeChange}:{text:string;tit
 function Process({value,choices,onChoice,onBeforeChange}:{value:ProcessView;choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void}) {
   const id = useId(), issue = processHasIssue(value), open = choices[value.key] ?? (value.live || issue);
   const count = new Set(value.entries.filter(entry=>entry.kind==='tool').map(entry=>entry.id)).size;
-  const title = (value.live ? activityText(value.activity) : '处理过程') + (issue?' · 有异常':'');
+  const title = (value.live ? activityText(value.activity) : issue ? '工作过程' : '已工作') + (issue?' · 有异常':'');
   return <section className="pi-process" data-process-key={value.key} data-live={value.live}>
     <button className="pi-process-toggle" type="button" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(value.key,!open);}}>
       <span className={value.live?'pi-process-activity':'pi-process-symbol'}><PiIcon type={value.live?'activity':issue?'tool':'more'}/></span>

@@ -1,12 +1,50 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import type { PiController } from './use-pi.ts';
 import { piError } from './pi-client.ts';
 import { activityText, conversationView } from './pi-process-view.ts';
 import { Conversation, PiIcon } from './pi-process-panel.tsx';
 import { RuntimeInfo } from './pi-panels.tsx';
+import type { PiModel } from './pi-contract.ts';
 
+function ModelPicker({models,current,thinking,disabled,context,onSelect}:{models:PiModel[];current:PiModel|null|undefined;thinking:string|undefined;disabled:boolean;context:string;onSelect:(value:PiModel)=>Promise<void>}) {
+  const [open,setOpen]=useState(false),id=useId();
+  const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null),menu=useRef<HTMLDivElement>(null);
+  const selected=models.findIndex(value=>value.provider===current?.provider&&value.id===current?.id);
+  const level=current?.reasoning&&thinking?({off:'关闭',minimal:'最低',low:'低',medium:'标准',high:'高',xhigh:'最高'} as Record<string,string>)[thinking]??thinking:null;
+  useEffect(()=>{setOpen(false);},[context,disabled]);
+  useLayoutEffect(()=>{if(open)(menu.current?.querySelector<HTMLButtonElement>('[aria-checked=true]')??menu.current?.querySelector<HTMLButtonElement>('button'))?.focus();},[open]);
+  useEffect(()=>{if(!open)return;function dismiss(event:PointerEvent){if(!root.current?.contains(event.target as Node))setOpen(false);}
+    document.addEventListener('pointerdown',dismiss);return()=>document.removeEventListener('pointerdown',dismiss);},[open]);
+  function close(){setOpen(false);trigger.current?.focus();}
+  function keys(event:KeyboardEvent<HTMLDivElement>){if(event.nativeEvent.isComposing)return;
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}
+    else if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const options=Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button')??[]);if(!options.length)return;
+      const index=options.indexOf(document.activeElement as HTMLButtonElement);const next=event.key==='Home'?0:event.key==='End'?options.length-1:(index+(event.key==='ArrowDown'?1:-1)+options.length)%options.length;options[next]?.focus();}
+    else if(event.key==='Tab')setOpen(false);
+  }
+  return <div className="pi-model-picker" ref={root}>
+    <button ref={trigger} className="pi-model-trigger" type="button" aria-label="当前模型" aria-haspopup="menu" aria-expanded={open} aria-controls={open?id:undefined} disabled={disabled} title={current?`${current.name} · ${current.provider}${level?` · 思考：${level}`:''}`:'请选择模型'} onClick={()=>setOpen(value=>!value)} onKeyDown={event=>{if(!event.nativeEvent.isComposing&&['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();setOpen(true);}}}>
+      <span className="pi-model-name">{current?.name??'请选择模型'}</span>{level&&<span className="pi-model-level">{level}</span>}<PiIcon type="chevron"/>
+    </button>
+    {open&&<div id={id} ref={menu} className="pi-model-menu" role="menu" aria-label="选择模型" onKeyDown={keys}>
+      <div className="pi-model-menu-heading">模型</div><div className="pi-model-menu-options">{models.map((value,index)=><button type="button" role="menuitemradio" aria-checked={index===selected} key={JSON.stringify([value.provider,value.id])} onClick={()=>{close();if(!disabled&&index!==selected)void onSelect(value);}}>
+        <span><strong>{value.name}</strong><small>{value.provider}{value.reasoning?' · 支持思考':''}{value.input.includes('image')?' · 支持图片':''}</small></span><span className="pi-model-check">{index===selected&&<PiIcon type="check"/>}</span>
+      </button>)}</div>{level&&<div className="pi-model-menu-footer">当前思考级别：{level}<span>由原版 Pi 返回</span></div>}
+    </div>}
+  </div>;
+}
+
+const AgentDemo=import.meta.env.DEV?lazy(()=>import('./pi-agent-demo.tsx')):null;
 export function AgentPanel({model}:{model:PiController}) {
+  const [preview,setPreview]=useState(false);
+  return <div className="pi-agent-workspace">
+    {AgentDemo&&preview?<Suspense fallback={<p className="pi-preview-loading">正在载入界面示例…</p>}><AgentDemo onExit={()=>setPreview(false)}/></Suspense>
+      :<>{AgentDemo&&<div className="pi-preview-strip"><span>开发版 · 界面示例</span><button type="button" onClick={()=>setPreview(true)}>载入示例</button></div>}<AgentChat model={model}/></>}
+  </div>;
+}
+
+export function AgentChat({model,preview=false}:{model:PiController;preview?:boolean}) {
   const s=model.snapshot,state=s?.state,projection=s?.projection,currentModel=state?.model;
   const [attachmentError,setAttachmentError]=useState<string|null>(null),[attaching,setAttaching]=useState(false);
   const [sessionsOpen,setSessionsOpen]=useState(()=>window.innerWidth>1100),[atBottom,setAtBottom]=useState(true);
@@ -19,8 +57,9 @@ export function AgentPanel({model}:{model:PiController}) {
   const running=!!projection&&projection.activity!=='idle';
   const available=!!currentModel&&!!s?.models.some(m=>m.provider===currentModel.provider&&m.id===currentModel.id);
   const imageUnsupported=model.draft.images.length>0&&!currentModel?.input.includes('image');
-  const sendDisabled=!ready||!available||busy||attaching||imageUnsupported||(!model.draft.text.trim()&&!model.draft.images.length);
-  const connection=s?.connection==='connecting'?'正在连接原版 Pi…':ready?available?'已连接':'原版已就绪 · 请先配置模型':s?.connection==='error'?'连接中断，可重新连接':'尚未连接原版 Pi';
+  const sendDisabled=preview||!ready||!available||busy||attaching||imageUnsupported||(!model.draft.text.trim()&&!model.draft.images.length);
+  const showStop=running||s?.connection==='connecting'||s?.busy||s?.sending||s?.stopping;
+  const connection=preview?'界面示例 · 未连接模型':s?.connection==='connecting'?'正在连接原版 Pi…':ready?available?'已连接':'原版已就绪 · 请先配置模型':s?.connection==='error'?'连接中断，可重新连接':'尚未连接原版 Pi';
   const remember=useRef(model.rememberChatScroll);remember.current=model.rememberChatScroll;
   useEffect(()=>{
     const query=window.matchMedia('(min-width:1101px)'),resize=()=>setSessionsOpen(query.matches);
@@ -49,7 +88,7 @@ export function AgentPanel({model}:{model:PiController}) {
       if(node)area.scrollTop+=node.getBoundingClientRect().top-area.getBoundingClientRect().top-saved.offset;
     }else if(following.current)area.scrollTop=area.scrollHeight;
   },[items,model.processChoices]);
-  useLayoutEffect(()=>{const input=textarea.current;if(input){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';}},[model.draft.text]);
+  useLayoutEffect(()=>{const input=textarea.current;if(input){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,parseFloat(getComputedStyle(input).maxHeight)||180)+'px';}},[model.draft.text]);
   useEffect(()=>{const area=viewport.current,content=flow.current;if(!area||!content)return;
     const observer=new ResizeObserver(()=>{if(following.current)area.scrollTop=area.scrollHeight;});observer.observe(area);observer.observe(content);return()=>observer.disconnect();},[]);
   function beforeToggle(){const area=viewport.current;if(!area)return;const top=area.getBoundingClientRect().top;
@@ -68,24 +107,25 @@ export function AgentPanel({model}:{model:PiController}) {
   function closeDisclosure(event:KeyboardEvent<HTMLDetailsElement>){if(event.key==='Escape'&&!event.nativeEvent.isComposing){event.currentTarget.open=false;event.currentTarget.querySelector('summary')?.focus();if(event.currentTarget===sidebar.current)setSessionsOpen(false);}}
   return <div className="pi-agent-layout">
     <details ref={sidebar} className="pi-sessions" open={sessionsOpen} onKeyDown={closeDisclosure}>
-      <summary onClick={event=>{event.preventDefault();setSessionsOpen(open=>!open);}}><PiIcon type="history"/><strong>会话</strong><PiIcon type="chevron"/></summary>
-      <div className="pi-session-body"><div className="pi-session-actions"><button className="pi-primary" disabled={!ready||busy||running} onClick={()=>void model.sessionAction('pi_new_session')}><PiIcon type="plus"/>新会话</button><button className="pi-quiet" onClick={()=>void model.reloadSessions()} disabled={!model.root}>刷新</button></div>
+      <summary onClick={event=>{event.preventDefault();setSessionsOpen(open=>!open);}}><strong>会话</strong><PiIcon type="chevron"/></summary>
+      <div className="pi-session-body"><div className="pi-session-actions"><button type="button" className="pi-new-session" disabled={!ready||busy||running} onClick={()=>void model.sessionAction('pi_new_session')}><PiIcon type="plus"/>新会话</button></div>
         {model.sessionError&&<p className="form-error" role="alert">{model.sessionError}</p>}{model.unreadable>0&&<p role="status">{model.unreadable} 个会话文件未能读取；原文件保留。</p>}
-        <div className="pi-session-items">{!model.sessions.length?<p className="pi-session-empty">暂无已落盘会话。空会话尚未写入文件，不会补造历史。</p>:model.sessions.map(session=><button className="pi-session-item" key={session.path} aria-current={state?.sessionFile===session.path?'true':undefined} disabled={busy||running} onClick={()=>{if(window.innerWidth<=1100)setSessionsOpen(false);void (ready&&s?.cwd===session.cwd?model.sessionAction('pi_switch_session',{path:session.path}):model.connect(session));}}><strong>{session.name??'未命名会话'}</strong><span>{session.updatedAt} · {session.messageCount} 条消息</span></button>)}</div>
+        <p className="pi-session-label">最近会话</p>
+        <div className="pi-session-items">{!model.sessions.length?<p className="pi-session-empty">暂无已落盘会话。空会话尚未写入文件，不会补造历史。</p>:model.sessions.map(session=><button type="button" className="pi-session-item" key={session.path} title={session.name??'未命名会话'} aria-current={state?.sessionFile===session.path?'true':undefined} disabled={busy||running} onClick={()=>{if(window.innerWidth<=1100)setSessionsOpen(false);void (ready&&s?.cwd===session.cwd?model.sessionAction('pi_switch_session',{path:session.path}):model.connect(session));}}><strong>{session.name??'未命名会话'}</strong><span className="pi-session-meta"><span title={session.updatedAt}>{/^\d{4}-\d{2}-\d{2}T/.test(session.updatedAt)?session.updatedAt.slice(0,10):session.updatedAt}</span><span>{session.messageCount} 条消息</span></span></button>)}</div>
       </div>
     </details>
     <section className="pi-chat" aria-label="通用 Agent 对话">
-      <header className="pi-chat-heading"><div className="pi-chat-identity"><h2>{state?.sessionName??'新会话'}</h2><p className="pi-connection" data-ready={ready&&available}>{connection}{running&&` · ${activityText(projection!.activity)}`}</p></div>
-        <div className="pi-chat-controls">{ready&&s.models.length>0&&<label className="pi-model-choice"><span className="pi-sr-only">当前模型</span><select aria-label="当前模型" value={currentModel?JSON.stringify([currentModel.provider,currentModel.id]):''} disabled={busy||running} onChange={event=>{const [provider,id]=JSON.parse(event.target.value) as [string,string];void model.sessionAction('pi_select_model',{provider,id});}}>{!available&&<option value="">请选择模型</option>}{s.models.map(m=><option key={JSON.stringify([m.provider,m.id])} value={JSON.stringify([m.provider,m.id])}>{m.name} · {m.provider}</option>)}</select></label>}
-          <button className="pi-quiet" disabled={busy||running||!model.root||!model.connected} onClick={()=>void model.connect()}>连接 / 重连</button>
+      <header className="pi-chat-heading"><div className="pi-chat-identity"><h2>{state?.sessionName??'新会话'}</h2><p className="pi-connection" data-ready={!preview&&ready&&available}>{connection}{running&&` · ${activityText(projection!.activity)}`}</p></div>
+        <div className="pi-chat-controls">
+          <button className="pi-quiet" disabled={preview||busy||running||!model.root||!model.connected} onClick={()=>void model.connect()}>连接 / 重连</button>
           <details ref={more} className="pi-chat-options" onKeyDown={closeDisclosure}><summary aria-label="更多会话操作"><PiIcon type="more"/></summary><div className="pi-options-panel"><h3>会话与连接</h3>
             <form onSubmit={event=>{event.preventDefault();void model.sessionAction('pi_name_session',{name:model.sessionName});}}><label className="pi-field">新名称<input value={model.sessionName} maxLength={1000} onChange={event=>model.setSessionName(event.target.value)}/></label><button className="pi-quiet" disabled={!ready||busy||running||!model.sessionName.trim()}>保存名称</button></form>
-            <a className="foundation-link" href="#settings">模型设置</a>{ready&&<button className="pi-quiet" disabled={busy} onClick={()=>void model.disconnect()}>断开连接</button>}<RuntimeInfo model={model}/>
+            {preview?<p className="pi-preview-note">虚构会话，仅用于查看界面；切回真实会话后可配置和连接模型。</p>:<><a className="foundation-link" href="#settings">模型设置</a>{ready&&<button className="pi-quiet" disabled={busy} onClick={()=>void model.disconnect()}>断开连接</button>}<RuntimeInfo model={model}/></>}
           </div></details>
         </div>
       </header>
       <div className="pi-chat-feedback" aria-live="polite">{(model.error??s?.error?.message)&&<p className="form-error" role="alert">{model.error??s?.error?.message}</p>}{model.notice&&<p>{model.notice}</p>}{s?.notice&&<p>{s.notice}</p>}{projection?.notice&&<p>{projection.notice}</p>}
-        {projection?.outcome&&projection.outcome!=='none'&&<p className="pi-outcome" data-outcome={projection.outcome}>本轮：{({success:'实际回复已完成',error:'失败',interrupted:'已中断',incomplete:'未完整结束'} as Record<string,string>)[projection.outcome]??'状态待确认'}</p>}
+        {projection?.outcome&&projection.outcome!=='none'&&<p className="pi-outcome" data-outcome={projection.outcome}>{preview?'示例状态':'本轮'}：{({success:preview?'已完成（演示）':'实际回复已完成',error:'失败',interrupted:'已中断',incomplete:'未完整结束'} as Record<string,string>)[projection.outcome]??'状态待确认'}</p>}
       </div>
       <div className="pi-message-area"><div className="pi-chat-messages" ref={viewport} onScroll={scroll} tabIndex={0} role="region" aria-label="会话消息">
         <div className="pi-chat-flow" ref={flow}>{!items.length?<div className="pi-chat-empty"><PiIcon type="activity"/><h3>{available?'开始新的对话':'先连接你自己的模型'}</h3><p>{available?'写下你要做的事，也可以附加图片。':'输入可以先写在下方，连接模型后再发送。'}</p>{!available&&<a className="foundation-link" href="#settings">前往模型设置</a>}</div>
@@ -95,17 +135,20 @@ export function AgentPanel({model}:{model:PiController}) {
         </div>
       </div>{!atBottom&&<button type="button" className="pi-latest" onClick={latest}>回到最新 ↓</button>}</div>
       <form className="pi-composer" onSubmit={event=>{event.preventDefault();if(!sendDisabled)void model.send(running?'followUp':null);}}>
-        <div className="pi-composer-surface"><label className="pi-sr-only" htmlFor="pi-message-input">消息</label><textarea id="pi-message-input" ref={textarea} value={model.draft.text} onChange={event=>model.setText(event.target.value)} onKeyDown={keydown} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} maxLength={100000} placeholder="写下你的任务或问题…"/>
+        <div className="pi-composer-surface"><label className="pi-sr-only" htmlFor="pi-message-input">消息</label><textarea id="pi-message-input" aria-describedby="pi-composer-help" rows={1} ref={textarea} value={model.draft.text} onChange={event=>model.setText(event.target.value)} onKeyDown={keydown} onCompositionStart={()=>{composing.current=true;}} onCompositionEnd={()=>{composing.current=false;}} maxLength={100000} placeholder={preview?'随心输入 · 界面示例':'随心输入'}/>
           {!!model.draft.images.length&&<div className="pi-attachments">{model.draft.images.map(image=><div className="pi-attachment" key={image.id}><span>{image.name}</span><button type="button" className="pi-quiet" disabled={attaching} onClick={()=>model.setImages(model.draft.images.filter(v=>v.id!==image.id))} aria-label={`移除图片 ${image.name}`}>移除</button></div>)}</div>}
-          <div className="pi-composer-actions"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={event=>void attach(event)}/><button className="pi-quiet" type="button" disabled={attaching} onClick={()=>fileInput.current?.click()}><PiIcon type="attachment"/>{attaching?'读取图片…':'附加图片'}</button>
-            <div className="pi-send-actions">{running&&<button className="pi-quiet" type="button" disabled={sendDisabled} onClick={()=>void model.send('steer')}>插入当前任务</button>}
-              <button type="button" className="pi-quiet pi-stop" disabled={!model.connected||!s||s.stopping||!ready&&s.connection!=='connecting'} onClick={()=>void model.stop()}><PiIcon type="stop"/>{s?.stopping?'正在停止…':'停止'}</button>
-              <button className="pi-primary" disabled={sendDisabled}><PiIcon type="send"/>{running?'排在之后':'发送'}</button>
+          <div className="pi-composer-actions"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={event=>void attach(event)}/>
+            <div className="pi-composer-context"><button className="pi-quiet pi-composer-add" type="button" aria-label={attaching?'读取图片…':'附加图片'} title={attaching?'读取图片中':'添加图片'} disabled={preview||attaching} onClick={()=>fileInput.current?.click()}><PiIcon type={attaching?'activity':'plus'}/></button>
+            </div>
+            <div className="pi-send-actions">{ready&&s.models.length>0?<ModelPicker models={s.models} current={currentModel} thinking={state?.thinkingLevel} context={context} disabled={busy||running} onSelect={value=>model.sessionAction('pi_select_model',{provider:value.provider,id:value.id})}/>:<a className="pi-composer-model-link" href="#settings">配置模型<PiIcon type="chevron"/></a>}
+              {running&&<button className="pi-quiet" type="button" disabled={sendDisabled} onClick={()=>void model.send('steer')}>插入当前任务</button>}
+              {showStop&&<button type="button" className="pi-quiet pi-stop" aria-label={s?.stopping?'正在停止…':'停止'} title={s?.stopping?'正在停止':'停止当前任务'} disabled={preview||!model.connected||!s||s.stopping||!ready&&s.connection!=='connecting'} onClick={()=>void model.stop()}><PiIcon type="stop"/></button>}
+              <button className={`pi-primary pi-composer-send${running?' pi-composer-send--queued':''}`} type="submit" aria-label={running?'排在之后':'发送'} title={running?'排在之后':'发送消息'} disabled={sendDisabled}><PiIcon type="send"/>{running&&<span>排在之后</span>}</button>
             </div>
           </div>
         </div>
         {attachmentError&&<p className="form-error" role="alert">{attachmentError}</p>}{imageUnsupported&&<p className="form-error" role="alert">当前模型不支持图片，附件仍保留；请换模型或移除图片后发送。</p>}
-        <p className="pi-composer-help">Enter 发送 · Shift+Enter 换行{!available&&' · 连接模型后可发送'}</p>
+        <p className="pi-sr-only" id="pi-composer-help">{preview?'演示数据仅在页面内展示 · 不调用模型，不保存记录':<>Enter 发送 · Shift+Enter 换行{!available&&' · 连接模型后可发送'}</>}</p>
       </form>
     </section>
   </div>;
