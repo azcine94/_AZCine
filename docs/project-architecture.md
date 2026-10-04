@@ -61,6 +61,7 @@ app/
 │   ├── use-anchored-popover.ts # top-layer定位、裁切区域检测与滚动响应
 │   ├── date-input.tsx / calendar.ts # 项目/待办共用日历和纯日期计算
 │   ├── pi-client.ts / pi-messages.ts # IPC客户端与消息展示
+│   ├── pi-agent-panel.tsx / pi-process-panel.tsx / pi-process-view.ts # 聊天壳/过程UI/纯投影；当前仅feat/agent-design
 │   ├── model-ranking-contract.ts / model-ranking-source.ts # 双榜快照校验与公开数据获取
 │   ├── model-ranking-prices.ts # Models.dev模型匹配及报价
 │   ├── use-model-ranking.ts / model-ranking-panel.tsx # App持有状态、取数与榜单显示
@@ -125,6 +126,8 @@ flowchart TD
 ```
 
 Rust写正式业务库，Pi写自己的原生会话；AI输出在应用外部校验成草案，本人核对后才事务更新。React不直写SQLite，设计稿不进入生产执行链。实际字段/命令以 `lib.rs`、`pi-commands.rs` 和TS/Rust契约代码为准，本文不另抄一套接口。
+
+Agent局部改版目前在 `feat/agent-design`（12a5c89），未合main。`App`仍持有`usePi`的草稿/回执；新增控制器展示选择、会话/代次滚动记忆及观测到的运行起点，不写原生会话。`pi-process-view`仅适配已脱敏快照，用实际调用ID合并消息与事件，保正文顺序、孤立/重复ID和异常标识；`pi-process-panel`渲染独立展开项，`pi-agent-panel`承接聊天布局/滚动/输入，`pi-panels`保留模型设置与RuntimeInfo。Rust仅收窄调用ID的前缀裁切：原子字符串ID按完整秘密脱敏，非原子子树和正文仍保留流式前缀保护；未修改原版Pi、RPC协议、数据库或依赖。
 
 ## 3. 用户数据根（不是源码根）
 
