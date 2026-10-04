@@ -32,7 +32,14 @@ impl Redactor {
     pub fn value(&self,value:Value,partial:bool)->Value{match value {
         Value::String(s)=>Value::String(self.text(&s,partial)),
         Value::Array(a)=>Value::Array(a.into_iter().map(|v|self.value(v,partial)).collect()),
-        Value::Object(o)=>Value::Object(o.into_iter().map(|(k,v)|(self.text(&k,false),self.value(v,partial))).collect::<Map<_,_>>()),
+        // Identifiers arrive atomically, never as streamed text fragments. Keep
+        // the same full-secret redaction on call IDs in partials, events and
+        // completed messages; suffix clipping would change their association.
+        Value::Object(o)=>Value::Object(o.into_iter().map(|(k,v)|{
+            let atomic_id=matches!(k.as_str(),"id"|"toolCallId") && v.is_string();
+            let fragment=partial && !atomic_id;
+            (self.text(&k,false),self.value(v,fragment))
+        }).collect::<Map<_,_>>()),
         _=>value,
     }}
 }
@@ -47,4 +54,14 @@ mod tests {
     }
     #[test]
     fn given_no_credentials_when_displaying_then_original_chinese_and_html_are_text_unchanged(){let r=Redactor::default();let v=json!({"text":"中文\u{2028}<script>not executed</script>"});assert_eq!(r.value(v.clone(),true),v);}
+    #[test]
+    fn given_atomic_call_ids_ending_in_secret_prefix_when_streaming_then_association_stays_stable_without_exposing_full_secret(){
+        let mut r=Redactor::default();r.add("explicit-test-secret");
+        let v=json!({"id":"read-one","toolCallId":"read-one","text":"result e","nested":{"id":"explicit-test-secret"},"malformed":{"id":{"text":"fragment e"}}});
+        let streaming=r.value(v.clone(),true);let completed=r.value(v,false);
+        assert_eq!(streaming["id"],completed["id"]);assert_eq!(streaming["toolCallId"],completed["toolCallId"]);
+        assert_eq!(streaming["id"],"read-one");assert_eq!(streaming["text"],"result [凭据片段已隐藏]");
+        assert_eq!(streaming["nested"]["id"],"[凭据已隐藏]");
+        assert_eq!(streaming["malformed"]["id"]["text"],"fragment [凭据片段已隐藏]");
+    }
 }

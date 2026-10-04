@@ -15,13 +15,28 @@ export function usePi(root:string|null){
   const [cwd,setCwd]=useState(''),[notice,setNotice]=useState<string|null>(null);
   const [modelForm,setModelForm]=useState({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
   const [sessionName,setSessionName]=useState('');
+  const [processChoices,setProcessChoices]=useState<Record<string,boolean>>({});
+  const [displayRunStart,setDisplayRunStart]=useState(0);
+  const runTrack=useRef<{context:string;count:number;activity:string;start:number}|null>(null);
+  const chatScroll=useRef<Record<string,{top:number;following:boolean}>>({});
+  function chooseProcess(key:string,open:boolean){setProcessChoices(before=>({...before,[key]:open}));}
+  function rememberChatScroll(key:string,top:number,following:boolean){chatScroll.current[key]={top,following};}
+  function readChatScroll(key:string){return chatScroll.current[key];}
   const actionRef=useRef<string|null>(null),stopRef=useRef(false),pulling=useRef(false),again=useRef(false),mounted=useRef(false),sessionsReading=useRef(false);
   const rootRef=useRef(root);rootRef.current=root;
+  function acceptSnapshot(value:PiSnapshot){
+    const context=`${rootRef.current}/${value.state?.sessionId??'unconnected'}/${value.generation}`;
+    const previous=runTrack.current,projection=value.projection;
+    const start=previous?.context!==context?projection.messages.length
+      :previous.activity==='idle'&&projection.activity!=='idle'?previous.count:previous.start;
+    runTrack.current={context,count:projection.messages.length,activity:projection.activity,start};
+    setDisplayRunStart(start);snap.current=value;setSnapshot(value);
+  }
   const refresh=useCallback(async()=>{
     if(!desktopPi()||!rootRef.current)return;
     if(pulling.current){again.current=true;return;}
     pulling.current=true;
-    try{do{again.current=false;const v=parseSnapshot(await callPi('pi_snapshot'));if(!mounted.current)return;const old=snap.current;if(!old||v.generation>old.generation||v.generation===old.generation&&v.seq>=old.seq){snap.current=v;setSnapshot(v);}}while(again.current);}
+    try{do{again.current=false;const v=parseSnapshot(await callPi('pi_snapshot'));if(!mounted.current)return;const old=snap.current;if(!old||v.generation>old.generation||v.generation===old.generation&&v.seq>=old.seq){acceptSnapshot(v);}}while(again.current);}
     catch(e){if(mounted.current)setError(piError(e));}
     finally{pulling.current=false;}
   },[]);
@@ -40,7 +55,7 @@ export function usePi(root:string|null){
     const oldKey=draftKey;
     await operate('连接',async()=>{const resume=session??(!cwd.trim()?sessions.find(row=>row.path===snap.current?.state?.sessionFile):undefined);const v=parseSnapshot(await callPi('pi_connect',{cwd:resume?.cwd??(cwd.trim()||null),sessionPath:resume?.path??null}));
       if(v.state&&!session)setDrafts(before=>{const current=before[oldKey];const next={...before};if(current&&!before[v.state!.sessionId]){next[v.state!.sessionId]=current;transferred.current[oldKey]=v.state!.sessionId;}draftRef.current=next;return next;});
-      if(!snap.current||v.generation>snap.current.generation||v.generation===snap.current.generation&&v.seq>=snap.current.seq){snap.current=v;setSnapshot(v);}await reloadSessions();});
+      if(!snap.current||v.generation>snap.current.generation||v.generation===snap.current.generation&&v.seq>=snap.current.seq){acceptSnapshot(v);}await reloadSessions();});
   }
   async function disconnect(){await operate('断开',async()=>{await callPi('pi_disconnect');await reloadSessions();});}
   async function send(behavior:string|null){
@@ -62,6 +77,6 @@ export function usePi(root:string|null){
   async function saveModel(input:ModelInput):Promise<boolean>{if(actionRef.current)return false;let saved=false;const oldKey=draftKey;await operate('保存模型',async()=>{const result=await callPi<{saved:boolean;connected:boolean;message:string}>('pi_save_model',{input});if(result.saved!==true||typeof result.message!=='string')throw new Error('模型保存结果不完整，输入保留。');saved=true;setNotice(result.message);await refresh();const id=snap.current?.state?.sessionId;if(id&&id!==oldKey)setDrafts(before=>{const next={...before};if(before[oldKey]&&!before[id])next[id]=before[oldKey];draftRef.current=next;return next;});await reloadSessions();});return saved;}
   function recoverQueue(index:number){const text=snapshot?.recoveredQueue[index];if(text!==undefined)updateDraft(draftKey,d=>({...d,text:d.text?`${d.text}\n${text}`:text}));}
   function recoverAccepted(id:string){const item=(acceptedInputs[draftKey]??[]).find(v=>v.id===id);if(!item)return;const current=draftRef.current[draftKey]??emptyDraft();if(current.text||current.images.length){setError('输入区已有内容，请先保留或发送当前草稿，再取回这次消息，避免覆盖。');return;}updateDraft(draftKey,()=>({...item.draft,images:[...item.draft.images]}));}
-  return {snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName};
+  return {snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName,processChoices,chooseProcess,rememberChatScroll,readChatScroll,displayRunStart};
 }
 export type PiController=ReturnType<typeof usePi>;
