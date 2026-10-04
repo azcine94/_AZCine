@@ -1,0 +1,24 @@
+{
+  "origin": "https://github.com/KKKKhazix/AIHOT/blob/cc66cceb1dc7a0bc147e942e49ff94c9cee418c6/industry/sources.json",
+  "sha256": "6669fe7f0af2159b9e0d6c17a91f8339cb016f48937b949920bbd90d4f3b02f3",
+  "sources": [
+    { "id": "rss-openai-news", "name": "OpenAI News", "feedUrl": "https://openai.com/news/rss.xml", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-google-deepmind", "name": "Google DeepMind", "feedUrl": "https://deepmind.google/blog/rss.xml", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-google-research", "name": "Google Research", "feedUrl": "https://research.google/blog/rss/", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-hugging-face", "name": "Hugging Face Blog", "feedUrl": "https://huggingface.co/blog/feed.xml", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-microsoft-research", "name": "Microsoft Research", "feedUrl": "https://www.microsoft.com/en-us/research/feed/", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-nvidia-blog", "name": "NVIDIA Blog", "feedUrl": "https://blogs.nvidia.com/feed/", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-aws-ml", "name": "AWS Machine Learning Blog", "feedUrl": "https://aws.amazon.com/blogs/machine-learning/feed/", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-github-ai", "name": "GitHub Blog · AI & ML", "feedUrl": "https://github.blog/ai-and-ml/feed/", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-mistral", "name": "Mistral AI", "feedUrl": "https://mistral.ai/rss.xml", "identity": "official", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-bair", "name": "Berkeley AI Research", "feedUrl": "https://bair.berkeley.edu/blog/feed.xml", "identity": "research", "domains": [], "usage": "editorial", "intervalMinutes": 180, "enabled": true },
+    { "id": "rss-the-verge-ai", "name": "The Verge · AI", "feedUrl": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "identity": "media", "domains": [], "usage": "editorial", "intervalMinutes": 60, "enabled": true },
+    { "id": "rss-techcrunch-ai", "name": "TechCrunch · AI", "feedUrl": "https://techcrunch.com/category/artificial-intelligence/feed/", "identity": "media", "domains": [], "usage": "editorial", "intervalMinutes": 60, "enabled": true },
+    { "id": "rss-ars-technica-ai", "name": "Ars Technica · AI", "feedUrl": "https://arstechnica.com/ai/feed/", "identity": "media", "domains": [], "usage": "editorial", "intervalMinutes": 60, "enabled": true },
+    { "id": "rss-mit-tech-review-ai", "name": "MIT Technology Review · AI", "feedUrl": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "identity": "media", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-the-decoder", "name": "The Decoder", "feedUrl": "https://the-decoder.com/feed/", "identity": "media", "domains": [], "usage": "editorial", "intervalMinutes": 60, "enabled": true },
+    { "id": "rss-simon-willison", "name": "Simon Willison", "feedUrl": "https://simonwillison.net/atom/everything/", "identity": "individual", "domains": [], "usage": "editorial", "intervalMinutes": 120, "enabled": true },
+    { "id": "rss-import-ai", "name": "Import AI", "feedUrl": "https://importai.substack.com/feed", "identity": "individual", "domains": [], "usage": "editorial", "intervalMinutes": 180, "enabled": true },
+    { "id": "rss-latent-space", "name": "Latent Space", "feedUrl": "https://www.latent.space/feed", "identity": "individual", "domains": [], "usage": "editorial", "intervalMinutes": 180, "enabled": true }
+  ]
+}

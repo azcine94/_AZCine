@@ -34,7 +34,9 @@ if (mode === 'dev') {
 for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
 env.PATH = `${path.dirname(cargo)}${path.delimiter}${process.env.PATH || process.env.Path || ''}`;
 const command = mode === 'dev' ? process.execPath : cargo;
-const args = mode === 'dev' ? [cli, 'dev', ...process.argv.slice(3)] : ['test', '--locked', '--manifest-path', path.join(app, 'src-tauri', 'Cargo.toml'), ...process.argv.slice(3)];
+const localDevConfig = path.join(root, '.tooling', 'tauri-dev.json');
+const configArgs = mode === 'dev' && existsSync(localDevConfig) ? ['--config', localDevConfig] : [];
+const args = mode === 'dev' ? [cli, 'dev', ...configArgs, ...process.argv.slice(3)] : ['test', '--locked', '--manifest-path', path.join(app, 'src-tauri', 'Cargo.toml'), ...process.argv.slice(3)];
 const child = spawn(command, args, { cwd: app, env, stdio: 'inherit', windowsHide: false });
 let stopping = false;
 let shutdownTimer;
