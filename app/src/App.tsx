@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { pages, pageTitle, resolveRoute, projectTarget, navigationPage } from './routes.ts';
+import { pages, pageTitle, resolveRoute, projectTarget, navigationPage, sourceTarget } from './routes.ts';
 import type { PageId, Route } from './routes.ts';
 import { useTheme } from './use-theme.ts';
 import { useDesktopCheck } from './use-desktop-check.ts';
@@ -15,6 +15,9 @@ import { ProjectsOverview, ProjectEditor, DeliveryList } from './projects-panels
 import { deriveDeliveries } from './projects-contract.ts';
 import { usePi } from './use-pi.ts';
 import { AgentPanel, PiSettings } from './pi-panels.tsx';
+import { useIdeas } from './use-ideas.ts';
+import type { IdeasController } from './use-ideas.ts';
+import { IdeasPanel } from './ideas-panels.tsx';
 
 const iconPaths: Record<PageId, ReactNode> = {
   today: <><rect x="3" y="4" width="18" height="17" rx="3" /><path d="M8 2v4m8-4v4M3 10h18m-13 5h3" /></>,
@@ -38,7 +41,7 @@ const routeSnapshot = () => resolveRoute(window.location.hash);
 function Empty({ title, children }: { title: string; children: ReactNode }) {
   return <div className="foundation-empty"><h2>{title}</h2><p>{children}</p></div>;
 }
-function Today({ model, projects }: { model: WorkspaceController; projects: ProjectsController }) {
+function Today({ model, projects, ideas, targetId }: { model: WorkspaceController; projects: ProjectsController; ideas: IdeasController; targetId: string | null }) {
   const deliveries = deriveDeliveries(projects.projects);
   const next = deliveries.find(item => item.dueDate);
   return <>
@@ -49,7 +52,7 @@ function Today({ model, projects }: { model: WorkspaceController; projects: Proj
       </section>
       <section className="today-card today-tasks-card">
         <header className="card-heading"><h2>今天要做</h2><span className="card-state">本机保存</span></header>
-        <TodoPanel model={model} projects={projects.projects} projectsLoading={projects.loading} projectsError={projects.loadError} />
+        <TodoPanel model={model} projects={projects.projects} projectsLoading={projects.loading} projectsError={projects.loadError} ideas={ideas.ideas} targetId={targetId} />
       </section>
       <section className="today-card today-delivery-card">
         <header className="card-heading"><h2>接下来交付</h2><a className="foundation-link" href="#projects">查看项目</a></header>
@@ -67,7 +70,6 @@ function Placeholder({ route }: { route: Route }) {
   switch (route) {
     case 'news': return <Empty title="还没有资讯刊期">资讯采集与整理将在 S07 接入，这里不会填充示例新闻。</Empty>;
     case 'models': return <Empty title="还没有模型榜快照">Arena Text Overall 前 30 名将在 S09 接入，不显示虚构排名。</Empty>;
-    case 'ideas': return <Empty title="灵感记录尚未接入">卡片记录将在 S06 接入。</Empty>;
     case 'jobs': return <Empty title="后台队列尚未接入">本阶段没有运行中的业务任务。关闭桌面窗口即退出，暂不收托盘。</Empty>;
     default: return <Empty title="没有这个页面">请从左侧导航打开页面。</Empty>;
   }
@@ -91,8 +93,16 @@ export default function App() {
   const workspace = useWorkspace();
   const projects = useProjects(workspace.workspace?.root ?? null);
   const pi = usePi(workspace.workspace?.root ?? null);
+  const ideas = useIdeas(workspace.workspace?.root ?? null);
   const target = projectTarget(route);
   const activePage = navigationPage(route);
+  const sourceId = sourceTarget(route);
+  useEffect(() => {
+    if (activePage === 'today' && sourceId) {
+      const todo = workspace.workspace?.todos.find(t => t.id === sourceId);
+      if (todo) workspace.setFilter(todo.completed ? 'completed' : 'incomplete');
+    }
+  }, [activePage, sourceId, workspace.workspace?.todos]);
   useLayoutEffect(() => {
     document.title = `AZCine · ${title}`;
     heading.current?.focus({ preventScroll: true });
@@ -107,9 +117,9 @@ export default function App() {
         <nav aria-label="主导航">{pages.map(page => <a key={page.id} className="nav-item" href={`#${page.id}`} aria-current={activePage === page.id ? 'page' : undefined}><Icon name={page.icon} /><span>{page.title}</span></a>)}</nav>
       </aside>
       <main className="workspace" data-page={route}>
-        <header className="page-heading"><div className="page-name"><h1 tabIndex={-1} ref={heading}>{title}</h1></div><span className="meta">{activePage === 'projects' ? '文档与交付' : '本地工作台'}</span></header>
+        <header className="page-heading"><div className="page-name"><h1 tabIndex={-1} ref={heading}>{title}</h1></div><span className="meta">{activePage === 'projects' ? '文档与交付' : activePage === 'ideas' ? '想法先留下，不必立刻变成任务' : '本地工作台'}</span></header>
         <div ref={scrollArea} className={`workspace-scroll${target && projects.drafts[target.projectId] && workspace.workspace?.root && !workspace.loadError ? ' workspace-scroll--project-document' : ''}`} role="region" aria-label={`${title}内容`} tabIndex={0}>
-        {route === 'today' ? (workspace.workspace?.root ? <Today model={workspace} projects={projects} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} /> : <WorkspaceGate model={workspace} />) : route === 'settings' ? <><DataSettings model={workspace} /><PiSettings model={pi} /><section className="foundation-section">
+        {activePage === 'today' ? (workspace.workspace?.root && !workspace.loadError ? <Today model={workspace} projects={projects} ideas={ideas} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'ideas' ? (workspace.workspace?.root && !workspace.loadError ? <IdeasPanel model={ideas} projects={projects.projects} projectsLoading={projects.loading} projectsError={projects.loadError} workspace={workspace} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} /> : <WorkspaceGate model={workspace} />) : route === 'settings' ? <><DataSettings model={workspace} /><PiSettings model={pi} /><section className="foundation-section">
           <h2>桌面连接检查</h2><p className="subtle">独立检查 Rust 与测试库，不修改待办记录；检查产物保留。</p>
           <div className="foundation-check" data-check-state={state.status} role="status" aria-live="polite" aria-busy={state.status === 'loading'}><CheckResult state={state} /></div>
           <div className="check-actions"><button className="pill on" onClick={() => void check()} disabled={!connected || state.status === 'loading'}>检查桌面连接</button>{!connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>

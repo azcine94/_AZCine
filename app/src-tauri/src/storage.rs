@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 const DATABASE: &str = "db/azcine.sqlite3";
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
@@ -164,6 +164,7 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
             project_id TEXT, completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)), revision INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))) STRICT;").map_err(db_error)?;
     crate::projects::create_schema(&tx)?;
+    crate::ideas::create_schema(&tx)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
@@ -245,11 +246,19 @@ impl Store {
             let invalid_links: i64 = tx.query_row("SELECT count(*) FROM todos WHERE project_id IS NOT NULL", [], |row| row.get(0)).map_err(db_error)?;
             if invalid_links != 0 { return Err(StorageError::new("incompatible_database", "旧数据库已有未知项目关联，未迁移或丢弃记录，请先核对。")); }
             crate::projects::create_schema(&tx)?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
+            tx.pragma_update(None, "user_version", 2).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
         db.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
+        if version < 3 {
+            let tx = db.transaction().map_err(db_error)?;
+            crate::ideas::create_schema(&tx)?;
+            tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
+            tx.commit().map_err(db_error)?;
+        }
+        db.prepare("SELECT id,title,body,tags,project_id,revision,created_at,updated_at,deleted,todo_id FROM ideas LIMIT 0").map_err(db_error)?;
+        db.prepare("SELECT id,input,result FROM idea_requests LIMIT 0").map_err(db_error)?;
         for dir in ["attachments", "snapshots", "pi/agent", "pi/sessions", "config", "logs", "backups"] { fs::create_dir_all(root.join(dir)).map_err(io_error)?; }
         Ok(Self { root, db, identity, _lock: lock })
     }
