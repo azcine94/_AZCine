@@ -23,10 +23,12 @@ export function useNewsProcessing(root:string|null,enabled:boolean,active:boolea
   const [detailTarget,setDetailTarget]=useState<{id:string;batch:number}|null>(null);
   const mounted=useRef(false),rootRef=useRef(root),readSeq=useRef(0),detailSeq=useRef(0),pulling=useRef(false),again=useRef(false);
   const filters=useRef({query,source,range});filters.current={query,source,range};rootRef.current=root;
+  const previousQuery=useRef(query);
   const refresh=useCallback(async(page=0)=>{const target=rootRef.current;if(!target||!isTauri())return;const seq=++readSeq.current;const filter={...filters.current};setLoading(true);setError('');
     setRangeSnapshot(null);
-    try{const value=parsePendingPage(await invoke('news_pending_materials',{page,sourceId:filter.source||null,query:filter.query,range:newsRangeRequest(filter.range)}));if(mounted.current&&seq===readSeq.current&&rootRef.current===target){setPending(value.page);setDailyCount({total:value.dailyTotal,at:value.at});setRangeSnapshot(value.scope?{scope:value.scope,ids:value.ids,key:JSON.stringify(filter)}:null);}}
-    catch(e){if(mounted.current&&seq===readSeq.current)setError(workspaceError(e));}finally{if(mounted.current&&seq===readSeq.current)setLoading(false);}
+    const current=()=>mounted.current&&seq===readSeq.current&&rootRef.current===target&&JSON.stringify(filters.current)===JSON.stringify(filter);
+    try{const value=parsePendingPage(await invoke('news_pending_materials',{page,sourceId:filter.source||null,query:filter.query,range:newsRangeRequest(filter.range)}));if(current()){setPending(value.page);setDailyCount({total:value.dailyTotal,at:value.at});setRangeSnapshot(value.scope?{scope:value.scope,ids:value.ids,key:JSON.stringify(filter)}:null);}}
+    catch(e){if(current())setError(workspaceError(e));}finally{if(current())setLoading(false);}
   },[]);
   const scopeReady=rangeSnapshot?.key===JSON.stringify({query,source,range});
   function prepareClear(){if(scopeReady&&rangeSnapshot&&rangeSnapshot.ids.length&&!active&&!clearing){setClearNotice('');setClearRequest({scope:rangeSnapshot.scope,ids:[...rangeSnapshot.ids],requestId:crypto.randomUUID()});}}
@@ -43,17 +45,17 @@ export function useNewsProcessing(root:string|null,enabled:boolean,active:boolea
   }
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;readSeq.current++;detailSeq.current++;};},[]);
   useEffect(()=>{readSeq.current++;detailSeq.current++;setLoading(false);setDetailLoading(false);setSelected(null);setScope('single');setBatchSize(1);setDailyCount(null);setDetail(null);setDetailTarget(null);setProgress(null);setError('');setDetailError('');setPending({items:[],total:0,page:0,pageSize:6});setRange(initialNewsRange('latest'));setRangeSnapshot(null);setClearRequest(null);setClearing(false);setClearNotice('');},[root]);
-  useEffect(()=>{setSelected(null);if(!enabled||!root)return;const timer=window.setTimeout(()=>void refresh(),250);return()=>window.clearTimeout(timer);},[root,enabled,query,source,range,refresh]);
+  useEffect(()=>{setSelected(null);},[root,enabled,query,source,range]);
+  useEffect(()=>{readSeq.current++;const typing=previousQuery.current!==query;previousQuery.current=query;if(!enabled||!root){setLoading(false);return;}setLoading(true);const timer=window.setTimeout(()=>void refresh(),typing?250:0);return()=>{window.clearTimeout(timer);readSeq.current++;};},[root,enabled,query,source,range,active,refresh]);
   useEffect(()=>{if(!enabled||!root||!isTauri())return;let disposed=false;let off:(()=>void)|undefined;
     void listen('news-processing-changed',()=>{if(!disposed)void readProgress();}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setError(workspaceError(e));});void readProgress();
     const timer=active?window.setInterval(()=>void readProgress(),1000):undefined;
     return()=>{disposed=true;off?.();if(timer)window.clearInterval(timer);};
   },[root,enabled,active,readProgress]);
-  useEffect(()=>{if(enabled&&!active){void refresh();void readProgress();}},[enabled,active,refresh,readProgress]);
   useEffect(()=>{if(!root||!isTauri())return;let disposed=false,off:(()=>void)|undefined;
     void listen('news-data-reset',()=>{if(disposed)return;readSeq.current++;detailSeq.current++;setSelected(null);setProgress(null);setDetail(null);setDetailTarget(null);setDetailError('');setError('');setRangeSnapshot(null);setClearRequest(null);setClearNotice('');setDetailLoading(false);if(enabled)void refresh();}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setError(workspaceError(e));});
     return()=>{disposed=true;off?.();};
   },[root,enabled,refresh]);
-  return {pending,query,setQuery,source,setSource,selected,select:setSelected,scope,setScope,batchSize,setBatchSize,dailyCount,eventQuery,setEventQuery,progress,detail,detailTarget,loading,detailLoading,error,detailError,refresh,readProgress,inspect,range,setRange,rangeSnapshot,scopeReady,clearRequest,clearing,clearNotice,prepareClear,confirmClear,cancelClear:()=>setClearRequest(null)};
+  return {pending,query,setQuery,source,setSource,selected,select:setSelected,scope,setScope,batchSize,setBatchSize,dailyCount,eventQuery,setEventQuery,progress,detail,detailTarget,loading:loading||Boolean(root&&enabled&&!scopeReady&&!error),detailLoading,error,detailError,refresh,readProgress,inspect,range,setRange,rangeSnapshot,scopeReady,clearRequest,clearing,clearNotice,prepareClear,confirmClear,cancelClear:()=>setClearRequest(null)};
 }
 export type NewsProcessingController=ReturnType<typeof useNewsProcessing>;

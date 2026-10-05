@@ -52,7 +52,7 @@ function states(route:string) {
   return [...base,'dirty','pending','no-root'];
 }
 function scene(route:Route,title:string,group:string,sources:string[] = files[route]??[]):Scene {
-  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx','workspace-header.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
+  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx','workspace-header.tsx','loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
 }
 export const scenes:Scene[] = [
   {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','table-menu','add-menu','folds-open','dialog-open','popover-open','dropdown-open','tooltip-open'],sources:['date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},

@@ -119,3 +119,7 @@
   .processing-evidence { grid-template-columns:minmax(0,1fr); }
   .processing-page-links { gap:var(--s-3); }
 }
+.processing-monitor { min-height:min(520px,60vh); }
+.processing-section-heading .text-action { min-width:5em; }
+.news-range-control[data-period="latest"] .news-range-undated { visibility:hidden; }
+.news-range-control > .meta { min-height:calc(var(--lh-xs) * 2); }

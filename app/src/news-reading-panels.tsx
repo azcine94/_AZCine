@@ -1,4 +1,5 @@
 import { EmptyState } from './components/ui/empty-state.tsx';
+import {LoadingStatus} from './components/ui/loading-status.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
 import { StatusBadge } from './components/ui/status-badge.tsx';
@@ -15,8 +16,8 @@ import type { NewsEvent, CitedText, Edition } from './news-editorial-contract.ts
 import { workspaceError } from './workspace-contract.ts';
 export function EditorialFeedback({ model, controls = true }: { model: EditorialController; controls?: boolean }) { return <div className="news-feedback" aria-live="polite">
   {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.notice && <p className="subtle" role="status">{model.notice}</p>}
-  {model.loading && <p className="meta" role="status">正在读取资讯，已有内容保留…</p>}{model.active && <p className="meta" role="status">资讯任务正在运行，使用开始时的规则。{controls && <Button variant="app-text" className="text-action" onClick={() => void model.cancel()}>取消资讯整理 / 分析</Button>}</p>}</div>; }
-function ReadingFeedback({ model }: { model: EditorialController }) { return <div className="news-feedback" aria-live="polite">{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.loading && <p className="meta">正在读取资讯，已有内容保留…</p>}</div>; }
+  <LoadingStatus active={model.loading}>正在读取资讯，已有内容保留…</LoadingStatus>{model.active && <p className="meta" role="status">资讯任务正在运行，使用开始时的规则。{controls && <Button variant="app-text" className="text-action" onClick={() => void model.cancel()}>取消资讯整理 / 分析</Button>}</p>}</div>; }
+function ReadingFeedback({ model }: { model: EditorialController }) { return <div className="news-feedback" aria-live="polite">{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}<LoadingStatus active={model.loading}>正在读取资讯，已有内容保留…</LoadingStatus></div>; }
 function SourceLink({ url, news, children }: { url: string; news: NewsController; children: React.ReactNode }) { return <UILink variant="text" className="foundation-link" href={url} target="_blank" rel="noopener noreferrer" onClick={event => { if (news.connected) { event.preventDefault(); void news.openOriginal(url); } }}>{children}</UILink>; }
 function Related({ event, news }: { event: NewsEvent; news: NewsController }) { return <ol className="news-related">{event.materials.map(m => <li key={m.id} id={`material-${m.id}`}><SourceLink news={news} url={m.url}>{m.sourceName} · {m.title}</SourceLink><p className="meta">原发布时间：{publicationLabel(m)} · 发现 {formatNewsTime(m.discoveredAt)}</p><p className="news-url meta">{m.url}</p></li>)}</ol>; }
 function Citations({ fact, event, news }: { fact: CitedText; event: NewsEvent; news: NewsController }) { return <li><p>{fact.text}</p><div className="meta">出处：{fact.materialIds.map(id => { const m = event.materials.find(m => m.id === id); return m && <span key={id}><SourceLink news={news} url={m.url}>{m.sourceName}</SourceLink>　</span>; })}</div></li>; }

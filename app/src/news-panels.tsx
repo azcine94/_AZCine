@@ -12,13 +12,14 @@ import type { CollectionRun, Domain, FeedEntry, NewsMaterial, NewsSource } from 
 import type { NewsController } from './use-news.ts';
 import { NewsRangeControl } from './news-range-control.tsx';
 import {NewsResetControl} from './news-reset-control.tsx';
+import {LoadingStatus} from './components/ui/loading-status.tsx';
 
-function NewsFeedback({ model }: { model: NewsController }) {
+function NewsFeedback({ model, loadingStatus = true }: { model: NewsController; loadingStatus?: boolean }) {
   return <div className="news-feedback" aria-live="polite">
     {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
     {model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
     {model.notice && <p className="subtle" role="status">{model.notice}</p>}
-    {model.loading && <p className="meta" role="status">正在读取信源与采集记录，原列表保持可见…</p>}
+    {loadingStatus && <LoadingStatus active={model.loading}>正在读取信源与采集记录，原列表保持可见…</LoadingStatus>}
     {model.collecting && <p className="meta" role="status">正在采集，切页不影响本轮任务；本轮使用开始时的配置版本。<Button variant="app-text" className="text-action" onClick={() => void model.cancelCapture()}>取消采集（保留已取得输入）</Button></p>}
   </div>;
 }
@@ -58,13 +59,13 @@ export function NewsFeed({ model }: { model: NewsController }) {
     </div>
     <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
     <NewsResetControl model={model} disabled={model.collecting}/>
-    <NewsFeedback model={model} />
+    <NewsFeedback model={model} loadingStatus={false}/>
     <div className="news-filter"><label htmlFor="news-source-filter">来源</label><NativeSelect variant="app" id="news-source-filter" className="select" value={model.filter} onChange={event => model.changeFilter(event.target.value)}>
       <option value="">全部信源</option>{model.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}{source.config.enabled ? '' : '（暂停）'}</option>)}
     </NativeSelect><span className="meta">{model.materials.total} 条已保存资料</span><Button variant="app-text" className="text-action" onClick={() => void model.refresh()} disabled={!model.connected || model.loading}>重新读取</Button></div>
     {model.materialError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.materialError}</Feedback>}
-    {model.materialsLoading && <p className="meta" role="status">正在读取资料，原列表保持可见…</p>}
-    {!model.materials.items.length ? <EmptyState as="div" className="foundation-empty"><h3>{model.filter ? '这个来源还没有保存资料' : '还没有采集资料'}</h3><p>手动采集已启用的信源后，真实标题、时间、摘要和出处会显示在这里。无模型不会生成假导读。</p>{model.filter && <Button variant="app-text" className="text-action" onClick={() => model.changeFilter('')}>查看全部来源</Button>}</EmptyState> : <>
+    <LoadingStatus active={model.materialsLoading}>正在读取资料，原列表保持可见…</LoadingStatus>
+    {!model.materials.items.length ? <EmptyState as="div" className="foundation-empty" aria-busy={model.materialsLoading}><h3>{model.materialsLoading ? '正在读取采集资料…' : model.filter ? '这个来源还没有保存资料' : '还没有采集资料'}</h3><p>手动采集已启用的信源后，真实标题、时间、摘要和出处会显示在这里。无模型不会生成假导读。</p>{model.filter && <Button variant="app-text" className="text-action" onClick={() => model.changeFilter('')}>查看全部来源</Button>}</EmptyState> : <>
       <ol className="news-materials">{model.materials.items.map(entry => <li key={entry.id} className="news-material">
         <div className="news-time-rail"><time dateTime={entry.discoveredAt}>{formatNewsTime(entry.discoveredAt)}</time><span>发现时间</span></div>
         <article className="news-entry"><header className="news-entry-source"><span>{entry.sourceName}</span><StatusBadge className="news-status">订阅原始资料</StatusBadge></header><EntryBody entry={entry} model={model} /></article>

@@ -64,3 +64,5 @@
 :root[data-theme="dark"] :is(.input,.select,.textarea) { background:color-mix(in srgb,var(--input) 30%,var(--background)); }
 .input:is(:focus,.is-focus),.select:is(:focus,.is-focus),.textarea:is(:focus,.is-focus) { border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 40%,transparent); }
 .ui-status-badge { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:var(--r-xs); padding:2px 8px; font:500 12px/18px var(--font); background:var(--muted); }
+.ui-loading-status { min-height:var(--lh-s); margin:0; color:var(--t2); font:400 var(--fs-s)/var(--lh-s) var(--font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ui-loading-status[data-loading="false"] { visibility:hidden; }

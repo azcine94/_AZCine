@@ -17,6 +17,7 @@ import { processingPhases } from './news-processing-client.ts';
 import { formatNewsTime, publicationLabel } from './news-contract.ts';
 import { editorialStatusLabels } from './news-editorial-contract.ts';
 import {NewsReceiptPanel} from './news-reader-panels.tsx';
+import {LoadingStatus} from './components/ui/loading-status.tsx';
 
 function Inputs({ items, news }: { items: NewsMaterial[]; news: NewsController }) {
   return <ol className="processing-inputs">{items.map(item => <li key={item.id}>
@@ -77,7 +78,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
   const visibleTrace = trace && (!current || trace.runId === current.id) ? trace : null;
   const selectedDone = !!selected && processing.scopeReady && !processing.rangeSnapshot?.ids.includes(selected.id);
   const events = (model.snapshot?.events ?? []).filter(event => event.draft.title.toLowerCase().includes(processing.eventQuery.toLowerCase()));
-  const shownDetail = detail && processing.detailTarget && detail.runId === processing.detailTarget.id && detail.batch === processing.detailTarget.batch ? detail : null;
+  const shownDetail = detail && processing.detailTarget && detail.runId === processing.detailTarget.id && (detail.batch === processing.detailTarget.batch || processing.detailLoading) ? detail : null;
   async function start(kind: 'organize' | 'daily') {
     if(kind==='organize'&&(!processing.scopeReady||!processing.rangeSnapshot))return;
     await model.organize(kind, undefined, { ...(kind==='organize'&&processing.rangeSnapshot?{filter:processing.rangeSnapshot.scope,expectedIds:processing.rangeSnapshot.ids}:{}),scope: kind === 'daily' ? 'all' : processing.scope, materialId: kind === 'daily' || processing.scope === 'all' ? null : selected?.id ?? null, batchSize: 1 });
@@ -91,13 +92,13 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
     </header>
     <div className="news-feedback" aria-live="polite">
       {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.notice && <p className="subtle" role="status">{model.notice}</p>}
-      {model.loading && <p className="meta" role="status">正在读取，已有内容保留…</p>}
+      <LoadingStatus active={model.loading}>正在读取，已有内容保留…</LoadingStatus>
       {news.error && <Feedback as="p" tone="error" className="form-error" role="alert">{news.error}</Feedback>}{processing.error && <Feedback as="p" tone="error" className="form-error" role="alert">{processing.error}</Feedback>}
     </div>
 
     <div className="processing-workbench">
       <section className="processing-picker" aria-labelledby="processing-select-title">
-        <header className="processing-section-heading"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{total}</span></h3><Button variant="app-text" className="text-action" disabled={!model.connected || processing.loading || processing.clearing || !!processing.clearRequest} onClick={() => void processing.refresh(processing.pending.page)}>{processing.loading ? '读取中…' : '刷新'}</Button></header>
+        <header className="processing-section-heading"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{total}</span></h3><Button variant="app-text" className="text-action" disabled={!model.connected || processing.clearing || !!processing.clearRequest} aria-disabled={processing.loading} aria-busy={processing.loading} onClick={() => { if (!processing.loading) void processing.refresh(processing.pending.page); }}>刷新</Button></header>
         <div className="processing-scope-switch" role="group" aria-label="处理范围">
           <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'single'} onClick={() => processing.setScope('single')}>选一条</Button>
           <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'all'} onClick={() => processing.setScope('all')}>当前筛选全部</Button>
@@ -106,7 +107,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
         <>
           <div className="processing-filters"><label>搜索<Input variant="app" className="input" value={processing.query} disabled={locked||!!processing.clearRequest} onChange={event => processing.setQuery(event.target.value)} maxLength={200} placeholder="标题或摘要关键词" /></label><label>信源<NativeSelect variant="app" className="select" value={processing.source} disabled={locked||!!processing.clearRequest} onChange={event => processing.setSource(event.target.value)}><option value="">全部信源</option>{news.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}</option>)}</NativeSelect></label></div>
           <ul className="processing-candidates">{processing.pending.items.map(item => <li key={item.id}><label className={`processing-candidate${processing.scope==='single'&&selected?.id === item.id ? ' selected' : ''}`}>{processing.scope==='single'&&<Input variant="inline" type="radio" name="processing-material" disabled={locked||!!processing.clearRequest} checked={selected?.id === item.id} onChange={() => processing.select(item)} />}<span className="processing-candidate-body"><strong title={item.title}>{item.title}</strong><span className="processing-candidate-meta"><span>{item.sourceName}</span><time dateTime={item.discoveredAt}>{formatNewsTime(item.discoveredAt)}</time></span></span></label></li>)}</ul>
-          {!processing.loading && !processing.pending.items.length && <EmptyState as="p" className="processing-empty subtle">没有符合筛选的待处理资料。</EmptyState>}
+          {!processing.pending.items.length && <EmptyState as="p" className="processing-empty subtle" aria-busy={processing.loading}>{processing.loading && !processing.dailyCount ? '正在读取待处理资料…' : '没有符合筛选的待处理资料。'}</EmptyState>}
           <div className="processing-picker-pagination"><span className="meta">每页 {processing.pending.pageSize} 条</span><div className="news-pager"><Button variant="app-pill" className="pill" disabled={processing.loading || processing.pending.page === 0} onClick={() => void processing.refresh(processing.pending.page - 1)}>上一页</Button><span className="meta">{processing.pending.page + 1} / {Math.max(1, Math.ceil(processing.pending.total / processing.pending.pageSize))}</span><Button variant="app-pill" className="pill" disabled={processing.loading || (processing.pending.page + 1) * processing.pending.pageSize >= processing.pending.total} onClick={() => void processing.refresh(processing.pending.page + 1)}>下一页</Button></div></div>
         </>
         <div className="processing-queue-actions"><Button variant="app-text" className="text-action" disabled={locked||processing.loading||!processing.scopeReady||!total||!!processing.clearRequest} onClick={processing.prepareClear}>清空当前范围待处理</Button><span className="meta">仅移出队列，资料与报道保留</span></div>
@@ -140,7 +141,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
     {processing.detailTarget && <section id="news-processing-detail" tabIndex={-1} className="processing-card processing-detail" aria-labelledby="processing-detail-title">
       <header className="processing-heading"><div><h3 id="processing-detail-title">任务详情 · {selectedRun?.kind === 'daily' ? '日报' : selectedRun?.kind === 'analysis' ? '事件分析' : '资讯整理'}</h3><p className="meta processing-url">{processing.detailTarget.id}</p></div><UILink variant="action" className="text-action" href="#news">查看资讯 →</UILink></header>
       {selectedRun?.error && <Feedback as="p" tone="error" className="form-error" role="alert">{selectedRun.error}</Feedback>}
-      {processing.detailLoading && <p className="meta" role="status">正在读取这批记录…</p>}
+      <LoadingStatus active={processing.detailLoading}>正在读取这批记录…</LoadingStatus>
       {processing.detailError && <Feedback as="p" tone="error" className="form-error" role="alert">{processing.detailError}</Feedback>}
       {shownDetail && <>
         <div className="news-pager"><Button variant="app-pill" className="pill" disabled={processing.detailLoading || shownDetail.batch === 0} onClick={() => void processing.inspect(shownDetail.runId, shownDetail.batch - 1)}>上一批</Button><span className="meta">第 {shownDetail.batch + 1} / {Math.max(1, shownDetail.batches)} 批</span><Button variant="app-pill" className="pill" disabled={processing.detailLoading || shownDetail.batch + 1 >= shownDetail.batches} onClick={() => void processing.inspect(shownDetail.runId, shownDetail.batch + 1)}>下一批</Button><Button variant="app-text" className="text-action" disabled={processing.detailLoading} onClick={() => void processing.inspect(shownDetail.runId, shownDetail.batch)}>刷新本批</Button></div>

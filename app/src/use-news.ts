@@ -44,6 +44,7 @@ export function useNews(root: string | null) {
   const materialSequence = useRef(0);
   const readSequence = useRef(0);
   const loadedRoot = useRef<string | null>(null);
+  const currentRoot = useRef(root); currentRoot.current = root;
 
   function putDraft(id: string, draft: SourceDraft) {
     draftsRef.current = { ...draftsRef.current, [id]: draft }; setDrafts(draftsRef.current);
@@ -79,22 +80,24 @@ export function useNews(root: string | null) {
   }
   async function readMaterials(source = filterRef.current, page = 0) {
     const sequence = ++materialSequence.current; setMaterialsLoading(true);
+    const target = currentRoot.current, range = collectionRangeRef.current;
+    const current = () => sequence === materialSequence.current && target === currentRoot.current && source === filterRef.current && JSON.stringify(range) === JSON.stringify(collectionRangeRef.current);
     try {
-      const next = parseMaterialPage(await invoke<unknown>('news_materials', { sourceId: source || null, page,range:newsRangeRequest(collectionRangeRef.current) }));
-      if (sequence === materialSequence.current) { setMaterials(next); setMaterialError(''); }
-    } catch (e) { if (sequence === materialSequence.current) setMaterialError(workspaceError(e)); }
-    finally { if (sequence === materialSequence.current) setMaterialsLoading(false); }
+      const next = parseMaterialPage(await invoke<unknown>('news_materials', { sourceId: source || null, page,range:newsRangeRequest(range) }));
+      if (current()) { setMaterials(next); setMaterialError(''); }
+    } catch (e) { if (current()) setMaterialError(workspaceError(e)); }
+    finally { if (current()) setMaterialsLoading(false); }
   }
-  async function refresh() {
+  async function refresh(includeMaterials = true) {
     if (!connected || !root) return;
     setLoading(true);
     try { await readSnapshot(); } catch (e) { setLoadError(workspaceError(e)); }
     finally { setLoading(false); }
-    await readMaterials(filterRef.current, materials.page);
+    if (includeMaterials) await readMaterials(filterRef.current, materials.page);
   }
   useEffect(()=>{if(connected&&root){++materialSequence.current;void readMaterials(filterRef.current,0);}},[collectionRange,connected,root]);
   useEffect(() => {
-    if (root && loadedRoot.current !== root) { loadedRoot.current = root; void refresh(); }
+    if (root && loadedRoot.current !== root) { loadedRoot.current = root; void refresh(false); }
   });
   useEffect(() => {
     if (!connected || !root) return;
@@ -235,7 +238,7 @@ export function useNews(root: string | null) {
     try { await invoke('open_news_url', { url }); } catch (e) { setError(workspaceError(e)); }
   }
   async function cancelCapture() { try { await invoke('cancel_news_capture'); setNotice('已请求取消，等待当前网络请求结束后保留输入；以采集记录的中断状态为准。'); } catch (e) { setError(workspaceError(e)); } }
-  return { reset,cancelCapture, connected, snapshot, materials, loading, materialsLoading, loadError, materialError, error, notice, collecting,
+  return { reset,cancelCapture, connected, snapshot, materials, loading:loading||Boolean(root&&loadedRoot.current!==root), materialsLoading:materialsLoading||Boolean(root&&loadedRoot.current!==root), loadError, materialError, error, notice, collecting,
     drafts, pending, busy, errors, notices, previews, filter, newId, refresh, readMaterials, changeFilter, changeDraft, startNew,
     saveSource, reconcile, preview, toggle, useLatest, collect, openOriginal,collectionRange,setCollectionRange };
 }

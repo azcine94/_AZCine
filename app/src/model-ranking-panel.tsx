@@ -1,5 +1,6 @@
 import { UILink } from './components/ui/ui-link.tsx';
 import { Button } from './components/ui/button.tsx';
+import { LoadingStatus } from './components/ui/loading-status.tsx';
 import { BOARD_INFO, MODEL_BOARDS, rankingTime, RANKING_DATASET, RANKING_PRICE_SOURCE } from './model-ranking-contract.ts';
 import type { ModelBoard, ModelSnapshot, RankingMetric, RankingRow } from './model-ranking-contract.ts';
 import type { ModelRankingController } from './use-model-ranking.ts';
@@ -110,7 +111,7 @@ export function ModelRankingPanel({ model, hasRoot, rootError }: { model: ModelR
     {!model.connected && <p className="ranking-notice">当前为网页预览，请在这个工作目录根运行 npm run dev 打开桌面版。</p>}
     {model.connected && !hasRoot && !rootError && <p className="ranking-notice">先在<UILink variant="plain" href="#settings/data">设置中选择数据目录</UILink>，随后自动获取并保存榜单。</p>}
     {rootError && <p className="ranking-notice ranking-error" role="alert">{rootError}</p>}
-    {model.loading && <p className="ranking-notice" role="status">正在读取已保存榜单…</p>}
+    <LoadingStatus active={model.loading}>正在读取已保存榜单…</LoadingStatus>
     {model.busy && <div className="ranking-notice ranking-progress"><span className="ranking-progress-dot" aria-hidden="true" /><span role="status">{BOARD_INFO[model.busy.board].title} · {model.busy.action === 'save' ? '正在保存…' : '正在采集…'}</span>
       {model.busy.action === 'fetch' && <Button variant="app-text" type="button" className="text-action" onClick={model.cancel}>取消获取</Button>}</div>}
     {(model.loadError || board.error) && <div className="ranking-notice ranking-error" role="alert"><p>{model.loadError || board.error?.message}</p><Button variant="app-text" type="button" className="text-action" disabled={!hasRoot || waiting} onClick={() => void model.refresh()}>重新读取</Button></div>}
