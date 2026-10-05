@@ -89,6 +89,12 @@ fn readback(rpc:&RpcProcess,paths:&PiPaths)->Result<Readback,PiError>{
     Ok(Readback{state,models,messages,commands})
 }
 impl PiManager{
+    // Snapshot owned configuration under the same lock used by connect/save.
+    // News runs in its own process, but must not race configuration recovery.
+    pub fn news_documents(&self,root:&Path)->Result<[Value;3],PiError>{
+        let _operation=self.operation.try_lock().map_err(|_|busy())?;
+        let config=ConfigStore::open(root)?;config.initialize_defaults()?;Ok(config.private_documents()?)
+    }
     pub fn set_exiting(&self,value:bool){if let Ok(mut c)=self.core.lock(){c.exiting=value;}}
     fn operation(&self)->Result<MutexGuard<'_,()>,PiError>{self.operation.try_lock().map_err(|e|match e{TryLockError::WouldBlock=>busy(),TryLockError::Poisoned(_)=>interrupted()})}
     pub fn snapshot(&self)->Result<Value,PiError>{

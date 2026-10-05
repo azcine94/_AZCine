@@ -14,9 +14,10 @@ pub struct NewsState {
     // A failed disk write must not discard the fetched input while this app is still open.
     inputs: Mutex<HashMap<String, FeedResponse>>,
 }
-struct CollectionGuard(Arc<AtomicBool>);
+pub(crate) struct CollectionGuard(Arc<AtomicBool>);
+impl NewsState{pub(crate) fn clear_inputs(&self){if let Ok(mut inputs)=self.inputs.lock(){inputs.clear();}}}
 impl Drop for CollectionGuard { fn drop(&mut self) { self.0.store(false, Ordering::Release); } }
-fn claim(app: &tauri::AppHandle) -> Result<CollectionGuard, StorageError> {
+pub(crate) fn claim(app: &tauri::AppHandle) -> Result<CollectionGuard, StorageError> {
     let state = app.state::<NewsState>();
     if state.busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
         return Err(StorageError::new("news_collection_busy", "已有一轮采集正在运行，请等待完成；没有重复启动。"));
@@ -117,8 +118,8 @@ pub async fn news_snapshot(app: tauri::AppHandle, window: tauri::WebviewWindow) 
     main_window(&window)?;let control=app.clone();with_storage(app,move|m|{let s=m.store()?;if !control.state::<NewsState>().busy.load(Ordering::Acquire){crate::news_store::recover_runs(&s.db,&s.root)?;}s.news_snapshot()}).await
 }
 #[tauri::command]
-pub async fn news_materials(app: tauri::AppHandle, window: tauri::WebviewWindow, source_id: Option<String>, page: usize) -> Result<MaterialPage, StorageError> {
-    main_window(&window)?; with_storage(app, move |manager| manager.store()?.news_materials(source_id.as_deref(), page)).await
+pub async fn news_materials(app: tauri::AppHandle, window: tauri::WebviewWindow, source_id: Option<String>, page: usize,range:Option<crate::news_scope::Range>) -> Result<MaterialPage, StorageError> {
+    main_window(&window)?; with_storage(app, move |manager| {let s=manager.store()?;if let Some(range)=range{let scope=crate::news_scope::resolve(&s.db,&range,source_id,String::new(),false)?;Ok(s.materials_scoped(page,&scope,false,PAGE_SIZE)?.0)}else{s.news_materials(source_id.as_deref(),page)}}).await
 }
 #[tauri::command]
 pub async fn save_news_source(app: tauri::AppHandle, window: tauri::WebviewWindow, input: SaveSource) -> Result<Source, StorageError> {
@@ -140,17 +141,17 @@ pub async fn preview_news_source(app: tauri::AppHandle, window: tauri::WebviewWi
     }).await.map_err(|_| StorageError::new("news_preview_interrupted", "预览中断，表单保持不变，没有保存资料。"))?
 }
 #[tauri::command]
-pub async fn collect_news(app: tauri::AppHandle, window: tauri::WebviewWindow, request_id: String, source_id: Option<String>) -> Result<NewsSnapshot, StorageError> {
-    main_window(&window)?; collect(app,request_id,source_id,false).await
+pub async fn collect_news(app: tauri::AppHandle, window: tauri::WebviewWindow, request_id: String, source_id: Option<String>,range:Option<crate::news_scope::Range>) -> Result<NewsSnapshot, StorageError> {
+    main_window(&window)?; collect(app,request_id,source_id,false,range).await
 }
-pub async fn automatic_collect(app:tauri::AppHandle,source_id:Option<String>)->Result<NewsSnapshot,StorageError>{collect(app,crate::news_editorial_commands::uuid_value(),source_id,true).await}
-async fn collect(app:tauri::AppHandle,request_id:String,source_id:Option<String>,automatic:bool)->Result<NewsSnapshot,StorageError>{
+pub async fn automatic_collect(app:tauri::AppHandle,source_id:Option<String>)->Result<NewsSnapshot,StorageError>{collect(app,crate::news_editorial_commands::uuid_value(),source_id,true,None).await}
+async fn collect(app:tauri::AppHandle,request_id:String,source_id:Option<String>,automatic:bool,range:Option<crate::news_scope::Range>)->Result<NewsSnapshot,StorageError>{
     let _guard = claim(&app)?;
     // Freeze one saved network configuration for the whole collection batch.
     let (work, proxy) = with_storage(app.clone(), move |manager| {
         let store = manager.store()?;
         let proxy = store.news_preferences()?.config.collection_proxy;
-        Ok((store.begin_news_batch(&request_id, source_id.as_deref())?, proxy))
+        Ok((store.begin_news_batch_scoped(&request_id, source_id.as_deref(),&range.unwrap_or_default())?, proxy))
     }).await?;
     if let Some(work) = work {
         if automatic { let ids=work.iter().map(|w|w.source.id.clone()).collect::<Vec<_>>();with_storage(app.clone(),move|m|{for id in ids {m.store()?.mark_automatic_source(&id,&crate::news_store::now())?;}Ok(())}).await?; }

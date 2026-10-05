@@ -63,6 +63,16 @@ pub fn validate_analysis(event:&Event,analysis:&EventAnalysis)->Result<(),Storag
         ||analysis.judgments.iter().any(|f|!nonempty(&f.text,3000)||f.material_ids.is_empty()||f.material_ids.iter().any(|id|!ids.contains(&id))){return Err(invalid_reply());}Ok(())
 }
 impl Store {
+    pub fn pending_materials_scoped(&self,page:usize,scope:&crate::news_scope::Scope)->Result<(crate::news_types::MaterialPage,Vec<String>),StorageError>{
+        self.materials_scoped(page,scope,true,6)
+    }
+    pub fn materials_scoped(&self,page:usize,scope:&crate::news_scope::Scope,pending:bool,page_size:usize)->Result<(crate::news_types::MaterialPage,Vec<String>),StorageError>{
+        if page>100000{return Err(invalid_reply());}
+        let ids=self.scoped_material_ids(scope,pending)?;let page=page.min(ids.len().saturating_sub(1)/page_size);
+        let mut stmt=self.db.prepare(&format!("{MATERIAL_SELECT} WHERE m.id=?1")).map_err(db_error)?;
+        let items=ids.iter().skip(page*page_size).take(page_size).map(|id|stmt.query_row([id],material).map_err(db_error)).collect::<Result<Vec<_>,_>>()?;
+        Ok((crate::news_types::MaterialPage{items,total:ids.len(),page,page_size},ids))
+    }
     pub fn news_preferences(&self)->Result<Preferences,StorageError>{
         let (revision,config):(i64,String)=self.db.query_row("SELECT revision,config FROM news_preferences WHERE id=1",[],|r|Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
         let config=decode(&config)?;validate_config(&config)?;if !(1..=MAX_REVISION).contains(&revision){return Err(invalid_reply());}Ok(Preferences{config,revision})
@@ -81,13 +91,13 @@ impl Store {
         self.db.query_row("SELECT result FROM news_preference_requests WHERE id=?1",[id],|r|r.get::<_,String>(0)).optional().map_err(db_error)?.map(|v|decode(&v)).transpose()
     }
     pub fn editorial_candidates(&self,start:&str,end:&str)->Result<Vec<Material>,StorageError>{
-        let sql=format!("{MATERIAL_SELECT} WHERE COALESCE(m.published_at,m.discovered_at)>=?1 AND COALESCE(m.published_at,m.discovered_at)<=?2 AND EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) ORDER BY m.discovered_at,m.id");
+        let sql=format!("{MATERIAL_SELECT} WHERE COALESCE(m.published_at,m.discovered_at)>=?1 AND COALESCE(m.published_at,m.discovered_at)<=?2 AND EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) AND NOT EXISTS(SELECT 1 FROM news_pending_dismissals d WHERE d.material_id=m.id) ORDER BY m.discovered_at,m.id");
         let mut query=self.db.prepare(&sql).map_err(db_error)?;
         query.query_map(params![start,end],material).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
     }
     pub fn pending_materials(&self,page:usize,source_id:Option<&str>,query:&str)->Result<crate::news_types::MaterialPage,StorageError>{
         if page>100000||query.chars().count()>200{return Err(invalid_reply());}
-        let at=now();let condition="EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) AND (?1 IS NULL OR m.source_id=?1) AND (?2='' OR instr(lower(m.title),lower(?2))>0 OR instr(lower(COALESCE(m.summary,'')),lower(?2))>0) AND COALESCE(m.published_at,m.discovered_at)<=?3";
+        let at=now();let condition="EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) AND NOT EXISTS(SELECT 1 FROM news_pending_dismissals d WHERE d.material_id=m.id) AND (?1 IS NULL OR m.source_id=?1) AND (?2='' OR instr(lower(m.title),lower(?2))>0 OR instr(lower(COALESCE(m.summary,'')),lower(?2))>0) AND COALESCE(m.published_at,m.discovered_at)<=?3";
         let total:usize=self.db.query_row(&format!("SELECT count(*) FROM news_materials m WHERE {condition}"),params![source_id,query,at],|r|row_count(r,0)).map_err(db_error)?;
         let mut rows=self.db.prepare(&format!("{MATERIAL_SELECT} WHERE {condition} ORDER BY m.discovered_at DESC,m.id LIMIT 6 OFFSET ?4")).map_err(db_error)?;
         let items=rows.query_map(params![source_id,query,at,(page*6) as i64],material).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
@@ -95,7 +105,7 @@ impl Store {
     }
     pub fn pending_daily_total(&self)->Result<usize,StorageError>{
         let end=chrono::Utc::now();let start=end-chrono::Duration::hours(24);
-        self.db.query_row("SELECT count(*) FROM news_materials m WHERE COALESCE(m.published_at,m.discovered_at)>=?1 AND COALESCE(m.published_at,m.discovered_at)<=?2 AND EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id)",params![start.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true)],|r|row_count(r,0)).map_err(db_error)
+        self.db.query_row("SELECT count(*) FROM news_materials m WHERE COALESCE(m.published_at,m.discovered_at)>=?1 AND COALESCE(m.published_at,m.discovered_at)<=?2 AND EXISTS(SELECT 1 FROM news_sources s WHERE s.id=m.source_id AND json_extract(s.config,'$.usage')='editorial') AND NOT EXISTS(SELECT 1 FROM news_processed p WHERE p.material_id=m.id) AND NOT EXISTS(SELECT 1 FROM news_pending_dismissals d WHERE d.material_id=m.id)",params![start.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true)],|r|row_count(r,0)).map_err(db_error)
     }
     pub fn editorial_events(&self)->Result<Vec<Event>,StorageError>{
         let mut query=self.db.prepare("SELECT payload FROM news_events ORDER BY json_extract(payload,'$.latestAt') DESC,id").map_err(db_error)?;
@@ -118,7 +128,14 @@ impl Store {
         if !uuid(id)||!matches!(kind,"organize"|"daily"){return Err(invalid_reply());}
         let end=chrono::Utc::now();let start=if kind=="daily"{end-chrono::Duration::hours(24)}else{chrono::DateTime::parse_from_rfc3339("0001-01-01T00:00:00Z").map_err(|_|invalid_reply())?.with_timezone(&chrono::Utc)};let preferences=self.news_preferences()?;
         let mut run=EditorialRun{id:id.into(),kind:kind.into(),status:"running".into(),started_at:now(),finished_at:None,window_start:start.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),window_end:end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),config_revision:preferences.revision,config:preferences.config.clone(),sources:self.news_sources()?,event_id:None,event_revision:None,total:0,processed:0,error:None,schedule_date:date};
-        let mut input=self.editorial_candidates(&run.window_start,&run.window_end)?;
+        let filter=if kind=="organize"{selection.and_then(|s|s.filter.as_ref())}else{None};
+        let mut input=if let Some(filter)=filter{
+            let ids=self.scoped_pending_ids(filter)?;
+            if selection.and_then(|s|s.expected_ids.as_ref()).is_none_or(|expected|expected!=&ids){return Err(StorageError::new("news_scope_changed","资料范围已有变化，请刷新并核对条数后开始；没有扩大处理范围。"));}
+            let mut stmt=self.db.prepare(&format!("{MATERIAL_SELECT} WHERE m.id=?1")).map_err(db_error)?;
+            run.window_start=filter.start.clone().unwrap_or_else(||"0001-01-01T00:00:00.000Z".into());run.window_end=filter.end.clone();
+            ids.iter().map(|id|stmt.query_row([id],material).map_err(db_error)).collect::<Result<Vec<_>,_>>()?
+        }else{self.editorial_candidates(&run.window_start,&run.window_end)?};
         if let Some(s)=selection { if s.scope=="single" {input.retain(|m|Some(&m.id)==s.material_id.as_ref());if input.len()!=1{return Err(StorageError::new("news_material_not_pending","所选资料已处理或不属于当前待处理范围，请重新读取；没有启动其他资料。"));}} }
         run.total=input.len();self.save_editorial_run(&run)?;Ok((run,preferences,input))
     }

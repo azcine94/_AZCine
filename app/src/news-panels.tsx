@@ -10,6 +10,8 @@ import { useEffect } from 'react';
 import { domainLabels, equalConfig, formatNewsTime, identityLabels, publicationLabel, statusLabels, usageLabels } from './news-contract.ts';
 import type { CollectionRun, Domain, FeedEntry, NewsMaterial, NewsSource } from './news-contract.ts';
 import type { NewsController } from './use-news.ts';
+import { NewsRangeControl } from './news-range-control.tsx';
+import {NewsResetControl} from './news-reset-control.tsx';
 
 function NewsFeedback({ model }: { model: NewsController }) {
   return <div className="news-feedback" aria-live="polite">
@@ -50,10 +52,12 @@ function RunResult({ run, model }: { run: CollectionRun; model: NewsController }
 export function NewsFeed({ model }: { model: NewsController }) {
   const failed = model.snapshot.runs.filter(run => ['fetchFailed', 'parseFailed', 'saveFailed', 'interrupted'].includes(run.status));
   return <section className="news-page">
-    <div className="news-toolbar"><div><h2 className="title">采集资料</h2><p className="subtle">保存订阅中的原始标题、时间与摘要；整理结果在资讯阅读页查看。</p></div>
-      <div className="form-actions"><UILink variant="pill" className="pill" href="#settings/news">管理信源</UILink><UILink variant="pill" className="pill" href="#settings/news/processing">选择资料进行处理</UILink>
+    <div className="news-toolbar"><div><h2 className="title">采集资料</h2><p className="subtle">按下方范围查看原始采集资料；清空待处理后原始资料仍留存，已整理报道在资讯阅读页。</p></div>
+      <div className="form-actions"><UILink variant="pill" className="pill" href="#settings/news">管理信源</UILink><UILink variant="pill" className="pill" href="#settings/news/processing">筛选 / 整理 / 清空待处理</UILink>
         <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)}>{model.collecting ? '正在采集…' : '手动采集'}</Button></div>
     </div>
+    <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
+    <NewsResetControl model={model} disabled={model.collecting}/>
     <NewsFeedback model={model} />
     <div className="news-filter"><label htmlFor="news-source-filter">来源</label><NativeSelect variant="app" id="news-source-filter" className="select" value={model.filter} onChange={event => model.changeFilter(event.target.value)}>
       <option value="">全部信源</option>{model.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}{source.config.enabled ? '' : '（暂停）'}</option>)}
@@ -95,6 +99,7 @@ export function NewsSourceManager({ model }: { model: NewsController }) {
   return <section className="news-page">
     <div className="news-toolbar"><div><UILink variant="text" className="foundation-link" href="#settings">← 返回设置</UILink><h2 className="title">信源管理</h2><p className="subtle">首批18个预置信源。保存的配置下次采集生效，暂停不删除历史。</p></div><div className="form-actions"><UILink variant="pill" className="pill" href="#settings/news/materials">查看采集资料</UILink><UILink variant="pill" className="pill" href="#settings/news/rules">领域与筛选</UILink><UILink variant="pill" className="pill" href="#settings/news/sources/new" onClick={() => model.startNew()}>新增信源</UILink>
       <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)}>{model.collecting ? '正在采集…' : '采集已启用信源'}</Button></div></div>
+    <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
     <NewsFeedback model={model} />
     <div className="news-management-summary"><span className="meta">{model.snapshot.sources.length} 个来源 · {model.snapshot.sources.filter(source => source.config.enabled).length} 个已启用</span><Button variant="app-text" className="text-action" disabled={!model.connected || model.loading} onClick={() => void model.refresh()}>重新读取</Button></div>
     <table className="table news-source-table"><caption className="news-table-caption">公开 RSS / Atom 信源</caption><thead><tr><th scope="col">信源</th><th scope="col">覆盖与用途</th><th scope="col">采集状态</th><th scope="col">启停与操作</th></tr></thead><tbody>{model.snapshot.sources.map(source => <SourceRow key={source.config.id} source={source} model={model} />)}</tbody></table>

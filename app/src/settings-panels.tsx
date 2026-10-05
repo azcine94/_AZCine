@@ -111,7 +111,7 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
   else if (route === 'settings/news') page = <NewsSourceManager model={news} />;
   else if (route === 'settings/news/materials') page = <NewsFeed model={news} />;
   else if (route === 'settings/news/processing') page = <NewsProcessingPanel model={editorial} news={news} processing={processing} />;
-  else page = <NewsPreferences model={editorial} models={pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} />;
+  else page = <NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} />;
 
   return <div className="settings-layout">
     <aside className="settings-sidebar"><nav aria-label="设置分类">{settingsGroups.map((group, index) => <section className="settings-nav-group" key={group.title} aria-labelledby={`settings-group-${index}`}>

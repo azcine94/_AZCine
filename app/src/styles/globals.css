@@ -1,10 +1,11 @@
-/* 唯一生产样式入口；总览也引用此文件。保留现有 reset，避免 Preflight 改变已认可的界面。 */
+/* 唯一生产样式入口；总览也引用此文件。共用 ShadcnStore 主题与现有 reset。 */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import './tokens.css' layer(theme);
 @import './base.css' layer(base);
 @import '../components/ui/controls.css' layer(components);
 @import './app.css' layer(components);
+@import './theme-transition.css' layer(components);
 @import './workspace.css' layer(components);
 @import './projects.css' layer(components);
 @import './pi.css' layer(components);
@@ -13,6 +14,7 @@
 @import './ideas.css' layer(components);
 @import './settings.css' layer(components);
 @import './news-processing.css' layer(components);
+@import './news-reader.css' layer(components);
 @import './project-table.css' layer(components);
 @import '../components/ui/project-menus.css' layer(components);
 @import '../components/ui/project-stage-picker.css' layer(components);
@@ -54,6 +56,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --color-success: var(--ok);
   --color-warning: var(--warn);
   --color-brand: var(--acc);

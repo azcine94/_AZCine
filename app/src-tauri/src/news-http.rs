@@ -70,12 +70,21 @@ pub fn proxy_server(value: &str) -> Result<String, StorageError> {
 }
 pub fn fetch(value: &str) -> Result<FeedResponse, StorageError> { fetch_with_proxy(value, None) }
 pub fn fetch_with_proxy(value: &str, proxy: Option<&str>) -> Result<FeedResponse, StorageError> {
+    fetch_for(value, proxy, false)
+}
+pub fn fetch_article_with_proxy(value: &str, proxy: Option<&str>) -> Result<FeedResponse, StorageError> {
+    fetch_for(value, proxy, true).map_err(|error| {
+        let reason=error.message.replace("订阅", "原文").replace("。未报告采集成功。", "。").replace("未报告采集成功；", "");
+        StorageError::new("news_body_fetch_failed", &format!("原文获取失败，已保留订阅摘要和来源链接。{reason}"))
+    })
+}
+fn fetch_for(value: &str, proxy: Option<&str>, article: bool) -> Result<FeedResponse, StorageError> {
     let url = public_url(value)?;
     let proxy = proxy.map(proxy_server).transpose()?;
     #[cfg(windows)]
-    { windows_http::fetch(url, proxy.as_deref()) }
+    { windows_http::fetch(url, proxy.as_deref(), article) }
     #[cfg(not(windows))]
-    { let _ = (url, proxy); Err(StorageError::new("feed_platform_unsupported", "资讯采集目前仅接入 Windows 桌面版，没有执行采集或保存。")) }
+    { let _ = (url, proxy, article); Err(StorageError::new("feed_platform_unsupported", "资讯采集目前仅接入 Windows 桌面版，没有执行采集或保存。")) }
 }
 
 #[cfg(windows)]
@@ -155,10 +164,10 @@ mod windows_http {
         let milliseconds = remaining(deadline)?.as_millis().clamp(1, 10_000) as i32;
         unsafe { WinHttpSetTimeouts(handle.0, milliseconds, milliseconds, milliseconds, milliseconds) }.map_err(|e| network_error(e, "配置订阅超时"))
     }
-    pub fn fetch(mut url: Url, proxy: Option<&str>) -> Result<FeedResponse, StorageError> {
+    pub fn fetch(mut url: Url, proxy: Option<&str>, article: bool) -> Result<FeedResponse, StorageError> {
         let deadline = Instant::now() + Duration::from_secs(45);
         let proxy_name = proxy.map(wide);
-        let mode = if proxy.is_some() { "代理订阅" } else { "直连订阅" };
+        let mode = match (proxy.is_some(), article) {(true,true)=>"代理原文",(false,true)=>"直连原文",(true,false)=>"代理订阅",(false,false)=>"直连订阅"};
         for redirects in 0..=5 {
             // The explicitly trusted proxy resolves targets; local Fake-IP DNS must not be pinned into its requests.
             // Every target/redirect still passes public_url. Proxy DNS/IP routing is controlled by the user's proxy.
@@ -184,7 +193,8 @@ mod windows_http {
             }
             option(&request, WINHTTP_OPTION_DECOMPRESSION, &(WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE).to_ne_bytes())?;
             set_timeout(&request, deadline)?;
-            let headers: Vec<u16> = "Accept: application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9\r\n".encode_utf16().collect();
+            let accept = if article { "Accept: text/html, application/xhtml+xml;q=0.9, */*;q=0.5\r\n" } else { "Accept: application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9\r\n" };
+            let headers: Vec<u16> = accept.encode_utf16().collect();
             unsafe { WinHttpSendRequest(request.0, Some(&headers), None, 0, 0, 0) }.map_err(|e| network_error(e, &format!("{mode}发送请求")))?;
             set_timeout(&request, deadline)?;
             unsafe { WinHttpReceiveResponse(request.0, std::ptr::null_mut()) }.map_err(|e| network_error(e, &format!("{mode}接收响应")))?;

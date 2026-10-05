@@ -200,13 +200,21 @@ impl Store {
         Ok(MaterialPage { items, total, page, page_size: PAGE_SIZE })
     }
     pub fn begin_news_batch(&mut self, request_id: &str, target: Option<&str>) -> Result<Option<Vec<RunWork>>, StorageError> {
+        self.begin_news_batch_scoped(request_id,target,&crate::news_scope::Range::default())
+    }
+    pub fn begin_news_batch_scoped(&mut self, request_id: &str, target: Option<&str>,range:&crate::news_scope::Range) -> Result<Option<Vec<RunWork>>, StorageError> {
         if !uuid(request_id) { return Err(StorageError::new("invalid_id", "采集请求编号无效。")); }
         let target_key = target.unwrap_or("all");
+        let scope=crate::news_scope::resolve(&self.db,range,target.map(str::to_owned),String::new(),true)?;
         let sources = self.news_sources()?;
         let tx = self.db.transaction().map_err(db_error)?;
         let previous: Option<String> = tx.query_row("SELECT target FROM news_batches WHERE id=?1", [request_id], |row| row.get(0)).optional().map_err(db_error)?;
         if let Some(previous) = previous {
             if previous != target_key { return Err(StorageError::new("request_conflict", "采集请求编号已有不同范围，未重复执行。")); }
+            let saved:Option<String>=tx.query_row("SELECT scope FROM news_batch_ranges WHERE batch_id=?1",[request_id],|r|r.get(0)).optional().map_err(db_error)?;
+            if let Some(saved)=saved{let saved:serde_json::Value=serde_json::from_str(&saved).map_err(|_|invalid_data())?;
+                if saved["range"]!=serde_json::to_value(range).map_err(|_|invalid_data())?{return Err(StorageError::new("request_conflict","采集请求编号已有不同时间范围，未重复采集。"));}
+            }else if range.period!="all"{return Err(StorageError::new("request_conflict","旧采集请求没有此时间范围，未重复采集。"));}
             return Ok(None);
         }
         let sources = sources.into_iter().filter(|source| source.config.enabled && target.is_none_or(|id| id == source.config.id)).collect::<Vec<_>>();
@@ -215,6 +223,7 @@ impl Store {
         if unfinished { return Err(StorageError::new("news_unfinished_runs", "还有未结束的采集记录，请先退出并重新打开应用核对中断状态；没有重复启动。")); }
         let started = now();
         tx.execute("INSERT INTO news_batches(id,target,created_at) VALUES (?1,?2,?3)", params![request_id, target_key, started]).map_err(db_error)?;
+        tx.execute("INSERT INTO news_batch_ranges(batch_id,scope) VALUES(?1,?2)",params![request_id,serde_json::json!({"range":range,"scope":scope}).to_string()]).map_err(db_error)?;
         let mut work = Vec::new();
         for source in sources {
             let id = hash(&format!("{request_id}\n{}", source.config.id));
@@ -248,20 +257,29 @@ impl Store {
     }
     pub fn save_news_materials(&mut self, work: &RunWork, parsed: &ParsedFeed, fetched_at: &str) -> Result<(), StorageError> {
         let tx = self.db.transaction().map_err(db_error)?;
+        let (batch_id,scope):(String,Option<String>)=tx.query_row("SELECT r.batch_id,b.scope FROM news_runs r LEFT JOIN news_batch_ranges b ON b.batch_id=r.batch_id WHERE r.id=?1",[&work.id],|r|Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
+        let scope=scope.map(|s|{let value:serde_json::Value=serde_json::from_str(&s).map_err(|_|invalid_data())?;serde_json::from_value::<crate::news_scope::Scope>(value["scope"].clone()).map_err(|_|invalid_data())}).transpose()?;
         let mut added = 0;
+        let mut outside=0;
         for entry in &parsed.entries {
+            if scope.as_ref().is_some_and(|s|!s.includes(entry.published_at.as_deref())){outside+=1;continue;}
             let url_key = format!("url:{}", canonical_url(&entry.url)?);
             let id_key = entry.external_id.as_deref().map(|id| format!("id:{id}"));
             let existing: Option<String> = tx.query_row("SELECT material_id FROM news_material_keys WHERE source_id=?1 AND (key=?2 OR key=?3) LIMIT 1", params![work.source.id, url_key, id_key], |row| row.get(0)).optional().map_err(db_error)?;
             let material_id = if let Some(existing) = existing { existing } else {
                 let material_id: String = tx.query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0)).map_err(db_error)?;
                 tx.execute("INSERT INTO news_materials(id,source_id,source_name,source_revision,title,url,published_at,published_raw,discovered_at,summary,summary_truncated) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)", params![material_id, work.source.id, work.source.name, work.revision, entry.title, entry.url, entry.published_at, entry.published_raw, fetched_at, entry.summary, entry.summary_truncated]).map_err(db_error)?;
+                tx.execute("INSERT INTO news_material_batches(material_id,batch_id) VALUES(?1,?2)",params![material_id,batch_id]).map_err(db_error)?;
                 added += 1; material_id
             };
             for key in std::iter::once(url_key).chain(id_key) {
                 tx.execute("INSERT INTO news_material_keys(source_id,key,material_id) VALUES (?1,?2,?3) ON CONFLICT(source_id,key) DO NOTHING", params![work.source.id, key, material_id]).map_err(db_error)?;
             }
+            if let Some(body)=&entry.body {
+                tx.execute("INSERT INTO news_bodies(material_id,body,kind,fetched_at) VALUES(?1,?2,?3,?4) ON CONFLICT(material_id) DO NOTHING",params![material_id,body,if entry.body_full{"feed"}else{"summary"},fetched_at]).map_err(db_error)?;
+            }
         }
+        if outside>0{tx.execute("UPDATE news_runs SET skipped=skipped+?1,warning=CASE WHEN warning IS NULL THEN ?2 ELSE warning||'；'||?2 END WHERE id=?3",params![outside,format!("按已选采集范围跳过 {outside} 条（包含未纳入的日期不明资料）"),work.id]).map_err(db_error)?;}
         tx.execute("UPDATE news_runs SET status=?1,finished_at=?2,added=?3,error=NULL,parsed=NULL WHERE id=?4", params![if added > 0 { "added" } else { "noNew" }, now(), added, work.id]).map_err(db_error)?;
         tx.commit().map_err(db_error)
     }

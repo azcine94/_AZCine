@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-const SCHEMA_VERSION: i64 = 5;
+pub(crate) const SCHEMA_VERSION: i64 = 8;
 const DATABASE: &str = "db/azcine.sqlite3";
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
@@ -171,6 +171,9 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
     crate::ideas::create_schema(&tx)?;
     crate::news_store::create_schema(&tx)?;
     crate::news_editorial_store::create_schema(&tx)?;
+    crate::news_reader_store::create_schema(&tx)?;
+    crate::news_scope::create_schema(&tx)?;
+    crate::news_reset::create_schema(&tx)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
@@ -195,13 +198,19 @@ fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), S
         1 | 2 => !ideas && !news && !editorial,
         3 => ideas != news && !editorial,
         4 => !ideas && news && editorial,
-        5 => ideas && news && editorial,
+        5 | 6 | 7 | 8 => ideas && news && editorial,
         _ => false,
     };
     if !recognized { return Err(incompatible()); }
     if ideas { crate::ideas::validate_schema(db)?; }
     if news { crate::news_store::validate_schema(db)?; }
     if editorial { crate::news_editorial_store::validate_schema(db)?; }
+    if version>=6 {crate::news_reader_store::validate_schema(db)?;}else{
+        let present:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name IN ('news_bodies','news_articles','news_step_receipts','news_story_digests','news_reader_editions'))",[],|r|r.get(0)).map_err(db_error)?;
+        if present{return Err(incompatible());}
+    }
+    if version>=7{crate::news_scope::validate_schema(db)?;}
+    if version>=8{crate::news_reset::validate_schema(db)?;}
     Ok((ideas, news, editorial))
 }
 
@@ -289,6 +298,9 @@ impl Store {
             if !has_ideas { crate::ideas::create_schema(&tx)?; }
             if !has_news { crate::news_store::create_schema(&tx)?; }
             if !has_editorial { crate::news_editorial_store::create_schema(&tx)?; }
+            if version<6{crate::news_reader_store::create_schema(&tx)?;}
+            if version<7{crate::news_scope::create_schema(&tx)?;}
+            crate::news_reset::create_schema(&tx)?;
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
@@ -297,8 +309,13 @@ impl Store {
         crate::ideas::validate_schema(&db)?;
         crate::news_store::validate_schema(&db)?;
         crate::news_editorial_store::validate_schema(&db)?;
+        crate::news_reader_store::validate_schema(&db)?;
+        crate::news_scope::validate_schema(&db)?;
+        crate::news_reset::validate_schema(&db)?;
+        crate::news_reset::recover_files(&root,&db)?;
         crate::news_store::recover_runs(&db, &root)?;
         crate::news_editorial_store::recover(&db)?;
+        crate::news_reader_store::recover(&db)?;
         for dir in ["attachments", "snapshots", "pi/agent", "pi/sessions", "config", "logs", "backups"] { fs::create_dir_all(root.join(dir)).map_err(io_error)?; }
         Ok(Self { root, db, identity, _lock: lock })
     }

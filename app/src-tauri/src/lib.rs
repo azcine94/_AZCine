@@ -6,8 +6,22 @@ mod projects;
 #[path = "model-ranking-commands.rs"] mod model_ranking_commands;
 use model_ranking_commands::*;
 #[path = "news-types.rs"] mod news_types;
+#[path = "news-scope.rs"] mod news_scope;
+#[path = "news-reset.rs"] mod news_reset;
+use news_reset::{news_reset_preview,news_reset_data};
 #[path = "news-http.rs"] mod news_http;
 #[path = "news-feed.rs"] mod news_feed;
+#[path = "news-content.rs"] mod news_content;
+#[path = "news-prompts.rs"] mod news_prompts;
+#[path = "news-reader-types.rs"] mod news_reader_types;
+#[cfg(test)] #[path = "news-reader-tests.rs"] mod news_reader_tests;
+#[path = "news-reader-store.rs"] mod news_reader_store;
+#[path = "news-pipeline.rs"] mod news_pipeline;
+#[path = "news-reader-editions.rs"] mod news_reader_editions;
+use news_reader_store::*;
+use news_reader_editions::news_reader_period;
+#[path = "news-reader-export.rs"] mod news_reader_export;
+use news_reader_export::*;
 #[path = "news-store.rs"] mod news_store;
 #[path = "news-capture.rs"] mod news_capture;
 #[path = "news-commands.rs"] mod news_commands;
@@ -198,7 +212,7 @@ pub fn run() {
         .manage(news_ai::AiControl::default())
         .manage(pi_manager::PiManager::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_editorial_snapshot, news_pending_materials, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea])
+        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea])
         .setup(|app| { news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")

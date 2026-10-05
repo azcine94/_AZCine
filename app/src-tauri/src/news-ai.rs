@@ -1,11 +1,12 @@
 //! Dedicated upstream Pi RPC task; never takes over the interactive Agent session.
 use std::{path::{Path,PathBuf},sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}},time::{Duration,Instant},thread};
 use serde_json::{Value,json};
-use crate::{news_editorial_types::*,pi_config_store::ConfigStore,pi_launch_plan::PiPaths,pi_redactor::Redactor,pi_rpc::RpcProcess,storage::StorageError};
+use crate::{news_editorial_types::*,pi_launch_plan::PiPaths,pi_redactor::Redactor,pi_rpc::RpcProcess,storage::StorageError};
+use tauri::Manager as _;
 
 #[derive(Default)]
 pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
-pub struct AiWorker { rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>> }
+pub struct AiWorker { rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>>, pub usage:Mutex<Value> }
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
 fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError>{
     let value=rpc.request(command,fields,Duration::from_secs(30)).map_err(|e|error(e.code,e.message))?;
@@ -13,16 +14,15 @@ fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError
     Ok(value.get("data").cloned().unwrap_or(Value::Null))
 }
 impl AiWorker {
-    pub fn connect(root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>,observer:crate::news_processing::Observer)->Result<Self,StorageError>{
+    pub fn connect(app:&tauri::AppHandle,root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>,observer:crate::news_processing::Observer)->Result<Self,StorageError>{
         observer(crate::news_processing::ProgressEvent::Phase("connecting"));
         let map=|e:crate::pi_model_config::ConfigError|error(e.code,e.message);
         let runtime=crate::pi_runtime::resolve(resources).map_err(map)?;let mut paths=PiPaths::prepare(root).map_err(map)?;
-        let store=ConfigStore::open(&paths.root).map_err(map)?;store.initialize_defaults().map_err(map)?;
-        let docs=store.private_documents().map_err(map)?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
+        let docs=app.state::<crate::pi_manager::PiManager>().news_documents(&paths.root).map_err(|e|error(e.code,&e.message))?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
         // Application-owned private task configuration: never change interactive Pi settings.
         paths.agent=paths.pi_root.join("news-private-agent");crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
         std::fs::create_dir_all(&paths.agent).map_err(|_|error("news_ai_config","无法准备资讯专用配置。"))?;
-        let mut settings=docs[2].clone();settings["retry"]=json!({"enabled":false});settings["compaction"]=json!({"enabled":false});
+        let mut settings=docs[2].clone();settings["retry"]=json!({"enabled":false});settings["compaction"]=json!({"enabled":false});settings["defaultThinkingLevel"]=json!("off");
         for (name,value) in [("models.json",&docs[0]),("auth.json",&docs[1]),("settings.json",&settings)] {
             let path=paths.agent.join(name);crate::pi_launch_plan::no_link(&path).map_err(map)?;
             let bytes=serde_json::to_vec(value).map_err(|_|invalid_reply())?;
@@ -52,20 +52,25 @@ impl AiWorker {
         let Some(model)=choice.filter(|m|models.contains(m)) else {let _=rpc.shutdown(Duration::from_secs(1));return Err(error("news_model_unavailable","本应用原版Pi没有可用的资讯模型。请在设置中配置模型；材料、旧事件与旧刊保留，没有使用假回复。"));};
         request(&rpc,"set_model",json!({"provider":model.provider,"modelId":model.id}))?;
         observer(crate::news_processing::ProgressEvent::Model(model.clone()));
-        Ok(Self{rpc,settled,cancelled,redactor,model,observer,output})
+        Ok(Self{rpc,settled,cancelled,redactor,model,observer,output,usage:Mutex::new(Value::Null)})
     }
     fn available(rpc:&RpcProcess)->Result<Vec<ModelChoice>,StorageError>{
         let data=request(rpc,"get_available_models",json!({}))?;
         data["models"].as_array().ok_or_else(invalid_reply)?.iter().map(|m|Ok(ModelChoice{provider:m["provider"].as_str().ok_or_else(invalid_reply)?.into(),id:m["id"].as_str().ok_or_else(invalid_reply)?.into()})).collect()
     }
     pub fn process(&self)->Arc<RpcProcess>{self.rpc.clone()}
+    pub fn select_model(&mut self,model:ModelChoice)->Result<(),StorageError>{if !Self::available(&self.rpc)?.contains(&model){return Err(error("news_model_unavailable","步骤指定模型不可用，未自动换模型。"));}self.model=model;(self.observer)(crate::news_processing::ProgressEvent::Model(self.model.clone()));Ok(())}
     pub fn prompt(&self,message:&str)->Result<String,StorageError>{
+        *self.usage.lock().map_err(|_|invalid_reply())?=Value::Null;
         if self.cancelled.load(Ordering::Acquire){return Err(error("news_cancelled","资讯任务已取消，未发布未完成结果。"));}
         if let Ok(mut text)=self.output.lock(){text.clear();}
         (self.observer)(crate::news_processing::ProgressEvent::Phase("sending"));
         let session=request(&self.rpc,"new_session",json!({}))?;
         if session["cancelled"]!=false{return Err(error("news_cancelled","原版Pi未确认新资讯会话，没有发送。"));}
         request(&self.rpc,"set_model",json!({"provider":self.model.provider,"modelId":self.model.id}))?;
+        // These tasks require a final structured answer. Set only this private
+        // upstream session; do not inherit the interactive Agent's reasoning level.
+        request(&self.rpc,"set_thinking_level",json!({"level":"off"}))?;
         let state=request(&self.rpc,"get_state",json!({}))?;
         if state["model"]["provider"]!=self.model.provider||state["model"]["id"]!=self.model.id{return Err(error("news_model_unavailable","原版Pi未使用选定资讯模型，没有发送。"));}
         self.settled.store(false,Ordering::Release);
@@ -82,15 +87,72 @@ impl AiWorker {
         (self.observer)(crate::news_processing::ProgressEvent::Phase("readingResult"));
         let history=request(&self.rpc,"get_messages",json!({}))?;
         let last=history["messages"].as_array().ok_or_else(invalid_reply)?.iter().rev().find(|m|m["role"]=="assistant").ok_or_else(invalid_reply)?;
+        *self.usage.lock().map_err(|_|invalid_reply())?=last.get("usage").cloned().unwrap_or(Value::Null);
         if last["stopReason"]!="stop"||last.get("errorMessage").is_some_and(|v|v.as_str().is_some_and(|s|!s.is_empty())){let reason=last["errorMessage"].as_str().filter(|v|!v.is_empty()).map(|v|self.redactor.text(v,false).chars().take(2000).collect::<String>()).unwrap_or_else(||format!("结束原因：{}",last["stopReason"].as_str().unwrap_or("未提供")));return Err(error("news_ai_incomplete",&format!("模型未正常完成，没有发布部分回复。{reason}")));}
-        let text=last["content"].as_array().ok_or_else(invalid_reply)?.iter().filter(|v|v["type"]=="text").filter_map(|v|v["text"].as_str()).collect::<Vec<_>>().join("\n");
-        if text.trim().is_empty()||text.len()>2*1024*1024{return Err(invalid_reply());}let safe=self.redactor.text(&text,false);(self.observer)(crate::news_processing::ProgressEvent::Text(safe.chars().take(20000).collect(),safe.chars().count()));Ok(safe)
+        let text=final_text(last)?;let safe=self.redactor.text(&text,false);(self.observer)(crate::news_processing::ProgressEvent::Text(safe.chars().take(20000).collect(),safe.chars().count()));Ok(safe)
     }
 }
 impl Drop for AiWorker{fn drop(&mut self){let _=self.rpc.shutdown(Duration::from_secs(1));}}
+fn final_text(message:&Value)->Result<String,StorageError>{
+    let content=message["content"].as_array().ok_or_else(invalid_reply)?;
+    let text=content.iter().filter(|v|v["type"]=="text").filter_map(|v|v["text"].as_str()).collect::<Vec<_>>().join("\n");
+    if text.trim().is_empty(){
+        let thinking=content.iter().filter(|v|v["type"]=="thinking").filter_map(|v|v["thinking"].as_str()).map(|s|s.chars().count()).sum::<usize>();
+        return Err(error("news_ai_empty_answer",&format!("模型已结束，但没有返回正文答案（思考文本 {thinking} 字）。未生成资讯；请检查该模型的响应格式或更换资讯模型后重试，材料保留。")));
+    }
+    if text.len()>2*1024*1024{return Err(error("news_ai_answer_too_large","模型正文超过2MB限制，没有发布；材料保留。"));}
+    Ok(text)
+}
+#[cfg(test)]
+mod final_text_tests {
+    use super::*;
+    #[test]
+    fn thinking_only_is_not_a_final_answer(){
+        let err=final_text(&json!({"content":[{"type":"thinking","thinking":"{\"label\":\"PASS\"}"}]})).unwrap_err();
+        assert_eq!(err.code,"news_ai_empty_answer");assert!(err.message.contains("没有返回正文答案"));assert!(!err.message.contains("PASS"));
+    }
+    #[test]
+    fn final_answer_uses_only_text_blocks(){
+        assert_eq!(final_text(&json!({"content":[{"type":"thinking","thinking":"private reasoning"},{"type":"text","text":"{\"label\":\"PASS\"}"}]})).unwrap(),"{\"label\":\"PASS\"}");
+        assert_eq!(final_text(&json!({"content":[{"type":"text","text":"  \n "}]})).unwrap_err().code,"news_ai_empty_answer");
+    }
+}
 pub fn parse_json<T:serde::de::DeserializeOwned>(text:&str)->Result<T,StorageError>{
-    let text=text.trim();let text=if let Some(value)=text.strip_prefix("```json\n").or_else(||text.strip_prefix("```\n")){value.strip_suffix("```").ok_or_else(invalid_reply)?.trim()}else{text};
-    serde_json::from_str(text).map_err(|_|invalid_reply())
+    let text=text.trim();let text=if let Some(value)=text.strip_prefix("```"){
+        let (language,value)=value.split_once('\n').ok_or_else(invalid_reply)?;
+        if !language.trim().is_empty()&&!language.trim().eq_ignore_ascii_case("json"){return Err(invalid_reply());}
+        let (body,prose)=value.rsplit_once("```").ok_or_else(invalid_reply)?;
+        // A single fenced JSON answer may be followed by explanatory prose.
+        // Reject ambiguous extra structured answers; the selected body still
+        // undergoes the same complete JSON and step-specific schema validation.
+        if prose.contains(['{','}','[',']'])||body.contains("\n```"){return Err(error("news_ai_invalid","JSON代码块外出现另一份结构化内容，未选择或发布任何一份。"));}
+        body.trim()
+    }else{text};
+    serde_json::from_str(text).map_err(|e|{
+        let detail=match e.classify(){
+            serde_json::error::Category::Syntax|serde_json::error::Category::Eof=>format!("模型返回不是有效 JSON（第{}行，第{}列）；文本里的双引号和换行必须正确转义。",e.line(),e.column()),
+            _=>format!("模型返回的字段名称或类型不符合本步骤要求：{e}"),
+        };
+        StorageError::new("news_ai_invalid",&detail)
+    })
+}
+#[cfg(test)]
+mod json_wrapper_tests {
+    use super::*;
+    #[test]
+    fn one_fenced_reply_with_explanation_keeps_the_original_schema(){
+        let reply="```json\n{\"category\":null,\"tags\":[\"其他\"],\"subjects\":[],\"scope\":\"unknown\",\"fact\":null}\n```\n\n说明：材料只有标题，无法确认具体报道形态。";
+        let structure:crate::news_reader_types::Structure=parse_json(reply).unwrap();assert_eq!(structure.scope,"unknown");assert!(structure.fact.is_null());
+        assert!(parse_json::<crate::news_reader_types::Prefilter>(reply).is_err());
+    }
+    #[test]
+    fn crlf_fences_and_uppercase_json_are_supported(){
+        assert_eq!(parse_json::<Value>("```JSON\r\n{\"label\":\"PASS\"}\r\n```\r\n说明：明确涉及AI。").unwrap()["label"],"PASS");
+    }
+    #[test]
+    fn ambiguous_fences_and_incomplete_json_are_rejected(){
+        for reply in ["```json\n{}\n```\n{\"second\":true}","```json\n{}\n```\n```json\n{}\n```","```json\n{\n```\n说明：没有完整输出。","```python\n{}\n```","{\"label\":\"PASS\"} explanatory prose"]{assert!(parse_json::<Value>(reply).is_err());}
+    }
 }
 pub fn editorial_prompt(input:&[crate::news_types::Material],known:&[Event],config:&EditorialConfig,sources:&[crate::news_types::Source],review:Option<&EditorialReply>)->Result<String,StorageError>{
     let context=known.iter().take(60).map(|e|json!({"eventKey":e.draft.event_key,"title":e.draft.title,"summary":e.draft.summary,"facts":e.draft.facts})).collect::<Vec<_>>();

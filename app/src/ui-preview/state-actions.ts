@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
-export interface StateAction {selector:string;action?:'click'|'open'|'reveal';text?:string}
+export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'collapse';text?:string}
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'.pi-chat-options',action:'open'};
 export const stateActions:Record<string,StateAction[]>={
+  'shell-collapsed':[{selector:'.sidebar-trigger',action:'collapse'}],
   'agent-more':[more], 'agent-runtime':[more,{selector:'.pi-options-panel .pi-runtime',action:'open'}],
   'agent-models':[{selector:'.pi-model-trigger'}], 'agent-sessions':[{selector:'.pi-sessions',action:'open'}],
   'agent-process':[{selector:'.pi-process-toggle'}],
@@ -56,7 +57,8 @@ export function useStateActions(state:string) {
         node.scrollIntoView({block:'center',inline:'nearest'});
         if(step.action==='open'&&node instanceof HTMLDetailsElement) {
           if(!node.open)node.querySelector<HTMLElement>('summary')?.click();
-        } else if(step.action!=='reveal')node.click();
+        } else if(step.action==='collapse') { if(node.getAttribute('aria-expanded')==='true')node.click(); }
+        else if(step.action!=='reveal')node.click();
         await new Promise<void>(resolve=>setTimeout(resolve,60));
       }
     }

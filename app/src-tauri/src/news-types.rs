@@ -100,6 +100,9 @@ pub struct FeedEntry {
     pub published_raw: Option<String>,
     pub summary: Option<String>,
     pub summary_truncated: bool,
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    pub body: Option<String>,
+    #[serde(default)] pub body_full:bool,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

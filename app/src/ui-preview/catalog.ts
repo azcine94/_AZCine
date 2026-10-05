@@ -2,12 +2,14 @@ import { pages, pageTitle } from '../routes.ts';
 import type { Route } from '../routes.ts';
 import { settingsGroups } from '../settings-navigation.ts';
 import { processingPhases } from '../news-processing-client.ts';
+import {readerArticleId,readerStoryId} from './news-reader-fixture.ts';
 import { statusLabels } from '../news-contract.ts';
 import { project, event, source, idea, uuid } from './data.ts';
 
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
-const base = ['normal','empty','loading','error','long','root-error'];
+const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
 export const extraStateLabels:Record<string,string>={
+  'shell-collapsed':'整站 · 侧栏收起',
   'agent-more':'Agent · 更多会话操作展开','agent-runtime':'Agent · 运行信息展开','agent-models':'Agent · 多模型菜单展开','agent-sessions':'Agent · 多会话列表','agent-process':'Agent · 思考与工具过程展开',
   'provider-interface':'模型 · 接口设置展开','provider-fetching':'服务商 · 获取模型中','provider-saving':'服务商 · 保存中','provider-multiple':'多个服务商 / 多个模型',
   'stage-select':'阶段 · 选择展开','stage-create':'阶段 · 新增标签','stage-manage':'阶段 · 管理标签','stage-rename':'阶段 · 改名','stage-error':'阶段 · 输入错误',
@@ -21,7 +23,7 @@ export const stateLabels: Record<string,string> = {'root-error':'数据目录读
 const files: Record<string,string[]> = {
   today:['workspace-panels.tsx','projects-panels.tsx','news-reading-panels.tsx'],
   projects:['projects-panels.tsx'],
-  news:['news-reading-panels.tsx'],models:['model-ranking-panel.tsx'],ideas:['ideas-panels.tsx'],
+  news:['news-reader-panels.tsx','news-article-body.tsx','news-reading-panels.tsx'],models:['model-ranking-panel.tsx'],ideas:['ideas-panels.tsx'],
   agent:['pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-panels.tsx'],
   jobs:['news-processing-panel.tsx'],settings:['settings-panels.tsx'],
   'settings/models':['pi-provider-panel.tsx','pi-panels.tsx'],
@@ -50,7 +52,7 @@ function states(route:string) {
   return [...base,'dirty','pending','no-root'];
 }
 function scene(route:Route,title:string,group:string,sources:string[] = files[route]??[]):Scene {
-  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
+  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx','workspace-header.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
 }
 export const scenes:Scene[] = [
   {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','table-menu','add-menu','folds-open','dialog-open','popover-open','dropdown-open','tooltip-open'],sources:['date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
@@ -59,7 +61,9 @@ export const scenes:Scene[] = [
   scene('projects/new','新建公司项目','详情与编辑',['projects-panels.tsx']),
   scene(`projects/${project.id}`,'项目文档 · 文字 / 清单 / 表格','详情与编辑',['projects-panels.tsx','project-list-editor.tsx','project-checklist-panel.tsx','project-stage-picker.tsx','project-add-menu.tsx','table-menu.tsx','date-input.tsx']),
   scene(`projects/${project.id}/${uuid(8)}/${uuid(20)}`,'交付定位到表格行','详情与编辑',['projects-panels.tsx','project-list-editor.tsx']),
-  scene(`news/events/${event.id}`,'资讯事件详情与分析','详情与编辑',['news-reading-panels.tsx']),
+  scene(`news/events/${event.id}`,'旧事件链接 → 统一文章详情','详情与编辑',['news-reader-panels.tsx','news-article-body.tsx']),
+  scene(`news/items/${readerArticleId}`,'资讯文章 · 正文与阅读目录','详情与编辑',['news-reader-panels.tsx','news-article-body.tsx']),
+  scene(`news/stories/${readerStoryId}`,'资讯事件 · 报道与进展','详情与编辑',['news-reader-panels.tsx']),
   scene('settings/news/sources/new','新增信源','详情与编辑',['news-panels.tsx']),
   scene(`settings/news/sources/${source.config.id}`,'编辑信源与预览','详情与编辑',['news-panels.tsx']),
   scene(`ideas/${idea.id}`,'定位灵感卡片','详情与编辑',['ideas-panels.tsx']),

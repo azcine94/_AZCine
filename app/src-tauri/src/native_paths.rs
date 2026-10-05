@@ -2,7 +2,7 @@ use crate::storage::StorageError;
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
-pub use windows_impl::{choose_folder, open_folder, open_ranking_source, choose_news_pdf};
+pub use windows_impl::{choose_folder, open_folder, open_ranking_source, choose_news_pdf,choose_news_markdown};
 
 #[cfg(not(windows))]
 pub fn open_ranking_source(_owner: isize, _board: crate::model_ranking::Board) -> Result<(), StorageError> {
@@ -11,6 +11,8 @@ pub fn open_ranking_source(_owner: isize, _board: crate::model_ranking::Board) -
 
 #[cfg(not(windows))]
 pub fn choose_news_pdf(_owner:isize,_name:String)->Result<Option<PathBuf>,StorageError>{Err(StorageError::new("news_pdf_unsupported","PDF导出目前仅支持Windows桌面。"))}
+#[cfg(not(windows))]
+pub fn choose_news_markdown(_owner:isize,_name:String)->Result<Option<PathBuf>,StorageError>{Err(StorageError::new("news_export_unsupported","Markdown导出目前仅支持Windows桌面。"))}
 
 #[cfg(not(windows))]
 pub fn choose_folder(_owner: isize) -> Result<Option<PathBuf>, StorageError> {
@@ -71,6 +73,16 @@ mod windows_impl {
         let item=unsafe{dialog.GetResult()}.map_err(|e|native_error("无法取得PDF路径",e.code()))?;let display=TaskMemString(unsafe{item.GetDisplayName(SIGDN_FILESYSPATH)}.map_err(|e|native_error("无法取得PDF路径",e.code()))?);
         if display.0.is_null(){return Err(StorageError::new("news_pdf_path","系统没有返回PDF路径。"));}
         let path=PathBuf::from(OsString::from_wide(unsafe{display.0.as_wide()}));if !path.is_absolute()||path.extension().is_none_or(|e|!e.eq_ignore_ascii_case("pdf")){return Err(StorageError::new("news_pdf_path","请选择绝对路径的.pdf文件。"));}Ok(Some(path))
+    })}
+    pub fn choose_news_markdown(owner:isize,name:String)->Result<Option<PathBuf>,StorageError>{run_in_sta("azcine-news-markdown-save",move||{
+        use windows::Win32::UI::Shell::{IFileSaveDialog,FileSaveDialog,FOS_OVERWRITEPROMPT};
+        let dialog:IFileSaveDialog=unsafe{CoCreateInstance(&FileSaveDialog,None,CLSCTX_INPROC_SERVER)}.map_err(|e|native_error("无法创建Markdown保存窗口",e.code()))?;
+        let name:Vec<u16>=name.encode_utf16().chain(Some(0)).collect();
+        (||->windows::core::Result<()>{unsafe{dialog.SetTitle(w!("导出资讯 Markdown（请选择新文件名）"))?;dialog.SetDefaultExtension(w!("md"))?;dialog.SetFileName(PCWSTR(name.as_ptr()))?;let options=dialog.GetOptions()?;dialog.SetOptions(options|FOS_FORCEFILESYSTEM|FOS_NOCHANGEDIR|FOS_OVERWRITEPROMPT)}})().map_err(|e:windows::core::Error|native_error("无法设置保存选项",e.code()))?;
+        match unsafe{dialog.Show(owner_hwnd(owner))}{Ok(())=>{},Err(e)if e.code()==HRESULT::from_win32(ERROR_CANCELLED.0)=>return Ok(None),Err(e)=>return Err(native_error("无法显示保存窗口",e.code()))}
+        let item=unsafe{dialog.GetResult()}.map_err(|e|native_error("无法取得文件路径",e.code()))?;let display=TaskMemString(unsafe{item.GetDisplayName(SIGDN_FILESYSPATH)}.map_err(|e|native_error("无法取得文件路径",e.code()))?);
+        if display.0.is_null(){return Err(StorageError::new("news_export_path","系统没有返回导出路径。"));}
+        let path=PathBuf::from(OsString::from_wide(unsafe{display.0.as_wide()}));if !path.is_absolute()||path.extension().is_none_or(|e|!e.eq_ignore_ascii_case("md")){return Err(StorageError::new("news_export_path","请选择绝对路径的.md文件。"));}Ok(Some(path))
     })}
 
     /// Asks Windows to open the current stored data root.

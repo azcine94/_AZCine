@@ -2,8 +2,7 @@
 .ranking-board svg { width:18px; height:18px; flex-shrink:0; }
 
 
-.ranking-hero { position:relative; overflow:hidden; padding:var(--s-5); border:1px solid var(--line); border-radius:var(--r-island); background:radial-gradient(ellipse at 100% 0%,var(--acc-soft),transparent 60%),var(--island); }
-.ranking-hero::after { content:""; position:absolute; width:290px; height:290px; right:30px; top:-190px; border:1px solid var(--ranking-accent-line); border-radius:50%; box-shadow:0 0 0 28px color-mix(in srgb,var(--acc) 3%,transparent),0 0 0 56px color-mix(in srgb,var(--acc) 2%,transparent); pointer-events:none; }
+.ranking-hero { position:relative; overflow:hidden; padding:var(--s-5); border:1px solid var(--line); border-radius:var(--r-panel); background:var(--card); box-shadow:var(--shadow-card); }
 .ranking-topline,.ranking-heading,.ranking-hero-bottom { position:relative; z-index:1; display:flex; justify-content:space-between; gap:var(--s-4); }
 .ranking-topline { align-items:center; margin-bottom:var(--s-4); }
 .ranking-eyebrow { display:flex; align-items:center; gap:var(--s-2); color:var(--t2); font:600 var(--fs-xs)/var(--lh-xs) var(--font); letter-spacing:1px; }
@@ -40,9 +39,7 @@
 
 .ranking-progress-dot { width:8px; height:8px; flex-shrink:0; background:var(--acc); border-radius:50%; box-shadow:0 0 0 4px var(--acc-soft); }
 .ranking-leaders { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--s-4); margin-block:var(--s-5); }
-.ranking-leader { position:relative; isolation:isolate; overflow:hidden; display:flex; flex-direction:column; padding:var(--s-5); border:1px solid var(--line); border-radius:var(--r-panel); background:var(--island); }
-.ranking-leader[data-place="1"] { border-color:var(--ranking-accent-line); background:linear-gradient(125deg,var(--acc-soft),transparent 80%),var(--island); }
-.ranking-leader[data-place="2"] { background:linear-gradient(125deg,var(--island-2),transparent 80%),var(--island); }
+.ranking-leader { position:relative; isolation:isolate; overflow:hidden; display:flex; flex-direction:column; padding:var(--s-5); border:1px solid var(--line); border-radius:var(--r-panel); background:linear-gradient(180deg,var(--muted),var(--card)); box-shadow:var(--shadow-card); }
 .ranking-leader-top { display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); }
 .ranking-place { display:inline-flex; align-items:center; gap:var(--s-2); color:var(--t2); font:600 var(--fs-xs)/var(--lh-xs) var(--font); white-space:nowrap; }
 .ranking-leader[data-place="1"] .ranking-place { color:var(--acc); }
@@ -57,7 +54,7 @@
 .ranking-leader-value small { margin-left:2px; font:600 var(--fs-h)/var(--lh-h) var(--mono); }
 .ranking-leader-detail { color:var(--t2); font:var(--fs-xs)/var(--lh-xs) var(--font); text-align:right; }
 .ranking-leader-detail strong { display:block; margin-top:var(--s-1); color:var(--text); font:600 var(--fs-s)/var(--lh-s) var(--mono); font-variant-numeric:tabular-nums; }
-.ranking-leader-watermark { position:absolute; z-index:-1; right:var(--s-3); top:32px; color:color-mix(in srgb,var(--t2) 7%,transparent); font:800 108px/1 var(--mono); letter-spacing:-8px; pointer-events:none; }
+.ranking-leader-watermark { display:none; }
 .ranking-table-card { border:1px solid var(--line); border-radius:var(--r-panel); background:var(--island); overflow:hidden; }
 .ranking-table-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); padding:var(--s-4) var(--s-5); }
 .ranking-table-heading>div { display:flex; align-items:center; gap:var(--s-3); }
@@ -83,7 +80,7 @@
 .ranking-table--agent thead th:nth-last-child(-n+2),.ranking-table--text-to-image thead th:nth-last-child(-n+2) { text-align:right; }
 .ranking-table thead .ranking-sort-column { color:var(--acc); }
 .ranking-sort-column>span { margin-left:var(--s-1); }
-.ranking-table tbody tr { height:84px; transition:background var(--dur) var(--ease); }
+.ranking-table tbody tr { height:64px; transition:background var(--dur) var(--ease); }
 .ranking-table tbody tr:hover { background:color-mix(in srgb,var(--acc) 4%,var(--island)); }
 .ranking-table tbody td,.ranking-table tbody th { padding:var(--s-3); border-bottom:1px solid var(--line); vertical-align:middle; }
 .ranking-table tbody tr:last-child td,.ranking-table tbody tr:last-child th { border-bottom:0; }

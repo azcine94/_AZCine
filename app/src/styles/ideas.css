@@ -6,8 +6,8 @@
 .ideas-total strong { font-family:var(--mono); color:var(--text); }
 .ideas-total-mark { display:grid; place-items:center; width:40px; height:40px; border-radius:var(--r-ctl); color:var(--acc); background:var(--acc-soft); }
 .idea-form { display:flex; flex-direction:column; gap:var(--s-3); min-width:0; }
-.idea-composer { background:var(--island-2); border-radius:var(--r-panel); padding:var(--s-5); display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:var(--s-4) var(--s-5); }
-.idea-writing { min-width:0; display:flex; flex-direction:column; background:var(--island); border:1px solid transparent; border-radius:var(--r-ctl); padding:var(--s-2) var(--s-4); }
+.idea-composer { background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow-card); border-radius:var(--r-panel); padding:var(--s-5); display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:var(--s-4) var(--s-5); }
+.idea-writing { min-width:0; display:flex; flex-direction:column; background:var(--background); border:1px solid var(--input); border-radius:var(--r-ctl); padding:var(--s-2) var(--s-4); }
 .idea-writing:focus-within { outline:2px solid var(--acc); outline-offset:0; }
 .idea-composer>.idea-form-options { display:flex; flex-direction:column; gap:var(--s-4); }
 .idea-composer>.idea-form-footer,.idea-composer>.idea-pending { grid-column:1/-1; }
@@ -59,7 +59,7 @@
 
 
 .idea-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--s-4); align-items:stretch; }
-.idea-card { padding:var(--s-5); border-radius:var(--r-panel); background:var(--island-2); border:1px solid transparent; min-width:0; display:flex; flex-direction:column; gap:var(--s-2); overflow-wrap:anywhere; transition:border-color var(--dur) var(--ease); }
+.idea-card { padding:var(--s-5); border-radius:var(--r-panel); background:var(--card); border:1px solid var(--border); box-shadow:var(--shadow-card); min-width:0; display:flex; flex-direction:column; gap:var(--s-2); overflow-wrap:anywhere; transition:border-color var(--dur) var(--ease); }
 .idea-card:hover { border-color:var(--line-2); }
 .idea-card--editing { grid-column:1/-1; }
 .idea-card:has(.idea-card-body.is-expanded) { grid-column:1/-1; }

@@ -1,4 +1,4 @@
-// RSS 2.0 / RSS 1.0 / Atom, subscription summaries only; never fetch article bodies.
+// RSS 2.0 / RSS 1.0 / Atom. Preserve supplied full bodies before limiting summaries.
 use chrono::DateTime;
 use quick_xml::{Reader, events::{BytesStart, Event}};
 use url::Url;
@@ -7,7 +7,7 @@ use crate::storage::StorageError;
 
 fn parse_error() -> StorageError { StorageError::new("feed_parse_failed", "订阅解析失败：需要完整的 UTF-8 RSS/Atom XML，可能是网页、登录页或信源格式变化。未替换原资料。") }
 #[derive(Default)]
-struct Item { title: String, id: String, link: String, link_base: String, date: String, summary: String }
+struct Item { title: String, id: String, link: String, link_base: String, date: String, summary: String, body: String }
 struct Frame { name: String, base: String }
 struct Capture { field: &'static str, depth: usize, value: String, base: String }
 fn attributes(start: &BytesStart<'_>, key: &str) -> Result<Option<String>, StorageError> {
@@ -57,10 +57,12 @@ fn finish(item: Item, feed_url: &str) -> Option<FeedEntry> {
     let summary = plain_text(&item.summary);
     let summary_truncated = summary.chars().count() > 1000;
     let summary = if summary.is_empty() { None } else { Some(summary.chars().take(1000).collect()) };
+    let body=crate::news_content::markdown(if item.body.is_empty(){&item.summary}else{&item.body},url.as_str(),false).ok().filter(|v|!v.is_empty());
     Some(FeedEntry {
         external_id: if item.id.trim().is_empty() || item.id.len() > 4096 { None } else { Some(item.id.trim().to_owned()) },
         title, url: url.into(), published_at: published(raw), published_raw: if raw.is_empty() { None } else { Some(raw.chars().take(500).collect()) },
         summary, summary_truncated,
+        body, body_full:!item.body.is_empty(),
     })
 }
 fn apply(item: &mut Item, capture: Capture) {
@@ -70,6 +72,7 @@ fn apply(item: &mut Item, capture: Capture) {
         "link" if item.link.is_empty() => { item.link = capture.value; item.link_base = capture.base; },
         "date" if item.date.is_empty() => item.date = capture.value,
         "summary" if item.summary.is_empty() => item.summary = capture.value,
+        "body" => item.body = capture.value,
         _ => {},
     }
 }
@@ -91,6 +94,7 @@ fn open_element(start: &BytesStart<'_>, stack: &mut Vec<Frame>, item: &mut Optio
         Some(FeedKind::Rss) => name == "item" && (depth == 3 && stack.last().is_some_and(|frame| frame.name == "channel") || depth == 2 && stack.first().is_some_and(|frame| frame.name == "RDF")),
         None => false,
     };
+    if let Some(captured)=capture.as_mut(){if depth>captured.depth&&matches!(captured.field,"body"|"summary"){captured.value.push('<');captured.value.push_str(start.as_ref());captured.value.push('>');}}
     if entry_start {
         if item.is_some() { return Err(parse_error()); }
         *item = Some(Item::default()); *item_depth = depth;
@@ -99,6 +103,7 @@ fn open_element(start: &BytesStart<'_>, stack: &mut Vec<Frame>, item: &mut Optio
             let field = match name.as_str() {
                 "title" => Some("title"), "guid" | "id" => Some("id"),
                 "description" | "summary" => Some("summary"),
+                "encoded" | "content" => Some("body"),
                 "pubDate" | "published" | "date" => Some("date"),
                 "link" if *kind == Some(FeedKind::Rss) && attributes(start, "href")?.is_none() => Some("link"),
                 _ => None,
@@ -119,7 +124,7 @@ fn open_element(start: &BytesStart<'_>, stack: &mut Vec<Frame>, item: &mut Optio
 fn close_element(stack: &mut Vec<Frame>, item: &mut Option<Item>, capture: &mut Option<Capture>, item_depth: usize, entries: &mut Vec<FeedEntry>, skipped: &mut usize, feed_url: &str) -> Result<(), StorageError> {
     if capture.as_ref().is_some_and(|capture| capture.depth == stack.len()) {
         if let (Some(item), Some(captured)) = (item.as_mut(), capture.take()) { apply(item, captured); }
-    } else if let Some(captured) = capture.as_mut() { captured.value.push(' '); }
+    } else if let Some(captured) = capture.as_mut() { if matches!(captured.field,"body"|"summary"){captured.value.push_str("</");captured.value.push_str(&stack.last().ok_or_else(parse_error)?.name);captured.value.push('>');}else{captured.value.push(' ');} }
     if item.is_some() && stack.len() == item_depth {
         if entries.len() + *skipped >= 10000 { return Err(StorageError::new("feed_entries_large", "订阅超过10000条，未截断后当作完整采集。请调整来源地址。")); }
         if let Some(entry) = finish(item.take().ok_or_else(parse_error)?, feed_url) { entries.push(entry); } else { *skipped += 1; }

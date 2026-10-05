@@ -12,9 +12,9 @@
 
 
 /* Selected Agent direction. All local colors and layout stay inside this module. */
-.workspace[data-page=agent] { background:transparent; }
-.workspace[data-page=agent] .page-heading { padding:16px 24px 12px; }
-.workspace[data-page=agent] .page-heading h1 { font-size:16px; line-height:24px; }
+.workspace[data-page=agent] { background:var(--background); }
+.workspace[data-page=agent] .page-heading { padding:24px var(--content-pad) 20px; }
+.workspace[data-page=agent] .page-heading h1 { font-size:var(--fs-title); line-height:var(--lh-title); }
 .workspace[data-page=agent] .workspace-scroll { padding:0 24px 20px; }
 .pi-agent-workspace,.pi-preview-workspace { display:flex; flex-direction:column; height:100%; min-height:0; }
 .pi-preview-workspace { flex:1; }
@@ -28,7 +28,7 @@
 
 .pi-preview-loading,.pi-preview-note { color:var(--t2); font:12px/20px var(--font); }
 .workspace[data-page=agent] .workspace-scroll:has(.pi-agent-layout) { overflow:hidden; scrollbar-gutter:auto; }
-.pi-agent-layout { display:grid; grid-template-columns:224px minmax(0,1fr); gap:var(--s-5); height:100%; min-height:0; position:relative; }
+.pi-agent-layout { display:grid; grid-template-columns:224px minmax(0,1fr); gap:0; height:100%; min-height:0; position:relative; border:1px solid var(--border); border-radius:var(--r-panel); overflow:hidden; }
 
 
 
@@ -63,7 +63,7 @@
 
 
 
-.pi-agent-layout .pi-chat { min-width:0; min-height:0; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; position:relative; padding:var(--s-4) var(--s-5); background:var(--island); border-radius:var(--r-island); }
+.pi-agent-layout .pi-chat { min-width:0; min-height:0; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; position:relative; padding:var(--s-4) var(--s-5); background:var(--background); border-radius:0; }
 .pi-agent-layout .pi-chat-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--s-3); flex-wrap:wrap; min-height:48px; padding-bottom:10px; }
 .pi-agent-layout .pi-chat-identity { min-width:0; flex:1 1 160px; }
 .pi-agent-layout .pi-chat-heading h2 { font:600 16px/24px var(--font); overflow-wrap:anywhere; }
@@ -137,7 +137,7 @@
 .pi-agent-layout .pi-queue { padding:var(--s-3); background:var(--island-2); border-radius:var(--r-ctl); margin-block:var(--s-2); overflow-wrap:anywhere; }
 .pi-agent-layout .pi-queue p { white-space:pre-wrap; }
 .pi-agent-layout .pi-composer { padding-top:8px; width:100%; max-width:740px; margin-inline:auto; min-width:0; }
-.pi-agent-layout .pi-composer-surface { padding:14px 12px 10px; border:1px solid color-mix(in srgb,var(--text) 7%,var(--island)); border-radius:24px; background:var(--island); box-shadow:0 2px 4px color-mix(in srgb,var(--text) 3%,transparent),0 -8px 36px color-mix(in srgb,var(--text) 2%,transparent); }
+.pi-agent-layout .pi-composer-surface { padding:14px 12px 10px; border:1px solid var(--input); border-radius:var(--r-panel); background:var(--card); box-shadow:var(--shadow-card); }
 
 
 

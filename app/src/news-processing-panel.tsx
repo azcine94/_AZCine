@@ -2,9 +2,10 @@ import { EmptyState } from './components/ui/empty-state.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { Disclosure } from './components/ui/disclosure.tsx';
-import { StatusBadge } from './components/ui/status-badge.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
+import { NewsRangeControl } from './news-range-control.tsx';
+import {NewsResetControl} from './news-reset-control.tsx';
 import { NativeSelect } from './components/ui/native-select.tsx';
 import { useEffect, useState } from 'react';
 import type { NewsController } from './use-news.ts';
@@ -15,6 +16,7 @@ import type { ProcessingProgress } from './news-processing-client.ts';
 import { processingPhases } from './news-processing-client.ts';
 import { formatNewsTime, publicationLabel } from './news-contract.ts';
 import { editorialStatusLabels } from './news-editorial-contract.ts';
+import {NewsReceiptPanel} from './news-reader-panels.tsx';
 
 function Inputs({ items, news }: { items: NewsMaterial[]; news: NewsController }) {
   return <ol className="processing-inputs">{items.map(item => <li key={item.id}>
@@ -32,7 +34,7 @@ function Progress({ value, active, news }: { value: ProcessingProgress; active: 
   const recentSteps = value.steps.slice(-3);
   return <section id="news-processing-progress" className="processing-live" aria-label="处理过程">
     <div className="processing-phase" data-active={active} data-phase={value.phase}>
-      <span className="processing-phase-dot" aria-hidden="true" /><div><h3 aria-live="polite">{processingPhases[value.phase] ?? value.phase}</h3><p className="meta">{active ? '当前任务' : '最近一次任务'} · 最后更新 {formatNewsTime(value.updatedAt)}</p></div>
+      <span className="processing-phase-dot" aria-hidden="true" /><div><h3 aria-live="polite">{value.phase === 'failed' && value.completed > 0 && value.completed === value.total ? '报道已保存，部分步骤未完成' : processingPhases[value.phase] ?? value.phase}</h3><p className="meta">{active ? '当前任务' : '最近一次任务'} · 最后更新 {formatNewsTime(value.updatedAt)}</p></div>
     </div>
     <progress max={Math.max(1, value.total)} value={value.completed} aria-label="已保存资料进度" />
     <dl className="processing-metrics">
@@ -63,8 +65,8 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
   const [runLimit, setRunLimit] = useState(4);
   const [eventLimit, setEventLimit] = useState(6);
   const [tool, setTool] = useState<'daily' | 'analysis' | 'skill' | null>(null);
-  const locked = !model.connected || !!model.busy || model.active;
-  const total = model.snapshot?.pending ?? 0;
+  const locked = !model.connected || !!model.busy || model.active || processing.clearing || news.collecting || news.reset.busy;
+  const total = processing.pending.total;
   const selected = processing.selected;
   const detail = processing.detail;
   const runs = model.snapshot?.runs ?? [];
@@ -73,11 +75,12 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
   const current = runs.find(run => ['running', 'saving'].includes(run.status));
   const trace = processing.progress;
   const visibleTrace = trace && (!current || trace.runId === current.id) ? trace : null;
-  const selectedDone = !!selected && trace?.phase === 'completed' && trace.input.some(item => item.id === selected.id);
+  const selectedDone = !!selected && processing.scopeReady && !processing.rangeSnapshot?.ids.includes(selected.id);
   const events = (model.snapshot?.events ?? []).filter(event => event.draft.title.toLowerCase().includes(processing.eventQuery.toLowerCase()));
   const shownDetail = detail && processing.detailTarget && detail.runId === processing.detailTarget.id && detail.batch === processing.detailTarget.batch ? detail : null;
   async function start(kind: 'organize' | 'daily') {
-    await model.organize(kind, undefined, { scope: kind === 'daily' ? 'all' : processing.scope, materialId: kind === 'daily' || processing.scope === 'all' ? null : selected?.id ?? null, batchSize: processing.scope === 'single' && kind !== 'daily' ? 1 : processing.batchSize });
+    if(kind==='organize'&&(!processing.scopeReady||!processing.rangeSnapshot))return;
+    await model.organize(kind, undefined, { ...(kind==='organize'&&processing.rangeSnapshot?{filter:processing.rangeSnapshot.scope,expectedIds:processing.rangeSnapshot.ids}:{}),scope: kind === 'daily' ? 'all' : processing.scope, materialId: kind === 'daily' || processing.scope === 'all' ? null : selected?.id ?? null, batchSize: 1 });
     await processing.refresh(processing.pending.page);
     await processing.readProgress();
   }
@@ -94,20 +97,24 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
 
     <div className="processing-workbench">
       <section className="processing-picker" aria-labelledby="processing-select-title">
-        <header className="processing-section-heading"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{processing.scope === 'single' ? processing.pending.total : total}</span></h3><Button variant="app-text" className="text-action" disabled={!model.connected || processing.loading} onClick={() => void processing.refresh(processing.pending.page)}>{processing.loading ? '读取中…' : '刷新'}</Button></header>
+        <header className="processing-section-heading"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{total}</span></h3><Button variant="app-text" className="text-action" disabled={!model.connected || processing.loading || processing.clearing || !!processing.clearRequest} onClick={() => void processing.refresh(processing.pending.page)}>{processing.loading ? '读取中…' : '刷新'}</Button></header>
         <div className="processing-scope-switch" role="group" aria-label="处理范围">
-          <Button variant="app-scope" aria-pressed={processing.scope === 'single'} onClick={() => processing.setScope('single')}>选一条</Button>
-          <Button variant="app-scope" aria-pressed={processing.scope === 'all'} onClick={() => processing.setScope('all')}>全部待处理</Button>
+          <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'single'} onClick={() => processing.setScope('single')}>选一条</Button>
+          <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'all'} onClick={() => processing.setScope('all')}>当前筛选全部</Button>
         </div>
-        {processing.scope === 'single' ? <>
-          <div className="processing-filters"><label>搜索<Input variant="app" className="input" value={processing.query} onChange={event => processing.setQuery(event.target.value)} maxLength={200} placeholder="标题或摘要关键词" /></label><label>信源<NativeSelect variant="app" className="select" value={processing.source} onChange={event => processing.setSource(event.target.value)}><option value="">全部信源</option>{news.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}</option>)}</NativeSelect></label></div>
-          <ul className="processing-candidates">{processing.pending.items.map(item => <li key={item.id}><label className={`processing-candidate${selected?.id === item.id ? ' selected' : ''}`}><Input variant="inline" type="radio" name="processing-material" checked={selected?.id === item.id} onChange={() => processing.select(item)} /><span className="processing-candidate-body"><strong title={item.title}>{item.title}</strong><span className="processing-candidate-meta"><span>{item.sourceName}</span><time dateTime={item.discoveredAt}>{formatNewsTime(item.discoveredAt)}</time></span></span></label></li>)}</ul>
+        <NewsRangeControl value={processing.range} onChange={processing.setRange} disabled={locked||!!processing.clearRequest}/>
+        <>
+          <div className="processing-filters"><label>搜索<Input variant="app" className="input" value={processing.query} disabled={locked||!!processing.clearRequest} onChange={event => processing.setQuery(event.target.value)} maxLength={200} placeholder="标题或摘要关键词" /></label><label>信源<NativeSelect variant="app" className="select" value={processing.source} disabled={locked||!!processing.clearRequest} onChange={event => processing.setSource(event.target.value)}><option value="">全部信源</option>{news.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}</option>)}</NativeSelect></label></div>
+          <ul className="processing-candidates">{processing.pending.items.map(item => <li key={item.id}><label className={`processing-candidate${processing.scope==='single'&&selected?.id === item.id ? ' selected' : ''}`}>{processing.scope==='single'&&<Input variant="inline" type="radio" name="processing-material" disabled={locked||!!processing.clearRequest} checked={selected?.id === item.id} onChange={() => processing.select(item)} />}<span className="processing-candidate-body"><strong title={item.title}>{item.title}</strong><span className="processing-candidate-meta"><span>{item.sourceName}</span><time dateTime={item.discoveredAt}>{formatNewsTime(item.discoveredAt)}</time></span></span></label></li>)}</ul>
           {!processing.loading && !processing.pending.items.length && <EmptyState as="p" className="processing-empty subtle">没有符合筛选的待处理资料。</EmptyState>}
           <div className="processing-picker-pagination"><span className="meta">每页 {processing.pending.pageSize} 条</span><div className="news-pager"><Button variant="app-pill" className="pill" disabled={processing.loading || processing.pending.page === 0} onClick={() => void processing.refresh(processing.pending.page - 1)}>上一页</Button><span className="meta">{processing.pending.page + 1} / {Math.max(1, Math.ceil(processing.pending.total / processing.pending.pageSize))}</span><Button variant="app-pill" className="pill" disabled={processing.loading || (processing.pending.page + 1) * processing.pending.pageSize >= processing.pending.total} onClick={() => void processing.refresh(processing.pending.page + 1)}>下一页</Button></div></div>
-        </> : <div className="processing-all-scope"><div className="processing-scope-summary"><strong>{total}</strong><span>条待处理资料 · 全部信源</span></div><label className="processing-batch">每批数量<NativeSelect variant="app" className="select" value={processing.batchSize} onChange={event => processing.setBatchSize(Number(event.target.value))}>{[1, 5, 10, 20].map(size => <option key={size} value={size}>{size} 条</option>)}</NativeSelect></label><p className="subtle">预计 {Math.ceil(total / processing.batchSize)} 批，各批依次处理和保存。部分资料需要复判；取消保留已保存结果。</p></div>}
+        </>
+        <div className="processing-queue-actions"><Button variant="app-text" className="text-action" disabled={locked||processing.loading||!processing.scopeReady||!total||!!processing.clearRequest} onClick={processing.prepareClear}>清空当前范围待处理</Button><span className="meta">仅移出队列，资料与报道保留</span></div>
+        {processing.clearRequest&&<section className="processing-clear-confirm" aria-label="确认清空待处理"><strong>清出已选范围的 {processing.clearRequest.ids.length} 条待处理资料？</strong><p className="meta">原始资料、去重记录和已整理报道保留；下次重复采集不会重新加入。此处清空不会调用模型。</p><div className="form-actions"><Button variant="app-pill" className="pill on" disabled={locked} onClick={()=>void processing.confirmClear()}>{processing.clearing?'正在清空…':'确认清空'}</Button><Button variant="app-pill" className="pill" disabled={processing.clearing} onClick={processing.cancelClear}>取消</Button></div></section>}
+        {processing.clearNotice&&<p className="meta" role="status">{processing.clearNotice}</p>}
         <footer className="processing-picker-footer">
-          <div className="processing-chosen"><span className="meta">{processing.scope === 'single' ? selectedDone ? '上次选择已处理，请选择新资料' : selected ? '本次选择 · 1 条' : '请选择一条资料' : `本次范围 · 全部 ${total} 条`}</span>{processing.scope === 'single' && selected && <strong title={selected.title}>{selected.title}</strong>}{processing.scope === 'single' && selected && <Disclosure className="disclosure"><summary>查看原始资料</summary><Inputs news={news} items={[selected]} /></Disclosure>}</div>
-          <Button variant="app-pill" className="pill on processing-start" disabled={locked || (processing.scope === 'single' ? !selected || selectedDone : !total || model.loading)} onClick={() => void start('organize')}>{model.active ? '任务进行中' : processing.scope === 'single' ? selectedDone ? '已处理' : '开始整理' : `整理全部 ${total} 条`}</Button>
+          <div className="processing-chosen"><span className="meta">{processing.scope === 'single' ? selectedDone ? '上次选择已处理，请选择新资料' : selected ? '本次选择 · 1 条' : '请选择一条资料' : `本次范围 · 当前筛选 ${total} 条`}</span>{processing.scope === 'single' && selected && <strong title={selected.title}>{selected.title}</strong>}{processing.scope === 'single' && selected && <Disclosure className="disclosure"><summary>查看原始资料</summary><Inputs news={news} items={[selected]} /></Disclosure>}</div>
+          <Button variant="app-pill" className="pill on processing-start" disabled={locked || !processing.scopeReady || processing.loading || !!processing.clearRequest || (processing.scope === 'single' ? !selected || selectedDone : !total || model.loading)} onClick={() => void start('organize')}>{model.active ? '任务进行中' : processing.scope === 'single' ? selectedDone ? '已处理' : '开始整理' : `整理当前范围 ${total} 条`}</Button>
         </footer>
       </section>
 
@@ -118,7 +125,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
       </section>
     </div>
 
-    <section className="processing-history" aria-labelledby="processing-history-title">
+    <NewsReceiptPanel runId={processing.detailTarget?.id??current?.id??null} active={model.active}/><section className="processing-history" aria-labelledby="processing-history-title">
       <header className="processing-section-heading"><h3 id="processing-history-title">处理记录</h3><span className="meta">输入、规则与返回按批保留</span></header>
       <ul className="processing-records">{runs.slice(0, runLimit).map(run => <li className={`processing-record${processing.detailTarget?.id === run.id ? ' selected' : ''}`} key={run.id}>
         <Button variant="app-control" className="processing-record-open" aria-controls="news-processing-detail" aria-pressed={processing.detailTarget?.id === run.id} onClick={() => { setRetry(null); void processing.inspect(run.id); }}>
@@ -153,12 +160,13 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
       {retryRun && retryRun.id === processing.detailTarget.id && <div className="processing-retry"><p>原任务共 {retryRun.total} 条，已保存 {retryRun.processed} 条。{retryRun.total > 1 && '只想试一条时，请在上方单条处理里选择资料。'}已保存结果优先复用，未完成的模型调用可能产生费用。</p><Button variant="app-pill" className="pill on" disabled={locked} onClick={() => { setRetry(null); void model.organize(retryRun.kind, retryRun.id); }}>重试原范围未完成部分</Button></div>}
     </section>}
 
+    <NewsResetControl model={news} disabled={locked}/>
     <section className="processing-tools" aria-labelledby="processing-tools-title">
-      <header className="processing-section-heading"><h3 id="processing-tools-title">其他处理</h3><div className="processing-tool-options" role="group" aria-label="其他处理方式">{([['daily', '生成日报'], ['analysis', '事件分析'], ['skill', '处理 Skill（未接入）']] as const).map(([name, label]) => <Button variant="app-control" key={name} aria-pressed={tool === name} aria-expanded={tool === name} aria-controls={tool === name ? 'processing-tool-content' : undefined} onClick={() => setTool(tool === name ? null : name)}>{label}<span aria-hidden="true">{tool === name ? ' −' : ' ＋'}</span></Button>)}</div></header>
+      <header className="processing-section-heading"><h3 id="processing-tools-title">其他处理</h3><div className="processing-tool-options" role="group" aria-label="其他处理方式">{([['daily', '生成日报'], ['analysis', '事件分析'], ['skill', 'AIHOT 处理规则']] as const).map(([name, label]) => <Button variant="app-control" key={name} aria-pressed={tool === name} aria-expanded={tool === name} aria-controls={tool === name ? 'processing-tool-content' : undefined} onClick={() => setTool(tool === name ? null : name)}>{label}<span aria-hidden="true">{tool === name ? ' −' : ' ＋'}</span></Button>)}</div></header>
       {tool && <div id="processing-tool-content" className="processing-tool-content">
-        {tool === 'daily' && <><div><h4>生成日报</h4><p className="subtle">整理最近24小时的待处理资料，再用已保存结果成刊。</p><p className="meta">{processing.dailyCount ? `待处理 ${processing.dailyCount.total} 条 · 预计 ${Math.ceil(processing.dailyCount.total / processing.batchSize)} 批 · 读取于 ${formatNewsTime(processing.dailyCount.at)}` : '正在读取最近24小时的待处理数量…'}</p></div><div className="processing-daily-actions"><label className="processing-batch">每批<NativeSelect variant="app" className="select" value={processing.batchSize} onChange={event => processing.setBatchSize(Number(event.target.value))}>{[1, 5, 10, 20].map(size => <option key={size} value={size}>{size} 条</option>)}</NativeSelect></label><Button variant="app-pill" className="pill" disabled={locked || !processing.dailyCount || processing.loading} onClick={() => void start('daily')}>{processing.dailyCount?.total === 0 ? '用已整理结果生成日报' : `整理 ${processing.dailyCount?.total ?? '—'} 条并生成日报`}</Button></div></>}
+        {tool === 'daily' && <><div><h4>生成日报</h4><p className="subtle">直接使用截止北京时间08:00前已完成的结果，按原版规则生成前一天08:00到当天08:00的固定刊期。本操作不调用模型。</p></div><div className="processing-daily-actions"><Button variant="app-pill" className="pill" disabled={locked} onClick={() => void start('daily')}>用已完成结果生成日报</Button></div></>}
         {tool === 'analysis' && <div className="processing-event-picker"><label className="processing-event-search">搜索已整理事件<Input variant="app" className="input" value={processing.eventQuery} maxLength={200} onChange={event => { processing.setEventQuery(event.target.value); setEventLimit(6); }} placeholder="事件标题关键词" /></label><ul className="processing-events">{events.slice(0, eventLimit).map(event => <li key={event.id}><UILink variant="plain" href={`#news/events/${event.id}`}>{event.draft.title}</UILink><Button variant="app-pill" className="pill" disabled={locked} onClick={() => void model.analyze(event.id, event.revision)}>{event.analysis ? '重新分析' : '分析此事件'}</Button></li>)}</ul>{events.length > eventLimit && <Button variant="app-text" className="text-action" onClick={() => setEventLimit(eventLimit + 6)}>再显示 6 个事件</Button>}{!events.length && <p className="subtle">没有符合条件的已整理事件。</p>}</div>}
-        {tool === 'skill' && <><div><h4>资讯处理 Skill <StatusBadge className="news-status">尚未接入</StatusBadge></h4><p className="subtle">后续由你编写并选择 Skill。当前整理使用已保存的领域规则。</p></div><div className="processing-page-links"><UILink variant="plain" href="#settings/skills">Skills 设置 →</UILink><UILink variant="plain" href="#settings/news/ai">当前处理规则 →</UILink></div></>}
+        {tool === 'skill' && <><div><h4>AIHOT 原版规则</h4><p className="subtle">固定代码链路调用 Markdown 提示词，递归展开规则片段。预筛 → 两次独立评分 → 结构 → 理解或摘要 → 事件关系与增量 → 概览。没有由模型临时选择 Skill。</p><p className="meta">T1 60分 · T1.5 65分 · T2 76分；平均分超过50的未精选条目也走内容理解。失败不自动再次付费。</p></div><div className="processing-page-links"><UILink variant="plain" href="#settings/news/ai">步骤模型与请求额度 →</UILink><UILink variant="plain" href="#settings/news/domains">分类与信源等级 →</UILink></div></>}
       </div>}
     </section>
   </section>;

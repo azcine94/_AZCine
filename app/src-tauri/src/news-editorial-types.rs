@@ -17,13 +17,15 @@ pub struct EditorialConfig {
     pub overview_limit: usize, pub auto_collect: bool, pub auto_daily: bool, pub daily_time: String,
     #[serde(default, skip_serializing_if="Option::is_none")]
     pub collection_proxy: Option<String>,
+    #[serde(default)]
+    pub pipeline: crate::news_reader_types::PipelineConfig,
 }
 impl Default for EditorialConfig {
     fn default() -> Self { Self { model: None, domains: vec![
         DomainRule { domain: Domain::Frontiers, enabled: true, rule: "大模型能力、研究、开放模型与开发工具；关注实际变化及证据限制。".into(), min_score: 50, daily_limit: 5 },
         DomainRule { domain: Domain::Industry, enabled: true, rule: "AI行业、产品、政策与商业动态；区分发布事实、营销说法和推测。".into(), min_score: 50, daily_limit: 5 },
         DomainRule { domain: Domain::Visual, enabled: true, rule: "AI视频、图片及影视CG应用；关注制作流程、工具能力和可验证的局限。".into(), min_score: 50, daily_limit: 5 },
-    ], featured_score: 75, overview_limit: 3, auto_collect: false, auto_daily: false, daily_time: "09:00".into(), collection_proxy: None } }
+    ], featured_score: 75, overview_limit: 3, auto_collect: false, auto_daily: false, daily_time: "08:00".into(), collection_proxy: None, pipeline: Default::default() } }
 }
 pub fn validate_config(config: &EditorialConfig) -> Result<(), StorageError> {
     let time: Vec<_> = config.daily_time.split(':').collect();
@@ -36,6 +38,7 @@ pub fn validate_config(config: &EditorialConfig) -> Result<(), StorageError> {
         return Err(StorageError::new("news_config_invalid", "请填写三个领域的规则、0–100评分、有效数量和北京时间HH:MM；输入保留。"));
     }
     if let Some(proxy) = &config.collection_proxy { crate::news_http::proxy_server(proxy)?; }
+    config.pipeline.validate()?;
     Ok(())
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -95,9 +98,11 @@ pub fn invalid_reply() -> StorageError { StorageError::new("news_ai_invalid", "�
 
 #[derive(Clone,Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
-pub struct ProcessingSelection { pub scope:String,pub material_id:Option<String>,pub batch_size:usize }
+pub struct ProcessingSelection { pub scope:String,pub material_id:Option<String>,pub batch_size:usize,
+    #[serde(default)]pub filter:Option<crate::news_scope::Scope>,#[serde(default)]pub expected_ids:Option<Vec<String>> }
 impl ProcessingSelection {
     pub fn validate(&self)->Result<(),StorageError>{
+        if let Some(filter)=&self.filter{filter.validate()?;}
         if !(1..=20).contains(&self.batch_size)||!matches!(self.scope.as_str(),"single"|"all")
             ||self.scope=="single"&&self.material_id.as_ref().is_none_or(|v|v.len()!=32||!v.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)))
             ||self.scope=="all"&&self.material_id.is_some(){return Err(StorageError::new("news_scope_invalid","请选择单条资料或明确选择全部处理，每批1至20条；没有启动任务。"));}Ok(())

@@ -1,15 +1,14 @@
 import { UILink } from '../components/ui/ui-link.tsx';
-import { Component, useEffect, useState } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTheme } from '../use-theme.ts';
 import { WorkspaceView } from '../App.tsx';
 import { resolveRoute } from '../routes.ts';
-import type { Theme } from '../theme.ts';
 import { scenes, stateLabels, pageSources, componentSources, styleSources, unregisteredSources } from './catalog.ts';
 import type { Scene } from './catalog.ts';
 import { Components, demonstratedComponents } from './components.tsx';
 import { usePreviewControllers } from './controllers.ts';
 import { useStateActions } from './state-actions.ts';
+import {usePreviewReader} from './news-reader-fixture.ts';
 import { Feedback } from '../components/ui/feedback.tsx';
 import sourceInventory from 'virtual:azcine-ui-inventory';
 import { Button } from '../components/ui/button.tsx';
@@ -20,21 +19,23 @@ import './preview.css';
 
 const params=new URLSearchParams(location.search);
 const filename=(path:string)=>path.split('/').pop()!;
-const unregisteredComponents=Object.keys(componentSources).map(filename).filter(name=>!demonstratedComponents.includes(name.replace('.tsx','')));
-class SceneBoundary extends Component<{children:ReactNode},{error:string}> {
-  state={error:''};
-  static getDerivedStateFromError(error:Error) {return {error:error.message};}
-  componentDidCatch(_error:Error,_info:ErrorInfo) { /* 在页面显示真实预览错误，不冒充已覆盖。 */ }
-  render() {return this.state.error?<div className="catalog-error" role="alert"><h1>这个预览发生错误</h1><p>{this.state.error}</p><p>此场景没有展示成功，保留在清单中待修复。</p></div>:this.props.children;}
-}
+const unregisteredComponents=Object.keys(componentSources).map(filename).filter(name=>!demonstratedComponents.includes(name.replace('.tsx',''))&&!scenes.some(scene=>scene.sources.includes(name)));
 function usePreviewTheme() {
-  const [theme,setTheme]=useState<Theme>(params.get('theme')==='dark'?'dark':'light');
-  useEffect(()=>{document.documentElement.dataset.theme=theme;},[theme]);
-  return {theme,selectTheme:setTheme,toggle:()=>setTheme(value=>value==='light'?'dark':'light'),warning:''};
+  return useTheme({initialTheme:params.get('theme')==='dark'?'dark':'light',persist:false});
 }
 function PreviewScene({scene,state}:{scene:Scene;state:string}) {
   const models=usePreviewControllers(state),theme=usePreviewTheme();
+  const newsReader=usePreviewReader(state);
   const stateError=useStateActions(state);
+  useEffect(()=>{
+    const receive=(event:MessageEvent)=>{
+      if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='azcine-ui-theme')return;
+      if(event.data.theme==='light'||event.data.theme==='dark')theme.selectTheme(event.data.theme,undefined,false);
+    };
+    window.addEventListener('message',receive);
+    return()=>window.removeEventListener('message',receive);
+  },[theme.selectTheme]);
+  useEffect(()=>{if(parent!==window)parent.postMessage({type:'azcine-ui-scene-ready'},location.origin);},[]);
   useEffect(()=>{document.documentElement.dataset.uiScene=scene.id;document.documentElement.dataset.uiState=state;},[scene.id,state]);
   return <div className="catalog-scene" onClickCapture={event=>{
     const anchor=(event.target as Element).closest('a'); const href=anchor?.getAttribute('href');
@@ -45,14 +46,14 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{models.notice&&<span role="status">{models.notice}<Button variant="app-text" className="text-action" onClick={models.clearNotice}>关闭提示</Button></span>}{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    {scene.route ? <WorkspaceView {...models} {...theme} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
+    {scene.route ? <WorkspaceView {...models} {...theme} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];
 function Foundations() {
   const [values,setValues]=useState<Record<string,string>>({});
   useEffect(()=>{const update=()=>{const style=getComputedStyle(document.documentElement);setValues(Object.fromEntries(tokenNames.map(name=>[name,style.getPropertyValue(name).trim()])));};update();const observer=new MutationObserver(update);observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});return()=>observer.disconnect();},[]);
-  return <section className="catalog-foundations"><h1>主题与样式管理</h1><p>应用与此总览使用同一套源码。修改后由开发服务实时更新。</p>
+  return <section className="catalog-foundations"><h1>主题与样式管理</h1><p>当前整站采用 ShadcnStore 的中性主题、侧栏、顶部栏和卡片体系。应用与此总览使用同一套源码，保存修改后由开发服务实时更新。</p><p><UILink href="https://github.com/shadcnstore/shadcn-dashboard-landing-template" target="_blank" rel="noreferrer">ShadcnStore 免费模板与源码</UILink> · 基于 MIT 授权适配，项目内维护；模板升级先核对差异，再按需迁入。</p>
     <ol className="catalog-usage"><li>在项目根目录运行 <code>npm run dev</code>，随后打开根目录 <code>index.html</code>。这个 HTML 是独立总览，不出现在应用导航中。</li><li>左侧选页面，上方选正常、失败、菜单展开、冲突、确认等状态，再切换亮暗和预览宽度。</li><li>按下面的对应关系修改共享源码并保存。开发服务运行时，总览与应用页面会同步更新；HTML 本身只负责打开总览。</li><li>新增组件或页面后，到“覆盖清单与源码”检查未登记项，并补齐相应的示例、虚构数据和展开预设。</li></ol>
     <div className="catalog-guide"><div><strong>颜色、字体、间距、圆角</strong><code>app/src/styles/tokens.css</code><p>浅色容器保持纯白，亮暗主题在同一处维护。</p></div><div><strong>公共控件与业务变体</strong><code>app/src/components/ui/</code><p>组件源码由项目维护。controls.css 管通用外观，business-controls.css 管业务控件与上下文变体。Button 的 app-* 变体、UILink、Disclosure、Feedback、StatusBadge 和 ActionGroup 都在这里。</p></div><div><strong>单页布局</strong><code>app/src/*-panels.tsx · app/src/styles/</code><p>页面文件负责内容和排列。只调整某页时改该模块；跨页面的控件外观改公共层。</p></div></div>
     <div className="catalog-palette">{tokenNames.map(name=><div key={name}><span style={{background:values[name]}}/><code>{name}</code><small>{values[name]}</small></div>)}</div>
@@ -87,8 +88,17 @@ function Catalog() {
   const current=scenes.find(item=>item.id===sceneId)!;
   const groups=[...new Set(scenes.map(item=>item.group))];
   const [frame,setFrame]=useState<HTMLIFrameElement|null>(null);
+  // Keep iframe identity while changing theme, so preview form drafts survive.
+  const frameSource=useRef({id:current.id,state,theme:theme.theme});
+  if(frameSource.current.id!==current.id||frameSource.current.state!==state)frameSource.current={id:current.id,state,theme:theme.theme};
+  function syncFrameTheme(target:HTMLIFrameElement|null) {
+    if(!target?.contentWindow)return;
+    if(target.contentDocument?.documentElement)target.contentDocument.documentElement.dataset.theme=theme.theme;
+    target.contentWindow.postMessage({type:'azcine-ui-theme',theme:theme.theme},location.origin);
+  }
+  useLayoutEffect(()=>{syncFrameTheme(frame);},[frame,theme.theme]);
   function openScene(id:string,preset='normal') {setSceneId(id);setState(preset);setTab('scenes');}
-  useEffect(()=>{const listener=(event:MessageEvent)=>{if(event.source!==frame?.contentWindow||event.origin!==location.origin||event.data?.type!=='azcine-ui-route')return;const id=event.data.route;if(scenes.some(item=>item.id===id)){if(event.data.theme==='light'||event.data.theme==='dark')theme.selectTheme(event.data.theme);openScene(id);}};window.addEventListener('message',listener);return()=>window.removeEventListener('message',listener);},[frame,theme.selectTheme]);
+  useEffect(()=>{const listener=(event:MessageEvent)=>{if(event.source!==frame?.contentWindow||event.origin!==location.origin)return;if(event.data?.type==='azcine-ui-scene-ready'){syncFrameTheme(frame);return;}if(event.data?.type!=='azcine-ui-route')return;const id=event.data.route;if(scenes.some(item=>item.id===id)){if(event.data.theme==='light'||event.data.theme==='dark')theme.selectTheme(event.data.theme,undefined,false);openScene(id);}};window.addEventListener('message',listener);return()=>window.removeEventListener('message',listener);},[frame,theme.selectTheme]);
   useEffect(()=>{if(parent!==window)parent.postMessage({type:'azcine-ui-ready',workspace:document.documentElement.dataset.uiWorktree},'*');},[]);
   return <div className="catalog-shell">
     <aside className="catalog-sidebar"><header><strong>AZCine</strong><span>UI 总览</span></header><p>独立入口 · 共享应用源码</p><Input aria-label="搜索页面与状态" placeholder="搜索页面、状态或源码" value={query} onChange={event=>setQuery(event.target.value)}/>
@@ -97,12 +107,14 @@ function Catalog() {
       </nav><footer>总览使用虚构资料；覆盖清单不代表真实业务验收。</footer>
     </aside>
     <main className="catalog-main"><header className="catalog-toolbar"><div><strong>{tab==='scenes'?current.title:tab==='foundations'?'主题与管理方式':'覆盖清单与源码'}</strong><span>{tab==='scenes'?'直接渲染真实组件':'独立维护入口'}</span></div><div className="catalog-toolbar-controls">{tab==='scenes'&&<><NativeSelect aria-label="页面状态" value={state} onChange={event=>setState(event.target.value)}>{current.states.map(value=><NativeSelectOption value={value} key={value}>{stateLabels[value]??value}</NativeSelectOption>)}</NativeSelect><NativeSelect aria-label="预览宽度" value={width} onChange={event=>setWidth(event.target.value)}>{['100%','1440px','1280px','1024px'].map(value=><NativeSelectOption key={value} value={value}>{value==='100%'?'填满预览区':value}</NativeSelectOption>)}</NativeSelect></>}<Button variant="outline" onClick={theme.toggle}>{theme.theme==='light'?'浅色 → 深色':'深色 → 浅色'}</Button></div></header>
-      {tab==='scenes'?<div className="catalog-preview-scroll"><iframe ref={setFrame} title={`${current.title} · ${stateLabels[state]??state}`} className="catalog-frame" style={{width}} src={`/ui.html?scene=${encodeURIComponent(current.id)}&state=${encodeURIComponent(state)}&theme=${theme.theme}`}/></div>:<div className="catalog-document">{tab==='foundations'?<Foundations/>:<Inventory openScene={openScene}/>}</div>}
+      {tab==='scenes'?<div className="catalog-preview-scroll"><iframe ref={setFrame} onLoad={event=>syncFrameTheme(event.currentTarget)} title={`${current.title} · ${stateLabels[state]??state}`} className="catalog-frame" style={{width}} src={`/ui.html?scene=${encodeURIComponent(current.id)}&state=${encodeURIComponent(state)}&theme=${frameSource.current.theme}`}/></div>:<div className="catalog-document">{tab==='foundations'?<Foundations/>:<Inventory openScene={openScene}/>}</div>}
     </main>
   </div>;
 }
-const selected=params.get('scene');
-const scene=selected?scenes.find(item=>item.id===selected):null;
-const mount=document.getElementById('root');
-if(!mount)throw new Error('UI 总览缺少挂载节点');
-createRoot(mount).render(<SceneBoundary>{selected?(scene?<PreviewScene key={`${scene.id}/${params.get('state')}`} scene={scene} state={params.get('state')??'normal'}/>:<div className="catalog-error">未登记的场景：{selected}</div>):<Catalog/>}</SceneBoundary>);
+// A component-only refresh boundary keeps draft state when raw source inventory
+// changes. Mounting and the error boundary stay in the separate entry module.
+export default function UIPreviewApp() {
+  const selected=params.get('scene');
+  const scene=selected?scenes.find(item=>item.id===selected):null;
+  return selected?(scene?<PreviewScene key={`${scene.id}/${params.get('state')}`} scene={scene} state={params.get('state')??'normal'}/>:<div className="catalog-error">未登记的场景：{selected}</div>):<Catalog/>;
+}

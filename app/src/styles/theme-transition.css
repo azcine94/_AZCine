@@ -1,0 +1,18 @@
+/* ShadcnStore circular reveal, adapted to AZCine's data-theme (MIT). */
+:root[data-theme-transition="active"]::view-transition-old(root),
+:root[data-theme-transition="active"]::view-transition-new(root) {
+  animation:none;
+  mix-blend-mode:normal;
+}
+:root[data-theme-transition="active"]::view-transition-old(root) { z-index:0; }
+:root[data-theme-transition="active"]::view-transition-new(root) {
+  z-index:1;
+  animation:azcine-theme-reveal 400ms ease-in-out both;
+}
+@keyframes azcine-theme-reveal {
+  from { clip-path:circle(0% at var(--theme-reveal-x,50%) var(--theme-reveal-y,50%)); opacity:.7; }
+  to { clip-path:circle(150% at var(--theme-reveal-x,50%) var(--theme-reveal-y,50%)); opacity:1; }
+}
+@media(prefers-reduced-motion:reduce) {
+  :root[data-theme-transition="active"]::view-transition-new(root) { animation:none; }
+}

@@ -3,6 +3,7 @@ use super::*;
 const TODO: &str = "aaaaaaaa-1111-2222-3333-444444444444";
 const IDEA: &str = "bbbbbbbb-1111-2222-3333-444444444444";
 const IDENTITY: &str = "0123456789abcdef0123456789abcdef";
+#[test]fn given_real_v7_scope_database_when_opening_v8_then_existing_scopes_materials_and_identity_are_preserved(){let root=run().join("data");let db=legacy_database(&root,7,true,true,true);crate::news_reader_store::create_schema(&db).unwrap();crate::news_scope::create_schema(&db).unwrap();db.execute("INSERT INTO news_batches VALUES('aabbccdd-1111-2222-3333-000000000001','all','2026-10-05T00:00:00.000Z')",[]).unwrap();db.execute("INSERT INTO news_batch_ranges VALUES('aabbccdd-1111-2222-3333-000000000001','{\"explicit\":true}')",[]).unwrap();db.pragma_update(None,"application_id",APPLICATION_ID).unwrap();drop(db);let s=Store::open(&root,false).unwrap();assert_eq!(s.db.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),SCHEMA_VERSION);assert_eq!(s.db.query_row("SELECT count(*) FROM news_batch_ranges",[],|r|r.get::<_,i64>(0)).unwrap(),1);assert_eq!(s.db.query_row("SELECT title FROM news_materials WHERE id='retained-material'",[],|r|r.get::<_,String>(0)).unwrap(),"原资讯");assert_eq!(s.db.query_row("SELECT value FROM app_meta WHERE key='identity'",[],|r|r.get::<_,String>(0)).unwrap(),IDENTITY);assert_eq!(s.db.query_row("SELECT count(*) FROM news_reset_requests",[],|r|r.get::<_,i64>(0)).unwrap(),0);}
 
 fn run() -> PathBuf {
     let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../artifacts/validation");
@@ -46,6 +47,15 @@ pub(crate) fn legacy_database(root: &Path, version: i64, ideas: bool, news: bool
 
 fn value(db: &Connection, sql: &str) -> String { db.query_row(sql, [], |r| r.get(0)).unwrap() }
 fn version(db: &Connection) -> i64 { db.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap() }
+#[test]
+fn given_v6_database_when_opening_scope_queue_then_reader_and_materials_are_preserved(){
+    let root=run().join("data");let db=legacy_database(&root,6,true,true,true);crate::news_reader_store::create_schema(&db).unwrap();
+    db.execute("INSERT INTO news_story_digests VALUES('retained-story','retained-digest')",[]).unwrap();drop(db);
+    let s=Store::open(&root,false).unwrap();assert_eq!(version(&s.db),SCHEMA_VERSION);
+    assert_eq!(value(&s.db,"SELECT title FROM news_materials WHERE id='retained-material'"),"原资讯");assert_eq!(value(&s.db,"SELECT payload FROM news_story_digests WHERE id='retained-story'"),"retained-digest");
+    assert_eq!(s.db.query_row("SELECT COUNT(*) FROM news_pending_dismissals",[],|r|crate::news_store::row_count(r,0)).unwrap(),0);
+    assert_eq!(s.db.query_row("SELECT COUNT(*) FROM news_material_batches",[],|r|crate::news_store::row_count(r,0)).unwrap(),0);
+}
 fn exists(db: &Connection, name: &str) -> bool {
     db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name=?1)", [name], |r| r.get(0)).unwrap()
 }
@@ -53,14 +63,14 @@ fn preserves(root: &Path, old_version: i64, ideas: bool, news: bool, editorial: 
     drop(legacy_database(root, old_version, ideas, news, editorial));
     for _ in 0..2 {
         let store = Store::open(root, false).unwrap();
-        assert_eq!(version(&store.db), 5);
+        assert_eq!(version(&store.db), SCHEMA_VERSION);
         assert_eq!(value(&store.db,"SELECT value FROM app_meta WHERE key='identity'"), IDENTITY);
         assert_eq!(value(&store.db,"SELECT value FROM app_meta WHERE key='ranking-auto:agent:fixture'"), "retained-ranking-snapshot");
         let todos = store.todos().unwrap();
         assert_eq!(todos.len(), 1); assert_eq!(todos[0].id, TODO);
         assert_eq!(todos[0].title,"原待办"); assert_eq!(todos[0].revision,7);
         assert!(todos[0].completed); assert_eq!(todos[0].due_date.as_deref(),Some("2028-02-29"));
-        for table in ["projects","ideas","news_materials","news_editions"] { assert!(exists(&store.db, table)); }
+        for table in ["projects","ideas","news_materials","news_editions","news_articles","news_bodies","news_step_receipts","news_story_digests","news_reader_editions"] { assert!(exists(&store.db, table)); }
         if ideas {
             let cards = store.ideas().unwrap();
             assert_eq!(cards.len(),1); assert_eq!(cards[0].body,"原文保留");
@@ -94,6 +104,10 @@ fn given_news_capture_v3_when_integrated_open_then_sources_materials_and_receipt
 #[test]
 fn given_news_editorial_v4_when_integrated_open_then_immutable_edition_and_source_edits_survive() {
     preserves(&run().join("data"),4,false,true,true);
+}
+#[test]
+fn given_integrated_v5_when_open_then_reader_tables_added_without_replacing_old_modules() {
+    preserves(&run().join("data"),5,true,true,true);
 }
 #[test]
 fn given_partial_or_ambiguous_v3_when_open_then_reject_without_advancing_or_rebuilding() {

@@ -52,7 +52,7 @@ fn given_existing_v2_database_when_open_then_migrate_without_replacing_todos_or_
     let root=run().join("data");
     drop(crate::storage::integration_tests::legacy_database(&root,2,false,false,false));
     let mut store=Store::open(&root,false).unwrap();let a=store.save_idea(input()).unwrap();assert_eq!(store.ideas().unwrap(),vec![a]);
-    let version:i64=store.db.pragma_query_value(None,"user_version",|r|r.get(0)).unwrap();assert_eq!(version,5);
+    let version:i64=store.db.pragma_query_value(None,"user_version",|r|r.get(0)).unwrap();assert_eq!(version,crate::storage::SCHEMA_VERSION);
 }
 #[test]
 fn given_saved_request_when_record_changes_then_receipt_remains_original_and_latest_record_is_not_replaced() {
