@@ -4,8 +4,6 @@ export const settingsGroups = [
   ] },
   { title: '模型与 Agent', items: [
     { route: 'settings/models', title: '模型服务商', icon: 'model' },
-    { route: 'settings/skills', title: 'Skills', icon: 'skill' },
-    { route: 'settings/extensions', title: '扩展', icon: 'extension' },
     { route: 'settings/runtime', title: '工作目录与环境', icon: 'folder' },
   ] },
   { title: '资讯管理', items: [
@@ -25,7 +23,7 @@ export const settingsGroups = [
 ] as const;
 
 export type SettingsRoute = typeof settingsGroups[number]['items'][number]['route'];
-export type SettingsIconName = typeof settingsGroups[number]['items'][number]['icon'];
+export type SettingsIconName = typeof settingsGroups[number]['items'][number]['icon'] | 'extension' | 'skill';
 type SettingsItem = typeof settingsGroups[number]['items'][number];
 export const settingsItems = settingsGroups.flatMap<SettingsItem>(group => [...group.items]);
 

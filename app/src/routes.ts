@@ -9,6 +9,7 @@ export const pages = [
   { id: 'ideas', title: '灵感', icon: 'ideas' },
   { id: 'agent', title: 'Agent', icon: 'agent' },
   { id: 'jobs', title: '后台任务', icon: 'jobs' },
+  { id: 'resources', title: '规则与资源', icon: 'resources' },
   { id: 'settings', title: '设置', icon: 'settings' },
 ] as const;
 
@@ -20,6 +21,7 @@ const newsSourcePattern = new RegExp(`^settings/news/sources/(new|rss-[a-z0-9-]{
 const sourcePattern = new RegExp(`^(ideas|today)/(${uuidPattern})$`);
 export function resolveRoute(hash: string): Route {
   const id = hash.replace(/^#/, '') || 'today';
+  if (['settings/resources', 'settings/skills', 'settings/extensions'].includes(id)) return 'resources';
   if (id === 'projects/new' || projectPattern.test(id)) return id as `projects/${string}`;
   const setting = settingsRoute(id);
   if (setting) return setting;

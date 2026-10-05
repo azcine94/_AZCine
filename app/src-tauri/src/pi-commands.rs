@@ -30,6 +30,16 @@ pub async fn pi_stop(app:tauri::AppHandle,window:tauri::WebviewWindow,generation
 #[tauri::command]
 pub async fn pi_sessions(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;work(app,move|m,_|m.sessions(&root)).await}
 #[tauri::command]
+pub async fn pi_resources(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    work(app,move|m,_|m.resources(&root,&resources)).await
+}
+#[tauri::command]
+pub async fn pi_save_resource(app:tauri::AppHandle,window:tauri::WebviewWindow,input:crate::pi_resources::ResourceUpdate)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    work(app,move|m,_|m.save_resource(&root,&resources,input)).await
+}
+#[tauri::command]
 pub async fn pi_new_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String)->Result<Value,PiError>{allowed(&app,&window)?;work(app,move|m,n|m.session_action(generation,&session_id,"new_session",json!({}),n)).await}
 #[tauri::command]
 pub async fn pi_switch_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,path:String)->Result<Value,PiError>{allowed(&app,&window)?;work(app,move|m,n|m.session_action(generation,&session_id,"switch_session",json!({"sessionPath":path}),n)).await}

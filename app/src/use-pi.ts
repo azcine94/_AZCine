@@ -3,9 +3,11 @@ import { listen } from './desktop-api.ts';
 import { callPi, desktopPi, parseSnapshot, parseSessions, piError } from './pi-client.ts';
 import type { ModelInput, PiImage, PiSession, PiSnapshot, SendReceipt } from './pi-client.ts';
 import { parsePromptDisposition } from './pi-contract.ts';
+import { usePiResources } from './use-pi-resources.ts';
 interface ChatDraft { text:string; images:PiImage[] }
 const emptyDraft=():ChatDraft=>({text:'',images:[]});
 export function usePi(root:string|null){
+  const resources=usePiResources(root);
   const [snapshot,setSnapshot]=useState<PiSnapshot|null>(null);const snap=useRef<PiSnapshot|null>(null);
   const [error,setError]=useState<string|null>(null),[action,setAction]=useState<string|null>(null);
   const [drafts,setDrafts]=useState<Record<string,ChatDraft>>({});const draftRef=useRef(drafts);draftRef.current=drafts;
@@ -84,6 +86,6 @@ export function usePi(root:string|null){
   async function saveModel(input:ModelInput){return (await saveConfiguration('pi_save_model',input))?.saved===true;}
   function recoverQueue(index:number){const text=snapshot?.recoveredQueue[index];if(text!==undefined)updateDraft(draftKey,d=>({...d,text:d.text?`${d.text}\n${text}`:text}));}
   function recoverAccepted(id:string){const item=(acceptedInputs[draftKey]??[]).find(v=>v.id===id);if(!item)return;const current=draftRef.current[draftKey]??emptyDraft();if(current.text||current.images.length){setError('输入区已有内容，请先保留或发送当前草稿，再取回这次消息，避免覆盖。');return;}updateDraft(draftKey,()=>({...item.draft,images:[...item.draft.images]}));}
-  return {snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,saveConfiguration,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName,processChoices,chooseProcess,rememberChatScroll,readChatScroll,displayRunStart};
+  return {snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,saveConfiguration,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName,processChoices,chooseProcess,rememberChatScroll,readChatScroll,displayRunStart,resources};
 }
 export type PiController=ReturnType<typeof usePi>;

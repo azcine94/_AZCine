@@ -1,0 +1,84 @@
+//! Resource previews and native configuration edits; no model calls or factories.
+use crate::{pi_launch_plan::{PiPaths,RuntimePaths,no_link},pi_manager::PiError,pi_rpc::RpcProcess};
+use serde::{Deserialize,Serialize};
+use serde_json::{Value,json};
+use sha2::{Digest,Sha256};
+use std::{fs,io::Write,path::{Path,PathBuf},time::Duration};
+
+#[derive(Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct ResourceUpdate { pub generation:u64,pub id:String,pub hash:Option<String>,pub content:Option<String>,pub enabled:Option<bool> }
+#[derive(Serialize)]
+#[serde(rename_all="camelCase")]
+pub struct ResourceIndex { pub generation:u64,pub connected:bool,pub agent_dir:String,pub cwd:String,pub entries:Vec<Value>,pub diagnostics:Vec<String>,pub settings_hash:Option<String>,#[serde(skip)] pub settings_document:Value }
+fn error()->PiError{PiError::new("pi_resources_read","无法读取原版 Pi 资源，请检查资源配置、文件权限和运行环境；已有内容与草稿保留。")}
+fn conflict()->PiError{PiError::new("pi_resource_conflict","资源已被其他操作修改，未覆盖；请保留草稿，重新读取后核对。")}
+fn bridge(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,command:&str,input:Value)->Result<Value,PiError>{
+    let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(error)?;
+    let env=paths.environment(runtime,&windows,&[])?;
+    let args=vec!["--no-global-search-paths".into(),"--input-type=module".into(),"--eval".into(),include_str!("../resources/pi-resource-inspector.mjs").into()];
+    let process=RpcProcess::spawn(&runtime.node,&args,cwd,&env,|_|{})?;
+    let reply=process.request(command,json!({"input":input}),Duration::from_secs(15));
+    let stopped=process.shutdown(Duration::from_secs(3));
+    let reply=reply?;stopped?;
+    if reply["success"]!=true{return Err(if reply["errorCode"]=="conflict"{conflict()}else{error()});}
+    Ok(reply["data"].clone())
+}
+pub fn inspect(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,generation:u64,commands:Value,connected:bool)->Result<ResourceIndex,PiError>{
+    let data=bridge(runtime,paths,cwd,"resources",json!({"package":runtime.package,"agent":paths.agent,"cwd":cwd,"commands":commands}))?;
+    Ok(ResourceIndex {generation,connected,agent_dir:paths.agent.to_string_lossy().into_owned(),cwd:cwd.to_string_lossy().into_owned(),
+        entries:data["entries"].as_array().cloned().ok_or_else(error)?,diagnostics:data["diagnostics"].as_array().ok_or_else(error)?.iter().map(|v|v.as_str().map(str::to_owned).ok_or_else(error)).collect::<Result<_,_>>()?,
+        settings_hash:data["settingsHash"].as_str().map(str::to_owned),settings_document:data["settingsDocument"].clone()})
+}
+fn checked_file(paths:&PiPaths,path:&Path)->Result<(),PiError>{
+    let workspaces=paths.pi_root.join("workspaces");
+    if !path.is_absolute()||path.components().any(|c|matches!(c,std::path::Component::ParentDir)){return Err(error());}
+    let mut cursor=PathBuf::new();for part in path.components(){cursor.push(part);no_link(&cursor)?;}
+    let parent=fs::canonicalize(path.parent().ok_or_else(error)?).map_err(|_|error())?;
+    if !parent.starts_with(&paths.agent)&&!parent.starts_with(workspaces){return Err(error());}Ok(())
+}
+fn file_hash(path:&Path)->Result<Option<String>,PiError>{
+    match fs::read(path){Ok(bytes)=>Ok(Some(format!("{:x}",Sha256::digest(bytes)))),Err(e) if e.kind()==std::io::ErrorKind::NotFound=>Ok(None),Err(_)=>Err(error())}
+}
+fn save_file(paths:&PiPaths,path:&Path,expected:Option<&str>,content:&str)->Result<(),PiError>{
+    checked_file(paths,path)?;
+    if content.len()>128*1024{return Err(PiError::new("pi_resource_size","内容超过 128 KB，未保存；草稿保留。"));}
+    if file_hash(path)?.as_deref()!=expected{return Err(conflict());}
+    let parent=path.parent().ok_or_else(error)?;
+    let mut temp=tempfile::NamedTempFile::new_in(parent).map_err(|_|error())?;
+    temp.write_all(content.as_bytes()).map_err(|_|error())?;temp.as_file().sync_all().map_err(|_|error())?;
+    checked_file(paths,path)?;
+    if file_hash(path)?.as_deref()!=expected{return Err(conflict());}
+    if expected.is_some(){temp.persist(path).map_err(|_|error())?;}else{temp.persist_noclobber(path).map_err(|_|conflict())?;}
+    Ok(())
+}
+pub fn update(runtime:&RuntimePaths,paths:&PiPaths,index:&ResourceIndex,input:&ResourceUpdate)->Result<(),PiError>{
+    if input.generation!=index.generation{return Err(conflict());}
+    let entry=index.entries.iter().find(|item|item["id"].as_str()==Some(input.id.as_str())).ok_or_else(error)?;
+    if let Some(content)=&input.content{
+        if input.enabled.is_some()||entry["editable"]!=true||!matches!(entry["kind"].as_str(),Some("rule"|"skill")){return Err(error());}
+        save_file(paths,Path::new(entry["path"].as_str().ok_or_else(error)?),input.hash.as_deref(),content)?;
+    }else if let Some(enabled)=input.enabled{
+        if entry["toggleable"]!=true||entry["kind"]!="extension"{return Err(error());}
+        if input.hash!=index.settings_hash{return Err(conflict());}
+        let path=entry["path"].as_str().ok_or_else(error)?;
+        let mut settings=index.settings_document.clone();
+        if !settings.is_object(){return Err(error());}
+        let mut extensions=settings.get("extensions").and_then(Value::as_array).cloned().unwrap_or_default();
+        extensions.retain(|item|item.as_str().is_none_or(|s|{
+            if !(s.starts_with('+')||s.starts_with('-')||s.starts_with('!')){return true;}
+            let raw=&s[1..];if raw==path{return false;}
+            if raw.starts_with("builtin:"){return true;}
+            let candidate=if Path::new(raw).is_absolute(){PathBuf::from(raw)}else{paths.agent.join(raw)};
+            match (fs::canonicalize(candidate),fs::canonicalize(path)){(Ok(a),Ok(b))=>a!=b,_=>true}
+        }));
+        extensions.push(json!(format!("{}{}",if enabled{"+"}else{"-"},path)));
+        settings["extensions"]=json!(extensions);
+        let text=serde_json::to_string_pretty(&settings).map_err(|_|error())?;
+        // Let the original SDK acquire its native cross-process settings lock.
+        // The compare happens inside that lock, preserving concurrent Pi edits.
+        let result=bridge(runtime,paths,Path::new(&index.cwd),"save_extensions",json!({"package":runtime.package,"agent":paths.agent,"cwd":index.cwd,"hash":input.hash,"document":text+"\n"}))?;
+        if result["saved"]!=true{return Err(error());}
+    }else{return Err(error());}
+    Ok(())
+}

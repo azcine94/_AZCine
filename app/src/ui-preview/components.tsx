@@ -45,8 +45,8 @@ export function Components({state}:{state:string}) {
         <div className="catalog-business-buttons">{(Object.keys(appButtonVariants) as (keyof typeof appButtonVariants)[]).map(variant=><div key={variant} className="catalog-business-button"><code>{variant}</code><Button variant={variant} onClick={()=>setNote(`${variant}：仅展示操作反馈`)} aria-label={buttonNames[variant]??variant}>{variant==='app-icon'?'＋':buttonNames[variant]??variant}</Button><Button variant={variant} disabled>禁用</Button></div>)}</div>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>链接、操作组、状态与折叠</CardTitle><CardDescription>真实公共业务组件，不再另做一份示意样式</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
-        <ActionGroup><UILink href="#settings/models">模型设置</UILink><UILink href="#settings/skills">管理 Skills</UILink><UILink href="#settings/extensions">管理扩展</UILink><Button variant="app-text" onClick={()=>setNote('示例文字操作')}>文字操作</Button></ActionGroup>
-        <ActionGroup direction="column" aria-label="示例会话操作"><UILink variant="menu" href="#settings/models">模型设置</UILink><UILink variant="menu" href="#settings/skills">管理 Skills</UILink><Button variant="app-menu" disabled>断开连接（不可用）</Button></ActionGroup>
+        <ActionGroup><UILink href="#settings/models">模型设置</UILink><UILink href="#resources">规则与资源</UILink><Button variant="app-text" onClick={()=>setNote('示例文字操作')}>文字操作</Button></ActionGroup>
+        <ActionGroup direction="column" aria-label="示例会话操作"><UILink variant="menu" href="#settings/models">模型设置</UILink><UILink variant="menu" href="#resources">规则与资源</UILink><Button variant="app-menu" disabled>断开连接（不可用）</Button></ActionGroup>
         <ActionGroup><StatusBadge>待核对</StatusBadge><StatusBadge tone="success">已完成</StatusBadge><StatusBadge tone="warning">尚未接入</StatusBadge><StatusBadge tone="error">失败</StatusBadge></ActionGroup>
         <Feedback as="p" tone="error" role="alert">示例失败，输入和已有内容保留。</Feedback><Feedback tone="pending">保存回执待核对 <Button variant="app-pill" onClick={()=>setNote('示例核对，不访问业务库')}>核对结果</Button></Feedback>
         <EmptyState><h3>还没有内容</h3><p>空内容说明使用同一公共入口；具体动作由所在页面提供。</p></EmptyState>

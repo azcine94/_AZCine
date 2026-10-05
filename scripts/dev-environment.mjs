@@ -56,6 +56,7 @@ export function prepareEnvironment(root) {
     }
   }
   mkdirSync(path.join(root, '.tooling', 'instance'), { recursive: true });
+  return main;
 }
 
 export async function availablePort() {

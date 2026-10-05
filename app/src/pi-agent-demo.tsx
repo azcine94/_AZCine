@@ -3,6 +3,7 @@ import { Button } from './components/ui/button.tsx';
 import { useMemo, useRef, useState } from 'react';
 import { AgentChat } from './pi-agent-panel.tsx';
 import type { PiController } from './use-pi.ts';
+import { usePiResources } from './use-pi-resources.ts';
 import type { PiProjection, PiSession, PiSnapshot } from './pi-client.ts';
 import type { PiModel } from './pi-contract.ts';
 
@@ -48,6 +49,7 @@ function exampleProjection(session:PiSession,scenario:Scenario):PiProjection {
 }
 
 export default function AgentDemo({onExit}:{onExit:()=>void}) {
+  const resources=usePiResources(null);
   const [active,setActive]=useState(sessions[0]),[scenario,setScenario]=useState<Scenario>('complete');
   const [selectedModel,setSelectedModel]=useState(MODEL);
   const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState<string|null>(null);
@@ -59,6 +61,7 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const snapshot:PiSnapshot={generation,seq:0,connection:'ready',busy:false,stopping:false,sending:false,state:{sessionId:active.id,sessionFile:active.path,sessionName:active.name,model:selectedModel,thinkingLevel:'medium',isStreaming:scenario==='running',isCompacting:false,pendingMessageCount:0,messageCount:projection.messages.length},models:MODELS,projection,recoveredQueue:[],error:null,notice:null,cwd:'demo',runtime:null,paths:null};
   const switchSession=(session:PiSession)=>{setActive(session);setScenario('complete');setNotice(null);setSessionName('');};
   const controller:PiController={
+    resources,
     snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session),unreadable:0,sessionError:null,
     draft:{text:drafts[active.id]??'',images:[]},draftKey:active.id,setText:text=>setDrafts(before=>({...before,[active.id]:text})),setImages:()=>{},
     refresh:async()=>{},reloadSessions:async()=>{setNotice('示例会话已全部载入。');},connect:async session=>{if(session)switchSession(session);},disconnect:async()=>{},

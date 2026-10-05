@@ -50,17 +50,6 @@ function AppearanceSettings({ theme, selectTheme }: { theme: Theme; selectTheme:
   </section>;
 }
 
-function ResourceSettings({ kind, model }: { kind: 'skills' | 'extensions'; model: PiController }) {
-  const skills = kind === 'skills';
-  return <section className="settings-page">
-    <header className="settings-page-header"><h2>{skills ? 'Skills' : '扩展'}</h2><p className="subtle">管理属于本应用的原生 Pi {skills ? '技能' : '扩展'}。</p></header>
-    <div className="settings-resource-state"><SettingsIcon name={skills ? 'skill' : 'extension'} /><div><h3>资源管理尚未接入</h3><p className="subtle">资源列表和加载状态暂不可查看，当前页面仅显示本应用的目录信息。</p></div></div>
-    <div className="settings-row"><div><h3>本应用资源目录</h3><p className="meta">资源由你自行添加，不读取其他 Pi 的配置。</p></div><p className="path-text">{model.snapshot?.paths?.agent ?? '尚未取得目录，连接本应用 Pi 后可查看。'}</p></div>
-    {!skills && <p className="settings-help">部分扩展仅支持原生终端界面。桌面交互与终端交接目前尚未接入。</p>}
-    <UILink variant="text" className="foundation-link" href="#settings/runtime">查看工作目录与环境 →</UILink>
-  </section>;
-}
-
 function CheckResult({ state }: { state: CheckState }) {
   switch (state.status) {
     case 'idle': return <><h3>还未检查</h3><p>主动检查后才会调用 Rust 和独立临时数据库。</p></>;
@@ -99,7 +88,6 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
   let page: ReactNode;
   if (route === 'settings') page = <AppearanceSettings theme={theme} selectTheme={selectTheme} />;
   else if (route === 'settings/models') page = <PiProviderPanel model={providers} pi={pi} />;
-  else if (route === 'settings/skills' || route === 'settings/extensions') page = <ResourceSettings kind={route === 'settings/skills' ? 'skills' : 'extensions'} model={pi} />;
   else if (route === 'settings/runtime') page = <section className="settings-page"><header className="settings-page-header"><h2>工作目录与环境</h2><p className="subtle">查看本应用的原版 Pi，设置下次连接使用的工作目录。</p></header><p className="settings-help" role="status">{pi.action==='连接'||pi.snapshot?.connection==='connecting'?'正在自动连接本应用 Pi…':pi.snapshot?.connection==='ready'?'本应用 Pi 已连接。':'本应用 Pi 尚未连接，可在模型服务商页重试。'}</p>{(pi.error??pi.snapshot?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{pi.error??pi.snapshot?.error?.message}</Feedback>}<RuntimeInfo model={pi} expanded /><UILink variant="text" className="foundation-link" href="#settings/models">前往模型服务商 →</UILink></section>;
   else if (route === 'settings/data') page = <DataSettings model={workspace} />;
   else if (route === 'settings/diagnostics') page = <section className="settings-page"><header className="settings-page-header"><h2>桌面连接检查</h2><p className="subtle">检查 Rust 与独立临时数据库，不修改业务记录。进入此页不会自动检查。</p></header>

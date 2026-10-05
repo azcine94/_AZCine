@@ -203,6 +203,31 @@ impl PiManager{
         {let mut c=locked(&self.core)?;if c.generation!=generation{return Err(cancelled());}c.busy=false;c.session_changing=false;match &result{Ok(read)=>{let mut projection=Projection::default();if !projection.restore(&read.messages){return Err(invalid());}c.state=read.state.clone();c.models=read.models.clone();c.commands=read.commands.clone();c.projection=projection;c.error=None;},Err(e)=>{c.error=Some(e.clone());if e.code!="pi_switch_cancelled"{c.connection="error".into();c.projection.interrupted("原生状态未能核对，已停止连接，不能向旧会话状态继续发送。");}}};c.seq+=1;}notify();result?;self.snapshot()
     }
     pub fn sessions(&self,root:&Path)->Result<Value,PiError>{let paths=PiPaths::prepare(root)?;let value=serde_json::to_value(pi_sessions::list_sessions(&paths)?).map_err(|_|interrupted())?;let c=locked(&self.core)?;Ok(c.redactor.value(value,false))}
+    fn resource_index_inner(&self,root:&Path,resources:&Path)->Result<(PiPaths,crate::pi_resources::ResourceIndex),PiError>{
+        let paths=PiPaths::prepare(root)?;
+        let runtime=pi_runtime::resolve(resources)?;
+        let (generation,cwd,rpc)={let c=locked(&self.core)?;
+            let own=c.paths.as_ref().is_some_and(|p|p.agent==paths.agent);
+            (c.generation,if own{c.cwd.clone().unwrap_or_else(||paths.default_cwd.clone())}else{paths.default_cwd.clone()},
+             if own&&c.connection=="ready"{c.process.clone().filter(|p|p.is_connected())}else{None})};
+        let commands=if let Some(rpc)=&rpc{request(rpc,"get_commands",json!({}),REQUEST_TIMEOUT)?.get("commands").cloned().ok_or_else(invalid)?}else{json!([])};
+        let index=crate::pi_resources::inspect(&runtime,&paths,&cwd,generation,commands,rpc.is_some())?;
+        if locked(&self.core)?.generation!=generation{return Err(cancelled());}
+        Ok((paths,index))
+    }
+    pub fn resources(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
+        let _operation=self.operation()?;
+        let (_,index)=self.resource_index_inner(root,resources)?;
+        serde_json::to_value(index).map_err(|_|invalid())
+    }
+    pub fn save_resource(&self,root:&Path,resources:&Path,input:crate::pi_resources::ResourceUpdate)->Result<Value,PiError>{
+        let _operation=self.operation()?;
+        {let c=locked(&self.core)?;check_idle(&c)?;if c.generation!=input.generation{return Err(cancelled());}}
+        let (paths,index)=self.resource_index_inner(root,resources)?;
+        let runtime=pi_runtime::resolve(resources)?;
+        crate::pi_resources::update(&runtime,&paths,&index,&input)?;
+        Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
+    }
     pub fn providers(&self, root:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;

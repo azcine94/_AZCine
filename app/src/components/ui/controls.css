@@ -5,6 +5,7 @@
 .ui-action-group[data-direction="column"] { flex-direction:column; align-items:stretch; }
 .ui-menu-item { display:flex; align-items:center; gap:var(--s-2); width:100%; min-height:var(--control-h); padding:var(--s-2) var(--s-3); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; text-align:left; text-decoration:none; overflow-wrap:anywhere; }
 .ui-menu-item:hover { background:var(--island-2); text-decoration:none; }
+.ui-menu-item[aria-pressed="true"] { background:var(--accent); color:var(--accent-foreground); }
 .ui-menu-item:disabled { color:var(--t2); cursor:default; }
 .ui-button:is([data-variant="app-quiet"],[data-variant="app-primary"]) { display:inline-flex; align-items:center; justify-content:center; gap:var(--s-2); min-height:32px; padding:6px 10px; border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:500 13px/20px var(--font); }
 .ui-button[data-variant="app-quiet"]:hover:not(:disabled) { background:var(--island-2); }

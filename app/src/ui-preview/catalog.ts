@@ -27,6 +27,7 @@ const files: Record<string,string[]> = {
   agent:['pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-panels.tsx'],
   jobs:['news-processing-panel.tsx'],settings:['settings-panels.tsx'],
   'settings/models':['pi-provider-panel.tsx','pi-panels.tsx'],
+  resources:['pi-resources-panel.tsx'],
   'settings/runtime':['pi-panels.tsx'],'settings/data':['workspace-panels.tsx'],
   'settings/news':['news-panels.tsx'],'settings/news/materials':['news-panels.tsx'],
   'settings/news/processing':['news-processing-panel.tsx'],'settings/news/rules':['news-preferences-panel.tsx'],
@@ -38,7 +39,8 @@ function states(route:string) {
   if (route==='settings/models') return [...base,'dirty','models','advanced','remote','disconnected','provider-interface','provider-fetching','provider-saving','provider-multiple'];
   if (route==='settings/news/automation') return [...base,'dirty','pending','proxy','folds-open'];
   if(route==='settings/news/ai'||route==='settings/news/rules')return [...base,'dirty','pending','folds-open'];
-  if (route==='settings'||route==='settings/skills'||route==='settings/extensions') return ['normal','disconnected','long'];
+  if (route==='resources') return [...base,'editing','dirty','disconnected'];
+  if (route==='settings') return ['normal','disconnected','long'];
   if (route==='settings/diagnostics') return ['normal','loading','error','success'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open'];
   if (route==='agent') return [...base,'disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-more','agent-runtime','agent-models','agent-sessions','agent-process'];

@@ -50,25 +50,27 @@ pub struct PiPaths {
 }
 impl PiPaths {
     pub fn prepare(root: &Path) -> Result<Self, ConfigError> {
-        // Sharing the business database does not share native Pi auth/sessions.
-        // Release and explicitly isolated validation continue to use their root.
-        #[cfg(debug_assertions)]
-        let instance_root = if std::env::var_os("AZCINE_DEV_USE_MAIN_DATA").as_deref() == Some(std::ffi::OsStr::new("1"))
+        // Normal development shares main's native Pi configuration/resources
+        // and sessions. Release and isolated validation keep their own root.
+        // Unit tests must never inherit the shared development root.
+        #[cfg(all(debug_assertions,not(test)))]
+        let shared_root = if std::env::var_os("AZCINE_DEV_USE_MAIN_DATA").as_deref() == Some(std::ffi::OsStr::new("1"))
             && std::env::var_os("AZCINE_TEST_CONFIG_DIR").is_none()
             && std::env::var_os("AZCINE_TEST_DEFAULT_ROOT").is_none() {
-            let instance = std::env::var_os("AZCINE_DEV_INSTANCE_DIR").map(PathBuf::from)
-                .ok_or_else(|| error("pi_root_required", "开发实例目录缺失，未改用原 main 的 Pi 认证或会话。"))?;
-            if !instance.is_absolute() { return Err(error("pi_root_required", "开发实例目录必须为绝对路径。")); }
-            no_link(&instance)?;
-            fs::create_dir_all(&instance).map_err(io_error)?;
-            Some(owned_dir(&fs::canonicalize(instance).map_err(io_error)?, "data")?)
+            let data = std::env::var_os("AZCINE_DEV_PI_DATA_DIR").map(PathBuf::from)
+                .ok_or_else(|| error("pi_root_required", "共享 Pi 启动参数缺失，请结束当前开发进程，再在本目录运行 npm run dev；未回退分支目录。"))?;
+            if !data.is_absolute() { return Err(error("pi_root_required", "main 的共享 Pi 数据目录必须为绝对路径。")); }
+            no_link(&data)?;
+            fs::create_dir_all(&data).map_err(io_error)?;
+            Some(fs::canonicalize(data).map_err(io_error)?)
         } else { None };
-        #[cfg(debug_assertions)]
-        let root = instance_root.as_deref().unwrap_or(root);
+        #[cfg(all(debug_assertions,not(test)))]
+        let root = shared_root.as_deref().unwrap_or(root);
         if !root.is_absolute() || !root.is_dir() { return Err(error("pi_root_required", "请先选择有效的 AZCine 数据目录。")); }
         let root = fs::canonicalize(root).map_err(io_error)?;
         let pi_root = owned_dir(&root, "pi")?;
         let agent = owned_dir(&pi_root, "agent")?; let sessions = owned_dir(&pi_root, "sessions")?;
+        owned_dir(&agent, "skills")?; owned_dir(&agent, "extensions")?;
         let home = owned_dir(&pi_root, "home")?; let appdata = owned_dir(&pi_root, "appdata")?; let localappdata = owned_dir(&pi_root, "localappdata")?; let temp = owned_dir(&pi_root, "temp")?;
         let workspaces = owned_dir(&pi_root, "workspaces")?; let default_cwd = owned_dir(&workspaces, "default")?;
         Ok(Self { root, pi_root, agent, sessions, home, appdata, localappdata, temp, default_cwd })
