@@ -1,14 +1,14 @@
 # 当前工作
 
-> 更新：2026-10-04。实现、合入main、技术验证、用户验收和发布分别记录。
+> 更新：2026-10-06。实现、合入main、技术验证、用户验收与发布分别记录。
 
-- **当前任务已完成**：按用户交接将Agent整分支12a5c89＋06a2251合入本地main，合并提交29ef06e528f7487f783afc49d9b98622c01e619c；另将正常开发入口共用原main业务数据的调整fd96230f2f0d7946670e9578207461abd8cb5a24合入main。保留其他模块与文档真源。未推送、发布、清理、启动桌面或运行新验证。
-- **最新用户决定**：开发流程不变，仍独立分支开发、交接、合main；后续从最新main开始在分支打磨模块，业务数据库只用一套原库。此决定取代此前正常开发每Worktree建虚构业务库及“先不合并”的暂停点；不授权自动开发其他功能、测试、子Agent或清理。
-- **原始数据定位**：原本机应用定位配置C:/Users/A/AppData/Local/com.azcine.workbench/data-root.json实际指向C:/Users/A/Documents/AZCineData；业务库db/azcine.sqlite3。新入口读取此定位配置，不写死机器路径、不复制/覆盖/合并分支旧库。保留原库写锁，当前只允许一个桌面窗口使用；缺定位/库占用报错，不回退分支空库。旧源码分支需带上最新main入口改动才使用该行为，本轮未改其他开发会话源码。
-- **实例边界**：端口、WebView/Vite缓存和本机运行状态仍独立；Pi认证、配置、Skills/扩展与会话仍在各Worktree的.tooling/dev-instance/data/pi，不读取或复制宿主/原main认证。明确测试config/default根继续隔离，新入口不创建分支SQLite业务库。
-- **文档真源**：E:/Coding_Work/_AZCine的AGENTS、README与docs，由本主目录Codex会话维护；Worktree副本保留但不独立维护。此次局部更新规则/运行说明、Agent最新视觉、需求/结构/进度；旧current-work已保存在当前集成证据目录。
-- **源码与分支**：Agent目录C:/Users/A/.herdr/worktrees/_AZCine/feat-agent-design，分支feat/agent-design，HEAD06a2251b79533300638a05a0b81ef5bb2964b8b8；数据入口改动在fix/shared-main-data / C:/Users/A/.herdr/worktrees/_AZCine/fix-shared-main-data，基线29ef06e、HEADfd96230；均已合入main，目录/分支保留。main后续文档提交不改变这两个源码版本。
-- **Agent最终实现**：224会话栏和聊天区各自成岛，间距24；最近会话/浅灰新会话/选中行、移除刷新；已发送用户气泡亮暗固定黑底白字。740聊天列、14正文、右下实际模型/只读思考标签、自定义向上菜单；DEV懒加载虚构示例。思考和工具统一折在“已工作”下，回答在区外；真实发送/排队/插入/停止、附件校验与草稿路径保留。
-- **当前验证界限**：06a2251与fd96230本轮未运行测试、类型检查、构建或UI验证，也未调用子Agent。12a5c89历史主测及中间版本亮暗三尺寸截图不覆盖最终两栏/气泡或新共享库入口。原reviewer三轮，第三轮IME修复尚未最终独立复审；继续复审须用户明确要求，不标最终独立通过。真实模型、Codex菜单/整体1:1及正式用户验收仍留待。
-- **交接与证据**：Agent原交接C:/Users/A/.herdr/worktrees/_AZCine/feat-agent-design/artifacts/validation/handoff-20261004-151152/handoff.md；本轮集成材料artifacts/validation/integration-agent-shared-data-20261004-152553/。仅依据交接和实际提交，不读取其他会话私有聊天。原数据库、隔离库、历史证据及分支/Worktree均保留。
-- **后续暂停点**：等待用户分配各模块打磨任务；本轮不自动续开发。原生资源/TUI、草案/导入、统一后台/托盘/自启、桌宠及完整数据保障仍按需求留待。
+- **当前授权已完成**：核对polish全部四个提交，完整合入本地main，统一文档真源与后续前端标准。合并提交 `222358ea8e98ad19b60a5b01f6923be8be1eeb90`；本轮文档另作本地提交，精确版本见Git日志。没有推送/发布/清理、测试/类型检查/构建/UI验证、子Agent、安装依赖、启动桌面、真实采集/模型调用或数据写入授权；未执行这些操作。
+- **文档真源与维护者**：`E:/Coding_Work/_AZCine` 的AGENTS.md、README.md、docs/由本主目录指定Codex会话维护。功能Worktree的副本保留，不作最新依据；后续会话先读本页，再定位任务章节和实际代码，不读取其他会话私有聊天或冻结archive。
+- **代码来源**：`polish/all-part`，目录 `C:/Users/A/.herdr/worktrees/_AZCine/polish-all-part`，共同基线 `33ace133d6a60a8d3122beb4e037e4fccd0ea626`；源码HEAD `4affaf83b3d542d041ecbd5402105f74756d238f`。四项为d105b27（UI库/设置/处理）、147eb928（AIHOT链/reader/范围与清空）、f4100d3（读取/切筛稳定）、4affaf8（资源/共享Pi）。累计208文件，已全部进入main，未合并其他未交接分支；保留所有分支/Worktree及证据。
+- **前端接续入口**：统一标准只在 `docs/design-spec.md` 第1节和模块章节；实际库在 `app/src/components/ui/`，变量在 `tokens.css`，样式统一由 `globals.css` 引入。后续模块必须复用组件/业务变体/亮暗语义变量，页面CSS限定模块布局，同轮补 `ui-preview` 场景/内存状态和摘要；不复制第二套控件、不恢复旧原型主题/尺寸。根index.html连接本Worktree开发服务的UI总览，完整总览不是纯离线HTML快照。
+- **最新Pi决定**：2026-10-06用户明确“pi的也公用mian的目录就行。。。这样我好维护”。正常开发源码仍独立，Pi配置/认证/会话/Skills/扩展共用main自有 `.tooling/dev-instance/data/pi/`；main由启动器自动定位。工具→规则与资源为独立全宽双栏入口，官方默认提示词只读，规则/Skill可受限编辑、扩展源码只读/原生启停。`--no-context-files`仍使AGENTS不自动注入；完整请求响应/TUI留待。旧进程需正常结束后从其根npm run dev重启；本轮未启停其他窗口或迁移旧Pi文件。外部Pi/LYWork/OpenPI/宿主不读取、不共享；明确测试根和正式版不用开发共享覆盖。
+- **业务数据与实例边界**：业务仍共用原main应用定位的原库；定位配置 `%LOCALAPPDATA%/com.azcine.workbench/data-root.json`，已知原数据根 `C:/Users/A/Documents/AZCineData`，库 `db/azcine.sqlite3`。不读取真实库或认证、不复制/合并/覆盖旧库；缺定位/占用报错，一次一个桌面窗口持有业务写锁。端口/Vite与WebView缓存/运行状态/target/dist独立。当前源码schema8，v6～v8迁移未执行/未验证；共享Pi不代表同一会话多窗口同时写入已验证。
+- **启动缺口**：main旧node_modules缺class-variance-authority、clsx、lucide-react、radix-ui、tailwind-merge、@tailwindcss/vite、tailwindcss；依赖声明/锁一致，本轮未安装。后续主环境维护会话按明确范围补齐锁定依赖；不要从旧分支共享链接执行安装。本轮未验证main能够启动。
+- **验证与验收**：仅Git提交/范围/关键源码静态核对，无新测试PASS或独立审查通过。原资讯/模型榜/灵感/Agent结果保留原版本范围，不覆盖统一库或新资讯/资源链。147eb928说明称核对24h流程，但本交接没有可核对完整报告，本轮未复现。当前亮暗/三尺寸、SDK实际运行/保存、资源并发锁、schema8、真实模型及正式用户验收留待；之前今天/公司页面用户通过也不自动覆盖polish新样式。
+- **交接与证据**：polish摘要 `C:/Users/A/.herdr/worktrees/_AZCine/polish-all-part/artifacts/validation/handoff-20261006-024314/handoff.md`；本轮 `artifacts/validation/integration-polish-20261006-024746/` 保存四提交范围/源码差异、修改前文档和整合结论，不是测试证据。原main未跟踪的会话导出HTML保留，未加入本次提交。
+- **暂停点**：本轮到本地合并与文档提交结束。后续等待用户分配具体模块/Agent完善或主环境依赖准备，不自动开发、测试/复核、启动、推送、发版或清理。新统一阅读页尚未挂旧整刊PDF入口（后端仍保留，R-013继续有效），已在计划登记留待；草案导入、原生提问/TUI、通用后台/托盘/自启/桌宠和完整数据保障继续按需求留待。
