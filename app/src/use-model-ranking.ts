@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from './desktop-api.ts';
 import { beijingDay, emptyModelBoards, MODEL_BOARDS, parseModelBoards, parseModelBoardState, parseModelSnapshot } from './model-ranking-contract.ts';
 import type { ModelBoard, ModelBoardState } from './model-ranking-contract.ts';
 import { fetchRanking } from './model-ranking-source.ts';

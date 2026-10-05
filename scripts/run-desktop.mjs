@@ -14,7 +14,7 @@ const cargo = path.join(cargoHome, 'bin', process.platform === 'win32' ? 'cargo.
 const cli = path.join(app, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 const mode = process.argv[2] || 'dev';
 if (!['dev', 'test:rust'].includes(mode)) throw new Error(`Unsupported development command: ${mode}`);
-prepareEnvironment(root);
+const mainRoot = prepareEnvironment(root);
 if (!existsSync(cargo) || !existsSync(cli)) {
   console.error('开发依赖尚未安装。请按 README 的项目内工具链说明配置 .tooling/，并运行 npm --prefix app ci。');
   process.exit(1);
@@ -27,12 +27,19 @@ const env = {
   CARGO_TARGET_DIR: path.join(app, 'src-tauri', 'target'),
   WEBVIEW2_USER_DATA_FOLDER: process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(root, '.tooling', 'webview-dev'),
 };
+delete env.AZCINE_DEV_PI_DATA_DIR;
+if (mode === 'test:rust') {
+  delete env.AZCINE_DEV_USE_MAIN_DATA;
+  delete env.AZCINE_DEV_INSTANCE_DIR;
+}
 if (mode === 'dev') {
   const instance = path.join(root, '.tooling', 'dev-instance');
   env.AZCINE_DEV_INSTANCE_DIR = instance;
-  // Business data follows the original application locator; Pi and caches
-  // still belong to this Worktree. Explicit validation overrides stay isolated.
+  // Business data follows the original application locator. All development
+  // Worktrees use main's native Pi directory; UI caches remain per Worktree.
+  // Explicit validation overrides stay isolated and never use this Pi root.
   env.AZCINE_DEV_USE_MAIN_DATA = '1';
+  env.AZCINE_DEV_PI_DATA_DIR = path.join(mainRoot, '.tooling', 'dev-instance', 'data');
   env.WEBVIEW2_USER_DATA_FOLDER = process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(instance, 'webview');
 }
 for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER']) delete env[key];
@@ -86,7 +93,7 @@ if (mode === 'dev') {
       catch { /* Rust displays the original locator error; no empty-root fallback. */ }
     }
     const data = env.AZCINE_TEST_DEFAULT_ROOT || locatedRoot || (isolated ? path.join(root, '.tooling', 'dev-instance', 'data') : null);
-    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : path.join(root, '.tooling', 'dev-instance', 'data'), webview: env.WEBVIEW2_USER_DATA_FOLDER };
+    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : env.AZCINE_DEV_PI_DATA_DIR, piDataMode: isolated ? 'isolated-validation' : 'shared-main', webview: env.WEBVIEW2_USER_DATA_FOLDER };
     writeFileSync(path.join(root, '.tooling', 'instance', 'run-state.json'), JSON.stringify(state, null, 2));
     console.log('AZCine Worktree 开发实例：' + JSON.stringify(state));
     break;

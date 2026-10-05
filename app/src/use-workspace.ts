@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from './desktop-api.ts';
 import { localDate, millisecondsToNextDay, parseTodo, parseWorkspace, sameInput, validateTodo, workspaceError } from './workspace-contract.ts';
 import type { Todo, TodoFilter, TodoInput, Workspace } from './workspace-contract.ts';
 

@@ -47,6 +47,18 @@ pub struct ConfigError { pub code: &'static str, pub message: &'static str }
 fn invalid() -> ConfigError { ConfigError { code: "invalid_model_settings", message: "模型设置无效，请检查服务标识、HTTP(S)地址、API类型、模型名称及长度；未修改原配置。" } }
 fn malformed() -> ConfigError { ConfigError { code: "native_config_invalid", message: "本应用原生配置结构不完整，未覆盖原文件；请先修复配置再保存。" } }
 fn text(value: &str, limit: usize) -> bool { !value.trim().is_empty() && value.chars().count() <= limit && !value.chars().any(char::is_control) }
+pub fn validate_connection(base_url: &str, api: &str, api_key: Option<&str>) -> Result<(), ConfigError> {
+    if !matches!(api, "openai-completions"|"openai-responses"|"anthropic-messages"|"google-generative-ai") { return Err(invalid()); }
+    let url = Url::parse(base_url).map_err(|_| invalid())?;
+    if base_url.len() > 8192 || base_url.chars().any(char::is_control) || !matches!(url.scheme(), "http"|"https") || url.host_str().is_none()
+        || !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() || url.query().is_some() { return Err(invalid()); }
+    if let Some(key) = api_key.filter(|key| !key.is_empty()) {
+        if key.len() > 16384 || key.trim() != key || key.chars().any(char::is_control) || key.starts_with('!') || key.starts_with('$') {
+            return Err(ConfigError { code: "invalid_literal_key", message: "只接受直接填写的密钥，不执行命令或解析环境变量；输入与原认证保留。" });
+        }
+    }
+    Ok(())
+}
 fn valid_input(input: &ModelSettingsInput) -> Result<(), ConfigError> {
     if input.provider.is_empty() || input.provider.len() > 80 || !input.provider.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-'|b'_'|b'.'))
         || !text(&input.model_id, 1000) || !text(&input.name, 2000)

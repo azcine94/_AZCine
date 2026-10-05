@@ -1,3 +1,6 @@
+import { settingsRoute, settingsTitle } from './settings-navigation.ts';
+import type { SettingsRoute } from './settings-navigation.ts';
+
 export const pages = [
   { id: 'today', title: '今天', icon: 'today' },
   { id: 'projects', title: '项目', icon: 'projects' },
@@ -6,19 +9,26 @@ export const pages = [
   { id: 'ideas', title: '灵感', icon: 'ideas' },
   { id: 'agent', title: 'Agent', icon: 'agent' },
   { id: 'jobs', title: '后台任务', icon: 'jobs' },
+  { id: 'resources', title: '规则与资源', icon: 'resources' },
   { id: 'settings', title: '设置', icon: 'settings' },
 ] as const;
 
 export type PageId = typeof pages[number]['id'];
-export type Route = PageId | `projects/${string}` | 'settings/news' | 'settings/news/rules' | 'news/materials' | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | 'missing';
+export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | 'missing';
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const projectPattern = new RegExp(`^projects/(${uuidPattern})(?:/(${uuidPattern})/(${uuidPattern}))?$`);
 const newsSourcePattern = new RegExp(`^settings/news/sources/(new|rss-[a-z0-9-]{1,96}|${uuidPattern})$`);
 const sourcePattern = new RegExp(`^(ideas|today)/(${uuidPattern})$`);
 export function resolveRoute(hash: string): Route {
   const id = hash.replace(/^#/, '') || 'today';
+  if (['settings/resources', 'settings/skills', 'settings/extensions'].includes(id)) return 'resources';
   if (id === 'projects/new' || projectPattern.test(id)) return id as `projects/${string}`;
-  if (id === 'settings/news' || id === 'settings/news/rules' || id === 'news/materials') return id;
+  const setting = settingsRoute(id);
+  if (setting) return setting;
+  if (id === 'news/materials') return 'settings/news/materials';
+  if(id==='news/history')return 'news';
+  if(/^news\/items\/[a-f0-9]{32}$/.test(id))return id as `news/items/${string}`;
+  if(/^news\/stories\/[a-f0-9]{64}$/.test(id))return id as `news/stories/${string}`;
   if (/^news\/events\/[a-f0-9]{64}$/.test(id)) return id as `news/events/${string}`;
   if (newsSourcePattern.test(id)) return id as `settings/news/sources/${string}`;
   if (sourcePattern.test(id)) return id as `ideas/${string}` | `today/${string}`;
@@ -31,17 +41,19 @@ export function projectTarget(route: Route): { projectId: string; row?: { blockI
 export function newsSourceTarget(route: Route): string | null { return newsSourcePattern.exec(route)?.[1] ?? null; }
 export function navigationPage(route: Route): PageId | 'missing' {
   if (route === 'projects/new' || projectPattern.test(route)) return 'projects';
-  if (route === 'settings/news' || route === 'settings/news/rules' || newsSourcePattern.test(route)) return 'settings';
-  if (route === 'news/materials' || route.startsWith('news/events/')) return 'news';
+  if (settingsRoute(route) || newsSourcePattern.test(route)) return 'settings';
+  if (route === 'news/materials' || route.startsWith('news/')) return 'news';
   if (sourcePattern.test(route)) return sourcePattern.exec(route)![1] as PageId;
   return route as PageId | 'missing';
 }
 export function sourceTarget(route: Route): string | null { return sourcePattern.exec(route)?.[2] ?? null; }
 export function pageTitle(route: Route): string {
-  if (route === 'settings/news') return '资讯管理';
-  if (route === 'settings/news/rules') return '资讯规则与运行';
+  const setting = settingsTitle(route);
+  if (setting) return setting;
   if (route === 'news/materials') return '采集资料';
-  if (route.startsWith('news/events/')) return '事件详情';
+  if (route.startsWith('news/events/')) return '文章详情';
+  if (route.startsWith('news/items/')) return '文章详情';
+  if (route.startsWith('news/stories/')) return '事件进展';
   if (newsSourcePattern.test(route)) return route.endsWith('/new') ? '新增信源' : '编辑信源';
   if (route === 'projects/new') return '新建公司项目';
   if (projectPattern.test(route)) return '公司文档';

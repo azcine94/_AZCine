@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, isTauri } from './desktop-api.ts';
+import { listen } from './desktop-api.ts';
 import { equalEditorial, parseEditorialSnapshot, parseEvent, parsePreferences } from './news-editorial-contract.ts';
 import type { Domain } from './news-contract.ts';
 import type { EditorialConfig, EditorialSnapshot, Preferences, ReadingTab, SavePreferences } from './news-editorial-contract.ts';
@@ -15,6 +15,7 @@ export function useNewsEditorial(root: string | null) {
   const [loading, setLoading] = useState(false); const [busy, setBusy] = useState(''); const busyRef = useRef('');
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [loadError, setLoadError] = useState('');
   const [copyText, setCopyText] = useState(''); const [copyEditionId, setCopyEditionId] = useState(''); const reads = useRef(0); const loadedRoot = useRef<string | null>(null);
+  const [readingNotice, setReadingNotice] = useState(''); const [readingError, setReadingError] = useState('');
   function putDraft(p: Preferences) { draftRef.current = p; setDraft(p); }
   function putPending(p: SavePreferences | null) { pendingRef.current = p; setPending(p); }
   function acceptPreferences(p: Preferences, request?: SavePreferences) {
@@ -38,6 +39,7 @@ export function useNewsEditorial(root: string | null) {
     return () => { disposed = true; stop?.(); }; }, [root, connected]);
   async function action(name: string, work: () => Promise<void>) { if (!connected || !root || busyRef.current) return; busyRef.current = name; setBusy(name); setError(''); setNotice(''); try { await work(); } catch (e) { setError(workspaceError(e)); } finally { busyRef.current = ''; setBusy(''); } }
   function changeConfig(config: EditorialConfig) { if (draftRef.current) putDraft({ ...draftRef.current, config }); }
+  useEffect(()=>{if(!root||!connected)return;let disposed=false,off:(()=>void)|undefined;void listen('news-data-reset',()=>{if(disposed)return;setError('');setNotice('');setReadingError('');setReadingNotice('');setEditionId('');setCopyText('');setCopyEditionId('');}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setLoadError(workspaceError(e));});return()=>{disposed=true;off?.();};},[root,connected]);
   function rebase() { if (draftRef.current && snapshotRef.current && !pendingRef.current) { putDraft({ ...draftRef.current, revision: snapshotRef.current.preferences.revision }); setNotice('已对照最新配置版本，草稿保留；确认后保存。'); } }
   const save = () => action('save', async () => {
     if (!draftRef.current) return; const request = pendingRef.current ?? { requestId: crypto.randomUUID(), expectedRevision: draftRef.current.revision, config: structuredClone(draftRef.current.config) }; putPending(request);
@@ -47,12 +49,13 @@ export function useNewsEditorial(root: string | null) {
   });
   const reconcile = () => action('save', async () => { const request = pendingRef.current; if (!request) return; const value = await invoke('news_preference_request', { requestId: request.requestId }); ++reads.current;
     if (value !== null) acceptPreferences(parsePreferences(value), request); putPending(null); setNotice(value !== null ? '已核对保存成功，后续手改仍保留。' : '已确认上次未保存，草稿保留，可以调整后保存。'); await refresh(); });
-  const organize = (kind: 'organize' | 'daily' | 'analysis', runId?: string) => action(kind, async () => { try { await invoke(runId ? 'retry_news_editorial' : 'organize_news', runId ? { runId } : { requestId: crypto.randomUUID(), kind }); setNotice(kind === 'daily' ? '固定日报已保存为独立版本，可阅读、复制或导出整期。' : '整理完成，已有事件与出处可阅读。'); } finally { await refresh(); } });
-  const analyze = (id: string, revision: number) => action('analysis', async () => { parseEvent(await invoke('analyze_news_event', { id, revision })); await refresh(); setNotice('事件分析已保存；判断与未验证项单独展示。'); });
+  const organize = (kind: 'organize' | 'daily' | 'analysis', runId?: string, selection?: {scope:'single'|'all';materialId:string|null;batchSize:number;filter?:import('./news-scope.ts').FrozenNewsScope;expectedIds?:string[]}) => action(kind, async () => { try { await invoke(runId ? 'retry_news_editorial' : 'organize_news', runId ? { runId } : { requestId: crypto.randomUUID(), kind, selection:selection??{scope:'single',materialId:null,batchSize:1} }); setNotice(kind === 'daily' ? '固定日报已保存为独立版本，可阅读、复制或导出整期。' : '逐条处理完成，文章、事件关系与出处可阅读。'); } finally { await refresh(); } });
+  const analyze = (id: string, revision: number) => action('analysis', async () => { try { parseEvent(await invoke('analyze_news_event', { id, revision })); setNotice('事件分析已保存；判断与未验证项单独展示。'); } finally { await refresh(); } });
   async function cancel() { try { await invoke('cancel_news_editorial'); setNotice('已请求取消；终态以任务记录为准，已完成结果保留。'); await refresh(); } catch (e) { setError(workspaceError(e)); } }
-  const exportPdf = (id: string) => action('export', async () => { const path = await invoke<string | null>('export_news_edition', { id }); setNotice(path === null ? '已取消导出，刊期保留。' : `整期PDF已导出：${path}`); });
-  const copy = (id: string) => action('copy', async () => { const edition = snapshotRef.current?.editions.find(e => e.id === id); const label = edition ? `${edition.date} 第${edition.version}版` : '刚才所选刊期'; const text = await invoke<string>('news_edition_text', { id }); setCopyEditionId(id); setCopyText(text); try { await navigator.clipboard.writeText(text); setNotice(`已复制${label}的完整内容，与该版PDF一致。`); } catch { setNotice(`剪贴板受限，选回${label}可手动全选复制。`); } });
+  const exportPdf = (id: string) => action('export', async () => { setReadingError(''); setReadingNotice(''); try { const path = await invoke<string | null>('export_news_edition', { id }); setReadingNotice(path === null ? '已取消导出，刊期保留。' : `整期PDF已导出：${path}`); } catch(e) { setReadingError(workspaceError(e)); } });
+  const copy = (id: string) => action('copy', async () => { setReadingError(''); setReadingNotice(''); try { const edition = snapshotRef.current?.editions.find(e => e.id === id); const label = edition ? `${edition.date} 第${edition.version}版` : '刚才所选刊期'; const text = await invoke<string>('news_edition_text', { id }); setCopyEditionId(id); setCopyText(text); try { await navigator.clipboard.writeText(text); setReadingNotice(`已复制${label}的完整内容，与该版PDF一致。`); } catch { setReadingNotice(`剪贴板受限，选回${label}可手动全选复制。`); } } catch(e) { setReadingError(workspaceError(e)); } });
   const active = !!busy && ['organize', 'daily', 'analysis'].includes(busy) || !!snapshot?.runs.some(r => ['running', 'saving'].includes(r.status));
-  return { connected, snapshot, draft, pending, loading, busy, active, error, notice, loadError, tab, setTab, domain, setDomain, editionId, setEditionId, limit, setLimit, copyText, copyEditionId, setCopyText, changeConfig, rebase, save, reconcile, refresh, organize, cancel, analyze, exportPdf, copy };
+  const readEditionText = (id: string) => invoke<string>('news_edition_text', { id });
+  return { connected, snapshot, draft, pending, loading, busy, active, error, notice, loadError, readingNotice, readingError, tab, setTab, domain, setDomain, editionId, setEditionId, limit, setLimit, copyText, copyEditionId, setCopyText, changeConfig, rebase, save, reconcile, refresh, organize, cancel, analyze, exportPdf, copy, readEditionText };
 }
 export type EditorialController = ReturnType<typeof useNewsEditorial>;

@@ -1,0 +1,77 @@
+/* 唯一生产样式入口；总览也引用此文件。共用 ShadcnStore 主题与现有 reset。 */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import './tokens.css' layer(theme);
+@import './base.css' layer(base);
+@import '../components/ui/controls.css' layer(components);
+@import './app.css' layer(components);
+@import './theme-transition.css' layer(components);
+@import './workspace.css' layer(components);
+@import './projects.css' layer(components);
+@import './pi.css' layer(components);
+@import './model-ranking.css' layer(components);
+@import './news.css' layer(components);
+@import './ideas.css' layer(components);
+@import './settings.css' layer(components);
+@import './pi-resources.css' layer(components);
+@import './news-processing.css' layer(components);
+@import './news-reader.css' layer(components);
+@import './project-table.css' layer(components);
+@import '../components/ui/project-menus.css' layer(components);
+@import '../components/ui/project-stage-picker.css' layer(components);
+@import '../components/ui/date-input.css' layer(components);
+@import '../components/ui/business-controls.css' layer(components);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+/* 官方零件所需的基础样式，限定到零件节点，避免改变已有页面。 */
+@layer base {
+  [data-slot] {
+    border-style: solid;
+    border-width: 0;
+    border-color: var(--border);
+    font-family: inherit;
+  }
+  button[data-slot] {
+    background-color: transparent;
+    cursor: pointer;
+  }
+  button[data-slot]:disabled { cursor: default; }
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--ok);
+  --color-warning: var(--warn);
+  --color-brand: var(--acc);
+  --radius-sm: var(--r-xs);
+  --radius-md: var(--r-ctl);
+  --radius-lg: var(--r-panel);
+  --radius-xl: var(--r-island);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}

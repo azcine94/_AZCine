@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, readFileSync, lstatSync, realpathSync, symlinkSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { prepareEnvironment } from '../scripts/dev-environment.mjs';
 
-const main = fileURLToPath(new URL('../', import.meta.url));
+const workspace = fileURLToPath(new URL('../', import.meta.url));
+// A Worktree can own newer dependencies. Shared-resource fixtures must copy
+// declarations from the actual common repository, just like prepareEnvironment.
+const main = path.dirname(path.resolve(workspace, execFileSync('git', ['rev-parse', '--git-common-dir'], {cwd:workspace,encoding:'utf8',windowsHide:true}).trim()));
 // Retain these synthetic resource-selection fixtures; they are not executable toolchains.
-const evidence = path.join(main, 'artifacts/validation/dev-environment');
+const evidence = path.join(workspace, 'artifacts/validation/dev-environment');
 mkdirSync(evidence, { recursive: true });
 const run = mkdtempSync(path.join(evidence, 'run-'));
 const declarations = ['rust-toolchain.toml', 'app/src-tauri/Cargo.lock', 'app/package.json', 'app/package-lock.json', 'app/resources/runtime-lock.json'];

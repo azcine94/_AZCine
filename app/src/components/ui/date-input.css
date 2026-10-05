@@ -1,0 +1,21 @@
+.date-input { display:flex; align-items:center; min-width:0; width:100%; }
+.date-input>.input { flex:1; min-width:0; }
+.date-input__trigger { display:grid; place-items:center; flex:none; width:40px; height:44px; border:0; border-radius:var(--r-xs); background:transparent; color:var(--t2); }
+.date-input__trigger:hover { background:var(--island-2); color:var(--text); }
+.date-input__trigger:focus-visible { outline:2px solid var(--acc); outline-offset:-2px; }
+.date-input__trigger[aria-disabled=true] { cursor:progress; }
+.date-input__calendar { position:fixed; inset:auto; margin:0; padding:var(--s-2); border:0; border-radius:var(--r-panel); background:var(--island); color:var(--text); box-shadow:var(--shadow-pop); overflow:auto; overscroll-behavior:contain; }
+.date-input__calendar header { display:flex; align-items:center; justify-content:space-between; }
+.date-input__calendar strong { font:600 var(--fs-body)/var(--lh-body) var(--font); }
+.date-input__calendar button { min-height:36px; padding:var(--s-1); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; }
+.date-input__calendar button:hover { background:var(--island-2); }
+.date-input__calendar button:focus-visible { outline:2px solid var(--acc); outline-offset:-2px; box-shadow:none; }
+.date-input__calendar header button { width:40px; min-height:40px; font-size:var(--fs-title); }
+.date-input__week,.date-input__days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); text-align:center; gap:var(--s-1); }
+.date-input__week { padding-block:var(--s-2); color:var(--t2); font-size:var(--fs-xs); }
+.date-input__days button { font-family:var(--mono); font-size:var(--fs-s); }
+.date-input__days .date-input__other { color:var(--t2); }
+.date-input__days [aria-current=date] { text-decoration:underline; text-underline-offset:4px; }
+.date-input__days [aria-pressed=true] { background:var(--ink); color:var(--ink-fg); }
+.date-input__calendar footer { display:flex; align-items:center; justify-content:space-between; padding-top:var(--s-2); }
+.date-input__calendar footer button { padding-inline:var(--s-3); color:var(--acc); }

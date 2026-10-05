@@ -89,6 +89,12 @@ fn readback(rpc:&RpcProcess,paths:&PiPaths)->Result<Readback,PiError>{
     Ok(Readback{state,models,messages,commands})
 }
 impl PiManager{
+    // Snapshot owned configuration under the same lock used by connect/save.
+    // News runs in its own process, but must not race configuration recovery.
+    pub fn news_documents(&self,root:&Path)->Result<[Value;3],PiError>{
+        let _operation=self.operation.try_lock().map_err(|_|busy())?;
+        let config=ConfigStore::open(root)?;config.initialize_defaults()?;Ok(config.private_documents()?)
+    }
     pub fn set_exiting(&self,value:bool){if let Ok(mut c)=self.core.lock(){c.exiting=value;}}
     fn operation(&self)->Result<MutexGuard<'_,()>,PiError>{self.operation.try_lock().map_err(|e|match e{TryLockError::WouldBlock=>busy(),TryLockError::Poisoned(_)=>interrupted()})}
     pub fn snapshot(&self)->Result<Value,PiError>{
@@ -114,7 +120,7 @@ impl PiManager{
             let runtime=pi_runtime::resolve(resources)?;let paths=PiPaths::prepare(root)?;
             let cwd=paths.checked_cwd(cwd)?;
             if let Some(file)=session{let info=pi_sessions::validate_session(&paths,file)?;if paths.checked_cwd(Some(Path::new(&info.cwd)))?!=cwd{return Err(PiError::new("pi_session_cwd","原生会话的工作目录与所选目录不同，未切换；请使用会话原目录。"));}}
-            let config=ConfigStore::open(root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;
+            let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;
             let redactor=Redactor::from_documents(&docs[0],&docs[1]);
             let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(||PiError::new("pi_windows_path","无法确定 Windows 系统目录，未启动 Pi。"))?;
             let mut program_files=Vec::new();if let Some(path)=std::env::var_os("ProgramFiles"){program_files.push(PathBuf::from(path));if let Some(path)=std::env::var_os("ProgramFiles(x86)"){program_files.push(PathBuf::from(path));}}
@@ -197,12 +203,54 @@ impl PiManager{
         {let mut c=locked(&self.core)?;if c.generation!=generation{return Err(cancelled());}c.busy=false;c.session_changing=false;match &result{Ok(read)=>{let mut projection=Projection::default();if !projection.restore(&read.messages){return Err(invalid());}c.state=read.state.clone();c.models=read.models.clone();c.commands=read.commands.clone();c.projection=projection;c.error=None;},Err(e)=>{c.error=Some(e.clone());if e.code!="pi_switch_cancelled"{c.connection="error".into();c.projection.interrupted("原生状态未能核对，已停止连接，不能向旧会话状态继续发送。");}}};c.seq+=1;}notify();result?;self.snapshot()
     }
     pub fn sessions(&self,root:&Path)->Result<Value,PiError>{let paths=PiPaths::prepare(root)?;let value=serde_json::to_value(pi_sessions::list_sessions(&paths)?).map_err(|_|interrupted())?;let c=locked(&self.core)?;Ok(c.redactor.value(value,false))}
+    fn resource_index_inner(&self,root:&Path,resources:&Path)->Result<(PiPaths,crate::pi_resources::ResourceIndex),PiError>{
+        let paths=PiPaths::prepare(root)?;
+        let runtime=pi_runtime::resolve(resources)?;
+        let (generation,cwd,rpc)={let c=locked(&self.core)?;
+            let own=c.paths.as_ref().is_some_and(|p|p.agent==paths.agent);
+            (c.generation,if own{c.cwd.clone().unwrap_or_else(||paths.default_cwd.clone())}else{paths.default_cwd.clone()},
+             if own&&c.connection=="ready"{c.process.clone().filter(|p|p.is_connected())}else{None})};
+        let commands=if let Some(rpc)=&rpc{request(rpc,"get_commands",json!({}),REQUEST_TIMEOUT)?.get("commands").cloned().ok_or_else(invalid)?}else{json!([])};
+        let index=crate::pi_resources::inspect(&runtime,&paths,&cwd,generation,commands,rpc.is_some())?;
+        if locked(&self.core)?.generation!=generation{return Err(cancelled());}
+        Ok((paths,index))
+    }
+    pub fn resources(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
+        let _operation=self.operation()?;
+        let (_,index)=self.resource_index_inner(root,resources)?;
+        serde_json::to_value(index).map_err(|_|invalid())
+    }
+    pub fn save_resource(&self,root:&Path,resources:&Path,input:crate::pi_resources::ResourceUpdate)->Result<Value,PiError>{
+        let _operation=self.operation()?;
+        {let c=locked(&self.core)?;check_idle(&c)?;if c.generation!=input.generation{return Err(cancelled());}}
+        let (paths,index)=self.resource_index_inner(root,resources)?;
+        let runtime=pi_runtime::resolve(resources)?;
+        crate::pi_resources::update(&runtime,&paths,&index,&input)?;
+        Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
+    }
+    pub fn providers(&self, root:&Path)->Result<Value,PiError>{
+        let _operation=self.operation.lock().map_err(|_|interrupted())?;
+        let paths=PiPaths::prepare(root)?;
+        Ok(ConfigStore::open(&paths.root)?.providers()?)
+    }
+    pub fn model_list_key(&self,root:&Path,provider:&str,base_url:&str)->Result<Option<String>,PiError>{
+        let _operation=self.operation.lock().map_err(|_|interrupted())?;
+        let paths=PiPaths::prepare(root)?;
+        Ok(ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?)
+    }
     pub fn save_model(&self,root:&Path,resources:&Path,input:ModelSettingsInput,notify:Notify)->Result<Value,PiError>{
+        self.save_configuration(root,resources,notify,move|config|serde_json::to_value(config.save(&input)?).map_err(|_|interrupted()))
+    }
+    pub fn save_provider(&self,root:&Path,resources:&Path,input:crate::pi_provider_config::ProviderSettingsInput,notify:Notify)->Result<Value,PiError>{
+        crate::pi_provider_config::plan_provider_update(&[json!({}),json!({}),json!({})],&input)?;
+        self.save_configuration(root,resources,notify,move|config|{config.save_provider(&input)?;Ok(json!({"provider":input.provider,"models":input.models.len()}))})
+    }
+    fn save_configuration(&self,root:&Path,resources:&Path,notify:Notify,save:impl FnOnce(&ConfigStore)->Result<Value,PiError>)->Result<Value,PiError>{
         let _operation=self.operation()?;
         let (generation,old,cwd,session)={let mut c=locked(&self.core)?;check_idle(&c)?;c.generation+=1;c.busy=true;c.connection="connecting".into();c.error=None;c.seq+=1;let session=c.state["sessionFile"].as_str().map(PathBuf::from);(c.generation,c.process.take(),c.cwd.clone(),session)};notify();
         let session=session.filter(|p|p.is_file());
         if let Some(old)=old{if let Err(e)=old.shutdown(STOP_TIMEOUT){let e=PiError::from(e);self.finish_error(generation,e.clone(),&notify);return Err(e);}}
-        let view=(||->Result<Value,PiError>{let config=ConfigStore::open(root)?;{let c=locked(&self.core)?;if c.generation!=generation||c.stopping{return Err(cancelled());}}let view=config.save(&input)?;serde_json::to_value(view).map_err(|_|interrupted())})();
+        let view=(||->Result<Value,PiError>{let paths=PiPaths::prepare(root)?;let config=ConfigStore::open(&paths.root)?;{let c=locked(&self.core)?;if c.generation!=generation||c.stopping{return Err(cancelled());}}save(&config)})();
         let view=match view{Ok(v)=>v,Err(e)=>{self.finish_error(generation,e.clone(),&notify);return Err(e)}};
         {let mut c=locked(&self.core)?;if c.generation!=generation{drop(c);return Ok(json!({"saved":true,"view":view,"connected":false,"message":"配置已保存；连接已被停止，没有自动重连。"}));}c.busy=false;c.notice=Some("模型设置已保存；这不代表端点已通过真实推理验证。".into());}
         // Saved and connection outcomes are separate: never invite blind save retry

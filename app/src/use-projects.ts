@@ -1,6 +1,6 @@
 // Project drafts and pending saves survive routed page changes at App scope.
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './desktop-api.ts';
 import { parseProject, parseProjects, parseProjectContent } from './projects-contract.ts';
 import type { ProjectContent, ProjectDocument, ProjectUndo } from './projects-contract.ts';
 import { workspaceError } from './workspace-contract.ts';
@@ -224,7 +224,7 @@ export function useProjects(root: string | null) {
     putDraft(id, { content: contentOf(official), baseline: official.revision, dirty: false });
     message(id, '', '已采用正式记录。');
   }
-  return { projects, drafts, pending, errors, notices, loading, loadError, busy, newName, newId, undos, labelDrafts, query,
+  return { projects, drafts, pending, errors, notices, loading:loading||Boolean(root&&loadedRoot.current!==root), loadError, busy, newName, newId, undos, labelDrafts, query,
     changeQuery: setQuery, changeNewName, refresh, change, save, create, reconcile, rebase, replaceWithOfficial, putUndo, changeLabelDraft };
 }
 export type ProjectsController = ReturnType<typeof useProjects>;

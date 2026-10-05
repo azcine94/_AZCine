@@ -1,8 +1,10 @@
 import { parseMaterialPage, domainLabels } from './news-contract.ts';
 import type { Domain, NewsMaterial } from './news-contract.ts';
+import { parsePipeline } from './news-reader-contract.ts';
+import type { PipelineConfig } from './news-reader-contract.ts';
 export interface ModelChoice { provider: string; id: string }
 export interface DomainRule { domain: Domain; enabled: boolean; rule: string; minScore: number; dailyLimit: number }
-export interface EditorialConfig { model: ModelChoice | null; domains: DomainRule[]; featuredScore: number; overviewLimit: number; autoCollect: boolean; autoDaily: boolean; dailyTime: string }
+export interface EditorialConfig { model: ModelChoice | null; domains: DomainRule[]; featuredScore: number; overviewLimit: number; autoCollect: boolean; autoDaily: boolean; dailyTime: string; collectionProxy: string | null; pipeline?:PipelineConfig }
 export interface Preferences { config: EditorialConfig; revision: number }
 export interface CitedText { text: string; materialIds: string[] }
 export interface EventDraft { eventKey: string; materialIds: string[]; domain: Domain | null; title: string; summary: string; facts: CitedText[]; score: number; reason: string; tags: string[]; limitations: string[]; needsReview: boolean; hasNewFacts: boolean }
@@ -24,7 +26,7 @@ function domain(v: unknown): Domain { return typeof v === 'string' && Object.has
 function model(v: unknown): ModelChoice { const m = object(v); return { provider: text(m.provider), id: text(m.id) }; }
 export function parseConfig(v: unknown): EditorialConfig { const c = object(v); const domains = list(c.domains, value => { const r = object(value); return { domain: domain(r.domain), enabled: bool(r.enabled), rule: text(r.rule), minScore: number(r.minScore, 0, 100), dailyLimit: number(r.dailyLimit, 0, 5) }; });
   if (domains.length !== 3 || new Set(domains.map(r => r.domain)).size !== 3 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(text(c.dailyTime))) return bad();
-  return { model: c.model === null ? null : model(c.model), domains, featuredScore: number(c.featuredScore, 0, 100), overviewLimit: number(c.overviewLimit, 0, 3), autoCollect: bool(c.autoCollect), autoDaily: bool(c.autoDaily), dailyTime: text(c.dailyTime) }; }
+  return { model: c.model === null ? null : model(c.model), domains, featuredScore: number(c.featuredScore, 0, 100), overviewLimit: number(c.overviewLimit, 0, 3), autoCollect: bool(c.autoCollect), autoDaily: bool(c.autoDaily), dailyTime: text(c.dailyTime), collectionProxy: c.collectionProxy == null ? null : text(c.collectionProxy),pipeline:parsePipeline(c.pipeline) }; }
 export function parsePreferences(v: unknown): Preferences { const p = object(v); return { config: parseConfig(p.config), revision: number(p.revision, 1) }; }
 function cited(v: unknown): CitedText { const f = object(v); return { text: text(f.text), materialIds: list(f.materialIds, text) }; }
 export function parseEvent(v: unknown): NewsEvent { const e = object(v); const d = object(e.draft); const materials = parseMaterialPage({ items: e.materials, total: Array.isArray(e.materials) ? e.materials.length : 0, page: 0, pageSize: Array.isArray(e.materials) ? Math.max(1, e.materials.length) : 1 }).items;

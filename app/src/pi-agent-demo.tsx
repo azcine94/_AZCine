@@ -1,7 +1,9 @@
+import { Button } from './components/ui/button.tsx';
 // Loaded only by the development preview entry. No IPC, storage or model requests.
 import { useMemo, useRef, useState } from 'react';
 import { AgentChat } from './pi-agent-panel.tsx';
 import type { PiController } from './use-pi.ts';
+import { usePiResources } from './use-pi-resources.ts';
 import type { PiProjection, PiSession, PiSnapshot } from './pi-client.ts';
 import type { PiModel } from './pi-contract.ts';
 
@@ -47,6 +49,7 @@ function exampleProjection(session:PiSession,scenario:Scenario):PiProjection {
 }
 
 export default function AgentDemo({onExit}:{onExit:()=>void}) {
+  const resources=usePiResources(null);
   const [active,setActive]=useState(sessions[0]),[scenario,setScenario]=useState<Scenario>('complete');
   const [selectedModel,setSelectedModel]=useState(MODEL);
   const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState<string|null>(null);
@@ -58,6 +61,7 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const snapshot:PiSnapshot={generation,seq:0,connection:'ready',busy:false,stopping:false,sending:false,state:{sessionId:active.id,sessionFile:active.path,sessionName:active.name,model:selectedModel,thinkingLevel:'medium',isStreaming:scenario==='running',isCompacting:false,pendingMessageCount:0,messageCount:projection.messages.length},models:MODELS,projection,recoveredQueue:[],error:null,notice:null,cwd:'demo',runtime:null,paths:null};
   const switchSession=(session:PiSession)=>{setActive(session);setScenario('complete');setNotice(null);setSessionName('');};
   const controller:PiController={
+    resources,
     snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session),unreadable:0,sessionError:null,
     draft:{text:drafts[active.id]??'',images:[]},draftKey:active.id,setText:text=>setDrafts(before=>({...before,[active.id]:text})),setImages:()=>{},
     refresh:async()=>{},reloadSessions:async()=>{setNotice('示例会话已全部载入。');},connect:async session=>{if(session)switchSession(session);},disconnect:async()=>{},
@@ -68,14 +72,14 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
       else if(command==='pi_name_session'&&typeof fields.name==='string'){setActive(before=>({...before,name:fields.name as string}));setSessionName('');}
       else if(command==='pi_select_model'){const next=MODELS.find(value=>value.provider===fields.provider&&value.id===fields.id);if(next)setSelectedModel(next);}
     },
-    saveModel:async()=>false,recoverQueue:()=>{},acceptedInputs:[],recoverAccepted:()=>{},modelForm,setModelForm,sessionName,setSessionName,
+    saveModel:async()=>false,saveConfiguration:async()=>null,recoverQueue:()=>{},acceptedInputs:[],recoverAccepted:()=>{},modelForm,setModelForm,sessionName,setSessionName,
     processChoices:choices,chooseProcess:(key,open)=>setChoices(before=>({...before,[key]:open})),
     rememberChatScroll:(key,top,following)=>{scroll.current[key]={top,following};},readChatScroll:key=>scroll.current[key],displayRunStart:0,
   };
   return <div className="pi-preview-workspace">
     <div className="pi-preview-strip"><span className="pi-preview-label">演示数据</span><span className="pi-preview-disclaimer">虚构会话 · 不调用模型，不保存记录</span>
-      <div className="pi-preview-scenarios" role="group" aria-label="示例状态">{([['complete','已完成'],['running','执行中'],['error','失败'],['interrupted','已中断']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={scenario===value} onClick={()=>{setScenario(value);setNotice(null);}}>{label}</button>)}</div>
-      <button type="button" onClick={onExit}>切回真实会话</button>
+      <div className="pi-preview-scenarios" role="group" aria-label="示例状态">{([['complete','已完成'],['running','执行中'],['error','失败'],['interrupted','已中断']] as const).map(([value,label])=><Button variant="app-control" type="button" key={value} aria-pressed={scenario===value} onClick={()=>{setScenario(value);setNotice(null);}}>{label}</Button>)}</div>
+      <Button variant="app-control" type="button" onClick={onExit}>切回真实会话</Button>
     </div>
     <AgentChat model={controller} preview/>
   </div>;

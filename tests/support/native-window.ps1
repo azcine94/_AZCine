@@ -28,6 +28,8 @@ $OldDpiContext = [AZCineNativeWindow]::SetThreadDpiAwarenessContext([IntPtr](-4)
 try {
     if ($Action -eq 'resize' -and ([AZCineNativeWindow]::IsIconic($Handle) -or [AZCineNativeWindow]::IsZoomed($Handle))) {
         [void][AZCineNativeWindow]::ShowWindow($Handle,9)
+        # Wait for Windows to finish restoring before measuring the frame.
+        Start-Sleep -Milliseconds 200
     }
     $Outer = New-Object AZCineNativeWindow+Rect
     $Client = New-Object AZCineNativeWindow+Rect

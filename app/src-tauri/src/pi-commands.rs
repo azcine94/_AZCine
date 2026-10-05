@@ -30,6 +30,16 @@ pub async fn pi_stop(app:tauri::AppHandle,window:tauri::WebviewWindow,generation
 #[tauri::command]
 pub async fn pi_sessions(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;work(app,move|m,_|m.sessions(&root)).await}
 #[tauri::command]
+pub async fn pi_resources(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    work(app,move|m,_|m.resources(&root,&resources)).await
+}
+#[tauri::command]
+pub async fn pi_save_resource(app:tauri::AppHandle,window:tauri::WebviewWindow,input:crate::pi_resources::ResourceUpdate)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    work(app,move|m,_|m.save_resource(&root,&resources,input)).await
+}
+#[tauri::command]
 pub async fn pi_new_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String)->Result<Value,PiError>{allowed(&app,&window)?;work(app,move|m,n|m.session_action(generation,&session_id,"new_session",json!({}),n)).await}
 #[tauri::command]
 pub async fn pi_switch_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,path:String)->Result<Value,PiError>{allowed(&app,&window)?;work(app,move|m,n|m.session_action(generation,&session_id,"switch_session",json!({"sessionPath":path}),n)).await}
@@ -39,6 +49,28 @@ pub async fn pi_name_session(app:tauri::AppHandle,window:tauri::WebviewWindow,ge
 pub async fn pi_select_model(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,provider:String,id:String)->Result<Value,PiError>{allowed(&app,&window)?;work(app,move|m,n|m.session_action(generation,&session_id,"set_model",json!({"provider":provider,"modelId":id}),n)).await}
 #[tauri::command]
 pub async fn pi_save_model(app:tauri::AppHandle,window:tauri::WebviewWindow,input:ModelSettingsInput)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;work(app,move|m,n|m.save_model(&root,&resources,input,n)).await}
+
+#[tauri::command]
+pub async fn pi_providers(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;work(app,move|m,_|m.providers(&root)).await
+}
+#[tauri::command]
+pub async fn pi_save_provider(app:tauri::AppHandle,window:tauri::WebviewWindow,input:crate::pi_provider_config::ProviderSettingsInput)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    work(app,move|m,n|m.save_provider(&root,&resources,input,n)).await
+}
+#[tauri::command]
+pub async fn pi_fetch_models(app:tauri::AppHandle,window:tauri::WebviewWindow,mut input:crate::pi_model_discovery::ModelListInput)->Result<Value,PiError>{
+    allowed(&app,&window)?;
+    crate::pi_model_config::validate_connection(&input.base_url,&input.api,input.api_key.as_deref())?;
+    let root=root(app.clone()).await?;
+    if input.api_key.as_ref().is_none_or(|s|s.is_empty()) {
+        let provider=input.provider.clone();let address=input.base_url.clone();
+        input.api_key=work(app.clone(),move|m,_|m.model_list_key(&root,&provider,&address)).await?;
+    }
+    // The network GET owns no RPC lock and cannot send a prompt or execute native auth commands.
+    work(app,move|_,_|Ok(crate::pi_model_discovery::fetch(input)?)).await
+}
 
 /// S03 closes the whole app, not a tray transition. S11 will add explicit tray
 /// ownership; the final exit must continue to call this same owned cleanup.

@@ -1,15 +1,21 @@
 // Page-independent source drafts, previews and immutable save requests.
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { invoke, isTauri } from './desktop-api.ts';
+import { listen } from './desktop-api.ts';
 import { equalConfig, normalizedConfig, parseFeedPreview, parseMaterialPage, parseNewsSnapshot, parseNewsSource, validateSource } from './news-contract.ts';
 import type { CollectionRun, FeedPreview, MaterialPage, NewsSnapshot, NewsSource, SaveSourceRequest, SourceConfig } from './news-contract.ts';
 import { workspaceError } from './workspace-contract.ts';
+import { initialNewsRange, newsRangeRequest } from './news-scope.ts';
+import {useNewsReset} from './use-news-reset.ts';
 
 export interface SourceDraft { config: SourceConfig; baseline: number | null; dirty: boolean }
 interface PreviewState { result: FeedPreview; config: SourceConfig }
 const emptyPage: MaterialPage = { items: [], total: 0, page: 0, pageSize: 50 };
 export function useNews(root: string | null) {
+  const reset=useNewsReset(root);
+  const [collectionRange,setCollectionRange]=useState(()=>initialNewsRange('day'));
+  const collectionRangeRef=useRef(collectionRange);collectionRangeRef.current=collectionRange;
+  useEffect(()=>{if(!root||!isTauri())return;let disposed=false,off:(()=>void)|undefined;void listen('news-data-reset',()=>{if(disposed)return;setPreviews({});setError('');setNotice('');setMaterialError('');}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setLoadError(workspaceError(e));});return()=>{disposed=true;off?.();};},[root]);
   const connected = isTauri();
   const [snapshot, setSnapshot] = useState<NewsSnapshot>({ sources: [], runs: [] });
   const snapshotRef = useRef(snapshot);
@@ -38,6 +44,7 @@ export function useNews(root: string | null) {
   const materialSequence = useRef(0);
   const readSequence = useRef(0);
   const loadedRoot = useRef<string | null>(null);
+  const currentRoot = useRef(root); currentRoot.current = root;
 
   function putDraft(id: string, draft: SourceDraft) {
     draftsRef.current = { ...draftsRef.current, [id]: draft }; setDrafts(draftsRef.current);
@@ -73,21 +80,24 @@ export function useNews(root: string | null) {
   }
   async function readMaterials(source = filterRef.current, page = 0) {
     const sequence = ++materialSequence.current; setMaterialsLoading(true);
+    const target = currentRoot.current, range = collectionRangeRef.current;
+    const current = () => sequence === materialSequence.current && target === currentRoot.current && source === filterRef.current && JSON.stringify(range) === JSON.stringify(collectionRangeRef.current);
     try {
-      const next = parseMaterialPage(await invoke<unknown>('news_materials', { sourceId: source || null, page }));
-      if (sequence === materialSequence.current) { setMaterials(next); setMaterialError(''); }
-    } catch (e) { if (sequence === materialSequence.current) setMaterialError(workspaceError(e)); }
-    finally { if (sequence === materialSequence.current) setMaterialsLoading(false); }
+      const next = parseMaterialPage(await invoke<unknown>('news_materials', { sourceId: source || null, page,range:newsRangeRequest(range) }));
+      if (current()) { setMaterials(next); setMaterialError(''); }
+    } catch (e) { if (current()) setMaterialError(workspaceError(e)); }
+    finally { if (current()) setMaterialsLoading(false); }
   }
-  async function refresh() {
+  async function refresh(includeMaterials = true) {
     if (!connected || !root) return;
     setLoading(true);
     try { await readSnapshot(); } catch (e) { setLoadError(workspaceError(e)); }
     finally { setLoading(false); }
-    await readMaterials(filterRef.current, materials.page);
+    if (includeMaterials) await readMaterials(filterRef.current, materials.page);
   }
+  useEffect(()=>{if(connected&&root){++materialSequence.current;void readMaterials(filterRef.current,0);}},[collectionRange,connected,root]);
   useEffect(() => {
-    if (root && loadedRoot.current !== root) { loadedRoot.current = root; void refresh(); }
+    if (root && loadedRoot.current !== root) { loadedRoot.current = root; void refresh(false); }
   });
   useEffect(() => {
     if (!connected || !root) return;
@@ -204,7 +214,7 @@ export function useNews(root: string | null) {
     if (!connected || !root || collectingRef.current) return;
     collectingRef.current = true; setCollecting(true); setError(''); setNotice('');
     try {
-      const result = parseNewsSnapshot(await invoke<unknown>(retryRun ? 'retry_news_run' : 'collect_news', retryRun ? { runId: retryRun.id } : { requestId: crypto.randomUUID(), sourceId }));
+      const result = parseNewsSnapshot(await invoke<unknown>(retryRun ? 'retry_news_run' : 'collect_news', retryRun ? { runId: retryRun.id } : { requestId: crypto.randomUUID(), sourceId,range:newsRangeRequest(collectionRange) }));
       ++readSequence.current; acceptSnapshot(result);
       if (retryRun) {
         const run = result.runs.find(run => run.id === retryRun.id);
@@ -228,8 +238,8 @@ export function useNews(root: string | null) {
     try { await invoke('open_news_url', { url }); } catch (e) { setError(workspaceError(e)); }
   }
   async function cancelCapture() { try { await invoke('cancel_news_capture'); setNotice('已请求取消，等待当前网络请求结束后保留输入；以采集记录的中断状态为准。'); } catch (e) { setError(workspaceError(e)); } }
-  return { cancelCapture, connected, snapshot, materials, loading, materialsLoading, loadError, materialError, error, notice, collecting,
+  return { reset,cancelCapture, connected, snapshot, materials, loading:loading||Boolean(root&&loadedRoot.current!==root), materialsLoading:materialsLoading||Boolean(root&&loadedRoot.current!==root), loadError, materialError, error, notice, collecting,
     drafts, pending, busy, errors, notices, previews, filter, newId, refresh, readMaterials, changeFilter, changeDraft, startNew,
-    saveSource, reconcile, preview, toggle, useLatest, collect, openOriginal };
+    saveSource, reconcile, preview, toggle, useLatest, collect, openOriginal,collectionRange,setCollectionRange };
 }
 export type NewsController = ReturnType<typeof useNews>;

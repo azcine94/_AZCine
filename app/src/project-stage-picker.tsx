@@ -1,6 +1,8 @@
+import { Feedback } from './components/ui/feedback.tsx';
+import { Button } from './components/ui/button.tsx';
+import { Input } from './components/ui/input.tsx';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
-import './styles/project-stage-picker.css';
 import { useAnchoredPopover } from './use-anchored-popover.ts';
 
 export interface ProjectStageLabelActions {
@@ -260,7 +262,7 @@ export function ProjectStagePicker({
         }
       }}
     >
-      <button
+      <Button variant="app-pill"
         ref={triggerRef}
         type="button"
         className="pill project-stage-picker__trigger"
@@ -290,7 +292,7 @@ export function ProjectStagePicker({
         >
           <path d="m6 9 6 6 6-6" />
         </svg>
-      </button>
+      </Button>
 
       <div
         ref={listboxRef}
@@ -308,7 +310,7 @@ export function ProjectStagePicker({
         {options.map((option, index) => {
           const selected = option.id === currentId;
           return (
-            <button
+            <Button variant="app-control"
               key={option.id ?? 'none'}
               type="button"
               role="option"
@@ -330,27 +332,27 @@ export function ProjectStagePicker({
                 <span className="project-stage-picker__name">{option.name}</span>
                 {selected && <span className="project-stage-picker__mark" aria-hidden="true">✓</span>}
               </span>
-            </button>
+            </Button>
           );
         })}
         </div>
         {labelActions && <div className="project-stage-picker__actions">
-          <button type="button" className="project-stage-picker__action" onClick={() => showView('create')}><span aria-hidden="true">＋</span>新增标签</button>
-          <button type="button" className="project-stage-picker__action" disabled={!labels.length} onClick={() => showView('manage')}>管理标签</button>
+          <Button variant="app-control" type="button" className="project-stage-picker__action" onClick={() => showView('create')}><span aria-hidden="true">＋</span>新增标签</Button>
+          <Button variant="app-control" type="button" className="project-stage-picker__action" disabled={!labels.length} onClick={() => showView('manage')}>管理标签</Button>
         </div>}
         </>}
         {expanded && view !== 'select' && labelActions && <>
           <header className="project-stage-picker__header">
-            <button type="button" data-stage-back className="project-stage-picker__back" aria-label="返回阶段选择" onClick={() => showView('select')}>←</button>
+            <Button variant="app-control" type="button" data-stage-back className="project-stage-picker__back" aria-label="返回阶段选择" onClick={() => showView('select')}>←</Button>
             <strong>{view === 'manage' ? '管理标签' : view === 'rename' ? '修改标签名称' : '新增标签'}</strong>
           </header>
           {view === 'manage' ? <>
             <ul className="project-stage-picker__management">{labels.map(item => <li key={item.id}>
               <span className="project-stage-picker__tag" style={tagStyle(item.id)}>{item.name}</span>
-              <button type="button" data-stage-edit className="project-stage-picker__back" aria-label={`改名：${item.name}`} onClick={() => showView('rename', item.id)}>改名</button>
-              <button type="button" className="project-stage-picker__back" aria-label={`删除标签：${item.name}`} onClick={() => { if (labelActions.remove(item.id)) close(true); }}>删除</button>
+              <Button variant="app-control" type="button" data-stage-edit className="project-stage-picker__back" aria-label={`改名：${item.name}`} onClick={() => showView('rename', item.id)}>改名</Button>
+              <Button variant="app-control" type="button" className="project-stage-picker__back" aria-label={`删除标签：${item.name}`} onClick={() => { if (labelActions.remove(item.id)) close(true); }}>删除</Button>
             </li>)}</ul>
-            <button type="button" className="project-stage-picker__action" onClick={() => showView('create')}><span aria-hidden="true">＋</span>新增标签</button>
+            <Button variant="app-control" type="button" className="project-stage-picker__action" onClick={() => showView('create')}><span aria-hidden="true">＋</span>新增标签</Button>
           </> : <form className="project-stage-picker__editor" noValidate onSubmit={event => {
             event.preventDefault();
             if (disabled) return;
@@ -359,11 +361,11 @@ export function ProjectStagePicker({
             if (applied) close(true);
           }}>
             <label htmlFor={`${instanceId}-stage-name`}>标签名称</label>
-            <input id={`${instanceId}-stage-name`} className="input" autoComplete="off" placeholder="填写阶段名称" value={labelActions.draftName(view === 'rename' ? editingId : undefined)} aria-invalid={!!labelActions.error} aria-describedby={labelActions.error ? `${instanceId}-stage-error` : undefined} onChange={event => labelActions.changeDraftName(event.target.value, view === 'rename' ? editingId : undefined)} onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }} />
+            <Input variant="app" id={`${instanceId}-stage-name`} className="input" autoComplete="off" placeholder="填写阶段名称" value={labelActions.draftName(view === 'rename' ? editingId : undefined)} aria-invalid={!!labelActions.error} aria-describedby={labelActions.error ? `${instanceId}-stage-error` : undefined} onChange={event => labelActions.changeDraftName(event.target.value, view === 'rename' ? editingId : undefined)} onKeyDown={event => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }} />
             <p className="meta">仅保存在当前项目，其他行可复用。阶段不等于已交完。</p>
-            <div className="project-stage-picker__form-actions"><button type="button" className="pill" onClick={() => showView('select')}>取消</button><button type="submit" className="pill on">{view === 'rename' ? '保存名称' : '保存并选用'}</button></div>
+            <div className="project-stage-picker__form-actions"><Button variant="app-pill" type="button" className="pill" onClick={() => showView('select')}>取消</Button><Button variant="app-pill" type="submit" className="pill on">{view === 'rename' ? '保存名称' : '保存并选用'}</Button></div>
           </form>}
-          {labelActions.error && <p id={`${instanceId}-stage-error`} className="form-error project-stage-picker__error" role="alert">{labelActions.error}</p>}
+          {labelActions.error && <Feedback as="p" tone="error" id={`${instanceId}-stage-error`} className="form-error project-stage-picker__error" role="alert">{labelActions.error}</Feedback>}
         </>}
       </div>
     </div>

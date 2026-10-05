@@ -18,11 +18,13 @@
       "minWidth": 1024,
       "minHeight": 768,
       "center": true,
-      "decorations": true,
+      "decorations": false,
+      "resizable": true,
+      "shadow": true,
       "dragDropEnabled": false
     }],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420 https://datasets-server.huggingface.co https://models.dev; object-src 'none'; base-uri 'self'; frame-src 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420 https://datasets-server.huggingface.co https://models.dev; object-src 'none'; base-uri 'self'; frame-src 'none'"
     }
   },
   "bundle": { "active": false }

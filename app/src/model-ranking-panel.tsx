@@ -1,3 +1,6 @@
+import { UILink } from './components/ui/ui-link.tsx';
+import { Button } from './components/ui/button.tsx';
+import { LoadingStatus } from './components/ui/loading-status.tsx';
 import { BOARD_INFO, MODEL_BOARDS, rankingTime, RANKING_DATASET, RANKING_PRICE_SOURCE } from './model-ranking-contract.ts';
 import type { ModelBoard, ModelSnapshot, RankingMetric, RankingRow } from './model-ranking-contract.ts';
 import type { ModelRankingController } from './use-model-ranking.ts';
@@ -91,29 +94,29 @@ export function ModelRankingPanel({ model, hasRoot, rootError }: { model: ModelR
   const waiting = model.loading || model.busy !== null;
   const canUpdate = model.connected && hasRoot && !waiting && !model.loadError && !board.error;
   const sourceContent = <><span>Arena 原榜</span><Icon name="external" /></>;
-  const official = model.connected ? <button type="button" className="ranking-source-link" onClick={() => void model.openSource(selected)}>{sourceContent}</button>
-    : <a className="ranking-source-link" href={BOARD_INFO[selected].url} target="_blank" rel="noopener noreferrer">{sourceContent}</a>;
+  const official = model.connected ? <Button variant="app-control" type="button" className="ranking-source-link" onClick={() => void model.openSource(selected)}>{sourceContent}</Button>
+    : <UILink variant="plain" className="ranking-source-link" href={BOARD_INFO[selected].url} target="_blank" rel="noopener noreferrer">{sourceContent}</UILink>;
   const cancelled = model.notices[selected].startsWith('已取消获取');
   const boardIcon = (id: ModelBoard) => id === 'agent' ? 'agent' as const : 'image' as const;
   return <section className="ranking-board" aria-labelledby="ranking-board-title">
     <header className="ranking-hero">
       <div className="ranking-topline"><span className="ranking-eyebrow"><span aria-hidden="true" />ARENA · 模型表现</span><span className="ranking-top-label">OVERALL / TOP 50</span></div>
       <div className="ranking-heading"><div className="ranking-title-group"><div><h2 id="ranking-board-title">{BOARD_INFO[selected].title}</h2><p className="ranking-subtitle">{selected === 'agent' ? '真实任务中的模型表现' : '从文字到画面的创作能力'}</p></div></div>
-        <div className="ranking-actions">{official}<button type="button" className="ranking-refresh" disabled={!canUpdate} onClick={() => void model.update(selected)}><Icon name="refresh" />刷新榜单</button></div>
+        <div className="ranking-actions">{official}<Button variant="app-control" type="button" className="ranking-refresh" disabled={!canUpdate} onClick={() => void model.update(selected)}><Icon name="refresh" />刷新榜单</Button></div>
       </div>
       <div className="ranking-hero-bottom"><div className="ranking-selectors" role="group" aria-label="选择模型榜单">
-        {MODEL_BOARDS.map(id => <button type="button" key={id} aria-pressed={id === selected} onClick={() => model.setSelected(id)}>{BOARD_INFO[id].title}</button>)}
+        {MODEL_BOARDS.map(id => <Button variant="app-ranking-tab" type="button" key={id} aria-pressed={id === selected} onClick={() => model.setSelected(id)}>{BOARD_INFO[id].title}</Button>)}
       </div><div className="ranking-times"><Icon name="clock" /><span>采集时间</span>{snapshot ? <time dateTime={snapshot.capturedAt}>{rankingTime(snapshot.capturedAt)}<span> 北京时间</span></time> : <span>尚未采集</span>}{cancelled && <span role="status" className="ranking-cancelled">已取消获取</span>}</div></div>
     </header>
     {!model.connected && <p className="ranking-notice">当前为网页预览，请在这个工作目录根运行 npm run dev 打开桌面版。</p>}
-    {model.connected && !hasRoot && !rootError && <p className="ranking-notice">先在<a href="#settings">设置中选择数据目录</a>，随后自动获取并保存榜单。</p>}
+    {model.connected && !hasRoot && !rootError && <p className="ranking-notice">先在<UILink variant="plain" href="#settings/data">设置中选择数据目录</UILink>，随后自动获取并保存榜单。</p>}
     {rootError && <p className="ranking-notice ranking-error" role="alert">{rootError}</p>}
-    {model.loading && <p className="ranking-notice" role="status">正在读取已保存榜单…</p>}
+    <LoadingStatus active={model.loading}>正在读取已保存榜单…</LoadingStatus>
     {model.busy && <div className="ranking-notice ranking-progress"><span className="ranking-progress-dot" aria-hidden="true" /><span role="status">{BOARD_INFO[model.busy.board].title} · {model.busy.action === 'save' ? '正在保存…' : '正在采集…'}</span>
-      {model.busy.action === 'fetch' && <button type="button" className="text-action" onClick={model.cancel}>取消获取</button>}</div>}
-    {(model.loadError || board.error) && <div className="ranking-notice ranking-error" role="alert"><p>{model.loadError || board.error?.message}</p><button type="button" className="text-action" disabled={!hasRoot || waiting} onClick={() => void model.refresh()}>重新读取</button></div>}
+      {model.busy.action === 'fetch' && <Button variant="app-text" type="button" className="text-action" onClick={model.cancel}>取消获取</Button>}</div>}
+    {(model.loadError || board.error) && <div className="ranking-notice ranking-error" role="alert"><p>{model.loadError || board.error?.message}</p><Button variant="app-text" type="button" className="text-action" disabled={!hasRoot || waiting} onClick={() => void model.refresh()}>重新读取</Button></div>}
     {model.errors[selected] && <p className="ranking-notice ranking-error" role="alert">{model.errors[selected]}</p>}
-    {snapshot ? <><RankingLeaders snapshot={snapshot} /><RankingTable snapshot={snapshot} /><footer className="ranking-footer"><span>数据来自 <a href={RANKING_DATASET} target="_blank" rel="noopener noreferrer">Arena</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>{selected === 'agent' && <> · 价格 <a href={RANKING_PRICE_SOURCE} target="_blank" rel="noopener noreferrer" title={priceDescription}>Models.dev</a></>}</span><span>展示 {snapshot.rows.length} / {snapshot.totalModels} 个模型</span></footer></>
-      : <div className="ranking-empty"><span className="ranking-empty-icon"><Icon name={boardIcon(selected)} /></span><h3>等待获取{BOARD_INFO[selected].title}</h3><p>采集完成后，前 50 名将显示在这里。</p><button type="button" className="ranking-refresh" disabled={!canUpdate} onClick={() => void model.update(selected)}><Icon name="refresh" />开始采集</button></div>}
+    {snapshot ? <><RankingLeaders snapshot={snapshot} /><RankingTable snapshot={snapshot} /><footer className="ranking-footer"><span>数据来自 <UILink variant="plain" href={RANKING_DATASET} target="_blank" rel="noopener noreferrer">Arena</UILink> · <UILink variant="plain" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</UILink>{selected === 'agent' && <> · 价格 <UILink variant="plain" href={RANKING_PRICE_SOURCE} target="_blank" rel="noopener noreferrer" title={priceDescription}>Models.dev</UILink></>}</span><span>展示 {snapshot.rows.length} / {snapshot.totalModels} 个模型</span></footer></>
+      : <div className="ranking-empty"><span className="ranking-empty-icon"><Icon name={boardIcon(selected)} /></span><h3>等待获取{BOARD_INFO[selected].title}</h3><p>采集完成后，前 50 名将显示在这里。</p><Button variant="app-control" type="button" className="ranking-refresh" disabled={!canUpdate} onClick={() => void model.update(selected)}><Icon name="refresh" />开始采集</Button></div>}
   </section>;
 }

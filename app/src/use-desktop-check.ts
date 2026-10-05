@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke, isTauri } from './desktop-api.ts';
 import { desktopError, parseDesktopReport } from './desktop-contract.ts';
 import type { CheckState } from './desktop-contract.ts';
 
