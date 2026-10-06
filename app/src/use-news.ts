@@ -1,3 +1,4 @@
+import { useOperationNotice, useOperationNotices } from './components/ui/operation-toast.tsx';
 // Page-independent source drafts, previews and immutable save requests.
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
@@ -25,7 +26,7 @@ export function useNews(root: string | null) {
   const [loadError, setLoadError] = useState('');
   const [materialError, setMaterialError] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useOperationNotice('');
   const [collecting, setCollecting] = useState(false);
   const collectingRef = useRef(false);
   const [drafts, setDrafts] = useState<Record<string, SourceDraft>>({});
@@ -35,7 +36,7 @@ export function useNews(root: string | null) {
   const [busy, setBusy] = useState<string[]>([]);
   const busyRef = useRef(new Set<string>());
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [notices, setNotices] = useState<Record<string, string>>({});
+  const [notices, setNotices] = useOperationNotices<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
   const [filter, setFilter] = useState('');
   const filterRef = useRef('');
@@ -152,7 +153,6 @@ export function useNews(root: string | null) {
         baseline: Math.max(current?.baseline ?? 0, saved.revision), dirty: latest.revision > saved.revision || !!current && !matchesRequest });
     }
     putPending(id, null);
-    if (request.expectedRevision === null && window.location.hash === '#settings/news/sources/new') window.location.hash = `settings/news/sources/${id}`;
   }
   async function sendSave(id: string, request: SaveSourceRequest) {
     putPending(id, request);

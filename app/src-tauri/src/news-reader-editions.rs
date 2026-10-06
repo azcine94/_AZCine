@@ -52,6 +52,7 @@ pub async fn run_period(app:tauri::AppHandle,kind:String,retry_id:Option<String>
     let _guard=crate::news_editorial_commands::claim(&app)?;
     let (root,prefs,sources)=crate::with_storage(app.clone(),|m|{let s=m.store()?;Ok((s.root.clone(),s.news_preferences()?,s.news_sources()?))}).await?;
     let retry=retry_id.is_some();let id=retry_id.unwrap_or_else(crate::news_editorial_commands::uuid_value);
+    if retry{let copy=id.clone();crate::with_storage(app.clone(),move|m|{let s=m.store()?;if s.news_history_hidden(&copy)?{return Err(StorageError::new("news_history_removed","这条处理记录已删除，未重新执行。"));}let run=s.editorial_run(&copy)?;if !matches!(run.status.as_str(),"failed"|"cancelled"|"interrupted"|"awaitingModel"){return Err(StorageError::new("news_retry_not_failed","这个报告任务无需重试。"));}Ok(())}).await?;}
     let path=crate::news_editorial_commands::cache_path(&root,&id,"period-input.json")?;
     let input:PeriodInput=if retry{crate::news_editorial_commands::read(&path)?}else{let at=crate::news_store::now();let run=EditorialRun{id,kind:"organize".into(),status:"running".into(),started_at:at.clone(),finished_at:None,window_start:at.clone(),window_end:at,config_revision:prefs.revision,config:prefs.config.clone(),sources,event_id:None,event_revision:None,total:0,processed:0,error:None,schedule_date:None};let input=PeriodInput{run,preferences:prefs,kind};crate::news_editorial_commands::retain(&path,&input)?;input};
     let mut run=input.run;run.status="running".into();run.error=None;run.finished_at=None;

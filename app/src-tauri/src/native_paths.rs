@@ -2,7 +2,12 @@ use crate::storage::StorageError;
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
-pub use windows_impl::{choose_folder, open_folder, open_ranking_source, choose_news_pdf,choose_news_markdown};
+pub use windows_impl::{choose_folder, open_folder, open_ranking_source, choose_news_pdf,choose_news_markdown,choose_bookkeeping_csv,open_bookkeeping_receipt};
+
+#[cfg(not(windows))]
+pub fn choose_bookkeeping_csv(_owner:isize,_name:String)->Result<Option<PathBuf>,StorageError>{Err(StorageError::new("bookkeeping_export_unsupported","记账文件导出目前仅支持 Windows 桌面。"))}
+#[cfg(not(windows))]
+pub fn open_bookkeeping_receipt(_owner:isize,_path:&Path)->Result<(),StorageError>{Err(StorageError::new("bookkeeping_receipt_unsupported","系统票据打开目前仅支持 Windows 桌面。"))}
 
 #[cfg(not(windows))]
 pub fn open_ranking_source(_owner: isize, _board: crate::model_ranking::Board) -> Result<(), StorageError> {
@@ -63,6 +68,27 @@ mod windows_impl {
     /// Native cancellation returns Ok(None), not an error or a saved result.
     pub fn choose_folder(owner: isize) -> Result<Option<PathBuf>, StorageError> {
         run_in_sta("azcine-folder-picker", move || choose_folder_sta(owner))
+    }
+    pub fn choose_bookkeeping_csv(owner:isize,name:String)->Result<Option<PathBuf>,StorageError>{run_in_sta("azcine-expenses-save",move||{
+        use windows::Win32::UI::Shell::{IFileSaveDialog,FileSaveDialog,FOS_OVERWRITEPROMPT};
+        let dialog:IFileSaveDialog=unsafe{CoCreateInstance(&FileSaveDialog,None,CLSCTX_INPROC_SERVER)}.map_err(|e|native_error("无法创建记账保存窗口",e.code()))?;
+        let name:Vec<u16>=name.encode_utf16().chain(Some(0)).collect();
+        (||->windows::core::Result<()>{unsafe{dialog.SetTitle(w!("导出记账明细（请选择新文件名）"))?;dialog.SetDefaultExtension(w!("csv"))?;dialog.SetFileName(PCWSTR(name.as_ptr()))?;let options=dialog.GetOptions()?;dialog.SetOptions(options|FOS_FORCEFILESYSTEM|FOS_NOCHANGEDIR|FOS_OVERWRITEPROMPT)}})().map_err(|e:windows::core::Error|native_error("无法设置记账保存选项",e.code()))?;
+        match unsafe{dialog.Show(owner_hwnd(owner))}{Ok(())=>{},Err(e)if e.code()==HRESULT::from_win32(ERROR_CANCELLED.0)=>return Ok(None),Err(e)=>return Err(native_error("无法显示记账保存窗口",e.code()))}
+        let item=unsafe{dialog.GetResult()}.map_err(|e|native_error("无法取得导出路径",e.code()))?;
+        let display=TaskMemString(unsafe{item.GetDisplayName(SIGDN_FILESYSPATH)}.map_err(|e|native_error("无法取得导出路径",e.code()))?);
+        if display.0.is_null(){return Err(StorageError::new("bookkeeping_export_path","系统没有返回导出路径。"));}
+        let path=PathBuf::from(OsString::from_wide(unsafe{display.0.as_wide()}));
+        if !path.is_absolute()||path.extension().is_none_or(|e|!e.eq_ignore_ascii_case("csv")){return Err(StorageError::new("bookkeeping_export_path","请选择绝对路径的 .csv 文件。"));}
+        Ok(Some(path))
+    })}
+    // Only called with a verified, app-owned PNG/JPEG/WebP/PDF receipt path from Rust.
+    pub fn open_bookkeeping_receipt(owner:isize,path:&Path)->Result<(),StorageError>{
+        let path=path.to_path_buf();run_in_sta("azcine-receipt-open",move||{
+            let encoded:Vec<u16>=path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let result=unsafe{ShellExecuteW(owner_hwnd(owner),w!("open"),PCWSTR(encoded.as_ptr()),PCWSTR::null(),PCWSTR::null(),SW_SHOWNORMAL)};
+            if result.0 as isize>32{Ok(())}else{Err(StorageError::new("bookkeeping_receipt_open","Windows 未能打开票据，请检查是否有对应的图片或 PDF 查看程序。"))}
+        })
     }
     pub fn choose_news_pdf(owner:isize,name:String)->Result<Option<PathBuf>,StorageError>{run_in_sta("azcine-news-save",move||{
         use windows::Win32::UI::Shell::{IFileSaveDialog,FileSaveDialog,FOS_OVERWRITEPROMPT};

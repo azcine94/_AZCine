@@ -1,8 +1,9 @@
+import { notifyOperation, useOperationNotices } from './components/ui/operation-toast.tsx';
 // Project drafts and pending saves survive routed page changes at App scope.
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from './desktop-api.ts';
-import { parseProject, parseProjects, parseProjectContent } from './projects-contract.ts';
-import type { ProjectContent, ProjectDocument, ProjectUndo } from './projects-contract.ts';
+import { parseProject, parseProjectCatalog, parseProjectDeletionReceipt, parseProjectContent } from './projects-contract.ts';
+import type { ProjectContent, ProjectDocument, ProjectUndo, ProjectDeletionRequest, ProjectDeletionReceipt } from './projects-contract.ts';
 import { workspaceError } from './workspace-contract.ts';
 
 export interface ProjectSaveRequest { requestId: string; expectedRevision: number | null; document: ProjectContent }
@@ -23,12 +24,17 @@ function equalContent(a: ProjectContent, b: ProjectContent): boolean {
 export function useProjects(root: string | null) {
   const [projects, setProjects] = useState<ProjectDocument[]>([]);
   const projectsRef = useRef<ProjectDocument[]>([]);
+  const [removedProjects, setRemovedProjects] = useState<ProjectDocument[]>([]);
+  const removedRef = useRef<ProjectDocument[]>([]);
+  const [deletionPending, setDeletionPending] = useState<Record<string, ProjectDeletionRequest>>({});
+  const deletionRef = useRef<Record<string, ProjectDeletionRequest>>({});
+  const [lastDeleted, setLastDeleted] = useState<ProjectDocument | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ProjectDraft>>({});
   const draftsRef = useRef<Record<string, ProjectDraft>>({});
   const [pending, setPending] = useState<Record<string, PendingSave>>({});
   const pendingRef = useRef<Record<string, PendingSave>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [notices, setNotices] = useState<Record<string, string>>({});
+  const [notices, setNotices] = useOperationNotices<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState('');
@@ -81,8 +87,9 @@ export function useProjects(root: string | null) {
     acceptProjects(previous.some(item => item.id === doc.id) ? previous.map(item => item.id === doc.id ? doc : item) : [...previous, doc]);
   }
   async function readAll() {
-    const next = parseProjects(await invoke<unknown>('list_projects'));
-    acceptProjects(next); return next;
+    const catalog = parseProjectCatalog(await invoke<unknown>('project_catalog'));
+    removedRef.current = catalog.removed; setRemovedProjects(catalog.removed);
+    acceptProjects(catalog.projects); return catalog.projects;
   }
   async function refresh() {
     if (!root || busyRef.current) return;
@@ -111,6 +118,7 @@ export function useProjects(root: string | null) {
   }
   function change(id: string, update: (content: ProjectContent) => ProjectContent, validateCandidate = false) {
     if (busyRef.current && (busyIdRef.current !== id || validateCandidate) || pendingRef.current[id] && busyIdRef.current !== id) return false;
+    if (deletionRef.current[id] || removedRef.current.some(project => project.id === id)) return false;
     const draft = draftsRef.current[id]; if (!draft) return false;
     try {
       const content = update(contentOf(draft.content));
@@ -141,6 +149,7 @@ export function useProjects(root: string | null) {
     message(id, '', request.consumesUndo ? '已恢复删除的内容，其他编辑保持不变。' : '项目已保存。');
   }
   async function saveInside(id: string, consumesUndo = false) {
+    if (deletionRef.current[id] || removedRef.current.some(project => project.id === id)) throw new Error('项目已删除或操作结果待核对，草稿保留，请先恢复或核对。');
     let draft = draftsRef.current[id]; if (!draft) throw new Error('项目草稿不存在，请重新读取。');
     if (!draft.dirty && !pendingRef.current[id]) return;
     // The restore intent lives with the draft, not just a disposable request.
@@ -206,6 +215,61 @@ export function useProjects(root: string | null) {
       message(id, '', '已确认该请求没有保存。草稿保留，可修改后重试；若正式修订已变，请先核对下方版本。');
     }
   });
+  function putDeletion(id: string, request: ProjectDeletionRequest | null) {
+    const next = { ...deletionRef.current };
+    if (request) next[id] = request; else delete next[id];
+    deletionRef.current = next; setDeletionPending(next);
+  }
+  function checkDeletion(receipt: ProjectDeletionReceipt, request: ProjectDeletionRequest) {
+    if (receipt.requestId !== request.requestId || receipt.deleted !== request.deleted || receipt.project.id !== request.projectId || receipt.project.revision !== request.expectedRevision + 1) {
+      throw new Error('项目操作回执不对应本次请求，请核对；原请求及草稿已保留。');
+    }
+  }
+  async function finishDeletion(receipt: ProjectDeletionReceipt, request: ProjectDeletionRequest) {
+    checkDeletion(receipt, request);
+    await readAll();
+    const current = (request.deleted ? removedRef.current : projectsRef.current).find(item => item.id === request.projectId);
+    const matches = !!current && current.revision >= receipt.project.revision;
+    putDeletion(request.projectId, null);
+    if (request.deleted && matches) setLastDeleted(current);
+    else setLastDeleted(previous => previous?.id === request.projectId ? null : previous);
+    message(`delete:${request.projectId}`, '', matches ? request.deleted ? '项目已删除，可撤销或到“已删除”恢复。' : '项目已恢复。' : '原操作已执行，当前状态随后有变化，请按最新列表核对。');
+    if (request.deleted && matches && current) notifyOperation(`已删除“${current.name}”`, { tone: 'success', action: { label: '撤销', run: () => setDeleted(current, false) } });
+    return matches;
+  }
+  async function setDeleted(project: ProjectDocument, deleted: boolean): Promise<boolean> {
+    let success = false;
+    await action(`delete:${project.id}`, async () => {
+      if (pendingRef.current[project.id]) throw new Error('此项目的保存结果尚未确认，请先核对保存结果。');
+      let request = deletionRef.current[project.id];
+      if (request && request.deleted !== deleted) throw new Error('前次删除或恢复结果尚未确认，请先核对，原请求已保留。');
+      if (!request) {
+        request = { requestId: crypto.randomUUID(), projectId: project.id, expectedRevision: project.revision, deleted };
+        putDeletion(project.id, request);
+      }
+      try {
+        const receipt = parseProjectDeletionReceipt(await invoke<unknown>('set_project_deleted', { input: request }));
+        success = await finishDeletion(receipt, request);
+      } catch (error) {
+        // Only a definitive rejection permits a new request. Transport failures
+        // retain the exact request so retry cannot repeat a completed mutation.
+        const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+        if (['stale_record', 'project_missing', 'invalid_id', 'invalid_project_content'].includes(String(code))) {
+          await readAll(); putDeletion(project.id, null);
+        }
+        throw error;
+      }
+    });
+    return success;
+  }
+  const reconcileDeletion = (id: string) => action(`delete:${id}`, async () => {
+    const request = deletionRef.current[id]; if (!request) return;
+    const raw = await invoke<unknown>('project_deletion_request', { requestId: request.requestId });
+    if (raw === null) {
+      await readAll(); putDeletion(id, null);
+      message(`delete:${id}`, '', '已确认原请求未执行，可重新操作。草稿已保留。');
+    } else await finishDeletion(parseProjectDeletionReceipt(raw), request);
+  });
   // Explicit, informed rebase only. Neither refresh nor a stale response does it.
   function rebase(id: string) {
     if (busyRef.current || pendingRef.current[id]) return;
@@ -224,7 +288,7 @@ export function useProjects(root: string | null) {
     putDraft(id, { content: contentOf(official), baseline: official.revision, dirty: false });
     message(id, '', '已采用正式记录。');
   }
-  return { projects, drafts, pending, errors, notices, loading:loading||Boolean(root&&loadedRoot.current!==root), loadError, busy, newName, newId, undos, labelDrafts, query,
+  return { projects, removedProjects, deletionPending, lastDeleted, setDeleted, reconcileDeletion, drafts, pending, errors, notices, loading:loading||Boolean(root&&loadedRoot.current!==root), loadError, busy, newName, newId, undos, labelDrafts, query,
     changeQuery: setQuery, changeNewName, refresh, change, save, create, reconcile, rebase, replaceWithOfficial, putUndo, changeLabelDraft };
 }
 export type ProjectsController = ReturnType<typeof useProjects>;

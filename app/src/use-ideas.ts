@@ -1,3 +1,4 @@
+import { notifyOperation, useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
 import { contentFor, emptyIdeaDraft, ideaDraft, parseIdea, parseIdeas, sameIdeaContent, validateIdea } from './ideas-contract.ts';
@@ -18,7 +19,8 @@ export function useIdeas(root: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [errorScope, setErrorScope] = useState<string | null>(null);
+  const [notice, setNotice] = useOperationNotice('');
   const [undo, setUndo] = useState<Idea | null>(null);
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState('');
@@ -57,16 +59,16 @@ export function useIdeas(root: string | null) {
   }
   useEffect(() => {
     generation.current++; locked.current = false;
-    setIdeas([]); ideaRef.current=[]; setError(''); setLoadError(''); setNotice(''); setUndo(null); setEditing({}); setBusy(''); setLoading(false);
+    setIdeas([]); ideaRef.current=[]; setErrorScope(null); setError(''); setLoadError(''); setNotice(''); setUndo(null); setEditing({}); setBusy(''); setLoading(false);
     requests.current = {}; setPending({}); draftRef.current = { new: emptyIdeaDraft() }; setDrafts(draftRef.current);
     void refresh();
   }, [root]);
   async function action(name: string, work: () => Promise<void>) {
     if (!root || locked.current || !isTauri()) return;
     const current = generation.current;
-    locked.current = true; setBusy(name); setNotice('');
+    locked.current = true; setBusy(name); setNotice(''); setError(''); setErrorScope(null);
     try { await work(); if (current === generation.current) setError(''); }
-    catch (e) { if (current === generation.current) setError(workspaceError(e)); }
+    catch (e) { if (current === generation.current) { setError(workspaceError(e)); setErrorScope(name); } }
     finally { if (current === generation.current) { locked.current = false; setBusy(''); } }
   }
   function release(key: string) { delete requests.current[key]; setPending({ ...requests.current }); }
@@ -129,6 +131,7 @@ export function useIdeas(root: string | null) {
     if (saved.id !== idea.id || saved.deleted !== nextDeleted || saved.revision !== idea.revision + 1 || !sameIdeaContent(saved,idea)) throw Error('移除回执不匹配，请重新读取核对。');
     accept(saved); rebaseOwnMutation(saved); setUndo(nextDeleted ? saved : null);
     setNotice(nextDeleted ? '已移除灵感，可以撤销。' : '灵感已恢复。');
+    if (nextDeleted) notifyOperation('灵感已移除', { tone: 'success', action: { label: '撤销', run: () => remove(saved, false) } });
   });
   const convert = (idea: Idea, refreshWorkspace: () => Promise<void>) => action(`convert:${idea.id}`, async () => {
     if (Object.values(requests.current).some(r => r.content.id === idea.id)) throw Error('请先核对这张卡的保存结果。');
@@ -139,7 +142,7 @@ export function useIdeas(root: string | null) {
   });
   function clearFilters() { setQuery(''); setTag(''); setProjectId(''); setDeleted(false); }
   return { ideas, drafts, changeDraft, editing, edit, closeEdit: (id: string) => setEditing(previous => ({ ...previous, [id]: false })),
-    pending, busy, loading, error, loadError, notice, undo, refresh, save, reconcile, remove, convert,
+    pending, busy, loading, errorScope, error, loadError, notice, undo, refresh, save, reconcile, remove, convert,
     query, setQuery, tag, setTag, projectId, setProjectId, deleted, setDeleted, clearFilters, continueOnCurrent };
 }
 export type IdeasController = ReturnType<typeof useIdeas>;

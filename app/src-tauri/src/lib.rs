@@ -36,6 +36,10 @@ use news_editorial_commands::*;
 #[path = "news-export.rs"] mod news_export;
 use news_export::*;
 mod ideas;
+mod bookkeeping;
+#[path = "bookkeeping-exchange.rs"] mod bookkeeping_exchange;
+#[path = "bookkeeping-commands.rs"] mod bookkeeping_commands;
+use bookkeeping_commands::*;
 #[path = "pi-jsonl.rs"] mod pi_jsonl;
 #[path = "pi-model-config.rs"] mod pi_model_config;
 #[path = "pi-provider-config.rs"] mod pi_provider_config;
@@ -147,6 +151,21 @@ async fn project_request(app: tauri::AppHandle, window: tauri::WebviewWindow, re
     main_window(&window)?;
     with_storage(app, move |manager| manager.store()?.project_request(&request_id)).await
 }
+#[tauri::command]
+async fn project_catalog(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<projects::ProjectCatalog, StorageError> {
+    main_window(&window)?;
+    with_storage(app, |manager| manager.store()?.project_catalog()).await
+}
+#[tauri::command]
+async fn set_project_deleted(app: tauri::AppHandle, window: tauri::WebviewWindow, input: projects::DeleteProject) -> Result<projects::DeletionReceipt, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.set_project_deleted(input)).await
+}
+#[tauri::command]
+async fn project_deletion_request(app: tauri::AppHandle, window: tauri::WebviewWindow, request_id: String) -> Result<Option<projects::DeletionReceipt>, StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.store()?.project_deletion_request(&request_id)).await
+}
 
 #[tauri::command]
 async fn list_ideas(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Vec<ideas::Idea>, StorageError> {
@@ -213,7 +232,7 @@ pub fn run() {
         .manage(news_ai::AiControl::default())
         .manage(pi_manager::PiManager::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea])
+        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
         .setup(|app| { news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")

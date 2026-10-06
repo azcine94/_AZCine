@@ -23,6 +23,13 @@ export interface ProjectContent {
 export interface ProjectDocument extends ProjectContent {
   revision: number; createdAt: string;
 }
+export interface ProjectDeletionRequest {
+  requestId: string; projectId: string; expectedRevision: number; deleted: boolean;
+}
+export interface ProjectDeletionReceipt {
+  requestId: string; deleted: boolean; project: ProjectDocument;
+}
+export interface ProjectCatalog { projects: ProjectDocument[]; removed: ProjectDocument[] }
 export interface ProjectSaveInput {
   requestId: string; expectedRevision: number | null; document: ProjectContent;
 }
@@ -348,4 +355,17 @@ export function restoreUndo(content: ProjectContent, undo: ProjectUndo): Project
   // Recheck nested ID collisions, references, limits and restored cell values.
   // Parsing also detaches the result from the retained undo snapshot.
   return parseProjectContent(next);
+}
+
+export function parseProjectCatalog(value: unknown): ProjectCatalog {
+  const catalog = object(value, ['projects', 'removed']);
+  const projects = parseProjects(catalog.projects), removed = parseProjects(catalog.removed);
+  const used = new Set<string>();
+  for (const project of [...projects, ...removed]) entityId(project.id, used);
+  return { projects, removed };
+}
+export function parseProjectDeletionReceipt(value: unknown): ProjectDeletionReceipt {
+  const receipt = object(value, ['requestId', 'deleted', 'project']);
+  if (typeof receipt.deleted !== 'boolean') return fail();
+  return { requestId: entityId(receipt.requestId), deleted: receipt.deleted, project: parseProject(receipt.project) };
 }

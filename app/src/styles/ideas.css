@@ -1,5 +1,8 @@
 .ideas-page { display:flex; flex-direction:column; gap:var(--s-4); min-width:0; }
 .ideas-intro { display:flex; justify-content:space-between; align-items:center; gap:var(--s-5); }
+.ideas-intro { flex-wrap:wrap; }
+.ui-form-dialog-body .idea-composer { display:flex; flex-direction:column; padding:0; border:0; box-shadow:none; background:transparent; }
+.ui-form-dialog-body .idea-form-footer>div { flex-wrap:wrap; }
 .ideas-intro h2 { font:600 var(--fs-h)/var(--lh-h) var(--font); }
 .ideas-intro p { margin-top:var(--s-1); color:var(--t2); font-size:var(--fs-s); }
 .ideas-total { display:flex; align-items:center; gap:var(--s-3); flex:none; color:var(--t2); font-size:var(--fs-s); }

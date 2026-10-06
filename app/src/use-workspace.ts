@@ -1,3 +1,4 @@
+import { notifyOperation, useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
 import { localDate, millisecondsToNextDay, parseTodo, parseWorkspace, sameInput, validateTodo, workspaceError } from './workspace-contract.ts';
@@ -12,7 +13,8 @@ export function useWorkspace() {
   const busyRef = useRef(false);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [errorScope, setErrorScope] = useState<string | null>(null);
+  const [notice, setNotice] = useOperationNotice('');
   const [rootDraft, setRootDraft] = useState('');
   const rootTouched = useRef(false);
   const [draft, setDraft] = useState({ title: '', dueDate: '', projectId: '' });
@@ -65,7 +67,7 @@ export function useWorkspace() {
     busyRef.current = true; setBusy(name); setNotice('');
     // Keep an existing error visible while retrying instead of collapsing it.
     try { await work(); setError(''); }
-    catch (e) { setNotice(''); setError(workspaceError(e)); }
+    catch (e) { setNotice(''); setError(workspaceError(e)); setErrorScope(name); }
     finally { setBusy(''); busyRef.current = false; }
   }
   function changeRoot(value: string) { rootTouched.current = true; setRootDraft(value); }
@@ -127,12 +129,13 @@ export function useWorkspace() {
       if (!sameInput(saved, todo) || saved.createdAt !== todo.createdAt || saved.completed !== completed || saved.revision !== todo.revision + 1) throw new Error('待办操作响应不匹配，请重新读取核对。');
       acceptTodo(saved); setUndo(consumingUndo ? null : { todo: saved, completed: todo.completed });
       setNotice(consumingUndo ? '已撤销最近一次状态修改。' : completed ? '已完成待办，可撤销。' : '已恢复为未完成。');
+      if (!consumingUndo) notifyOperation(completed ? '待办已完成' : '待办已恢复为未完成', { tone: 'success', action: { label: '撤销', run: () => changeCompletion(saved, todo.completed, true) } });
     } catch (e) {
       try { await readWorkspace(); } catch (readError) { setLoadError(workspaceError(readError)); }
       throw e;
     }
   });
-  return { connected, workspace, loading, busy, loadError, error, notice, rootDraft, changeRoot, draft, changeDraft,
+  return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot, draft, changeDraft,
     pendingCreate, filter, setFilter, today, undo, refresh, pickRoot, selectRoot, openRoot, saveTodo, reconcileCreate, changeCompletion };
 }
 export type WorkspaceController = ReturnType<typeof useWorkspace>;

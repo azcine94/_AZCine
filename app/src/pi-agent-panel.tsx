@@ -132,7 +132,7 @@ export function AgentChat({model,preview=false}:{model:PiController;preview?:boo
           </div></Disclosure>
         </div>
       </header>
-      <div className="pi-chat-feedback" aria-live="polite">{(model.error??s?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{model.error??s?.error?.message}</Feedback>}{model.notice&&<p>{model.notice}</p>}{s?.notice&&<p>{s.notice}</p>}{projection?.notice&&<p>{projection.notice}</p>}
+      <div className="pi-chat-feedback" aria-live="polite">{(model.error??s?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{model.error??s?.error?.message}</Feedback>}{projection?.notice&&<p>{projection.notice}</p>}
         {projection?.outcome&&projection.outcome!=='none'&&<p className="pi-outcome" data-outcome={projection.outcome}>{preview?'示例状态':'本轮'}：{({success:preview?'已完成（演示）':'实际回复已完成',error:'失败',interrupted:'已中断',incomplete:'未完整结束'} as Record<string,string>)[projection.outcome]??'状态待确认'}</p>}
       </div>
       <div className="pi-message-area"><div className="pi-chat-messages" ref={viewport} onScroll={scroll} tabIndex={0} role="region" aria-label="会话消息">

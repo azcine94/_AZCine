@@ -1,3 +1,4 @@
+import { useOperationNotices } from './components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
 import { beijingDay, emptyModelBoards, MODEL_BOARDS, parseModelBoards, parseModelBoardState, parseModelSnapshot } from './model-ranking-contract.ts';
@@ -15,7 +16,7 @@ export function useModelRanking(root: string | null, visible: boolean) {
   const [boards, setBoards] = useState(emptyModelBoards);
   const boardsRef = useRef(boards);
   const [errors, setErrors] = useState(blankMessages);
-  const [notices, setNotices] = useState(blankMessages);
+  const [notices, setNotices] = useOperationNotices(blankMessages);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState<{ board: ModelBoard; action: string } | null>(null);

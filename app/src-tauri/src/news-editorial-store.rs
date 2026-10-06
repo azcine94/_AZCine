@@ -191,7 +191,7 @@ impl Store {
         let preferences=self.news_preferences()?;
         let mut q=self.db.prepare("SELECT payload FROM news_editions ORDER BY date DESC,version DESC").map_err(db_error)?;
         let editions=q.query_map([],|r|r.get::<_,String>(0)).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?.iter().map(|v|decode(v)).collect::<Result<Vec<_>,_>>()?;
-        let mut q=self.db.prepare("SELECT payload FROM news_editorial_runs ORDER BY json_extract(payload,'$.startedAt') DESC LIMIT 100").map_err(db_error)?;
+        let mut q=self.db.prepare("SELECT r.payload FROM news_editorial_runs r WHERE NOT EXISTS (SELECT 1 FROM news_hidden_runs h WHERE h.id=r.id) ORDER BY json_extract(r.payload,'$.startedAt') DESC LIMIT 100").map_err(db_error)?;
         let runs=q.query_map([],|r|r.get::<_,String>(0)).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?.iter().map(|v|decode(v)).collect::<Result<Vec<_>,_>>()?;
         let end=chrono::Utc::now();let pending=self.editorial_candidates("0001-01-01T00:00:00.000Z",&end.to_rfc3339_opts(chrono::SecondsFormat::Millis,true))?.len();
         let next_daily_at=if preferences.config.auto_daily{Some(crate::news_schedule::next_daily(&preferences.config.daily_time,end)?)}else{None};

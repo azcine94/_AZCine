@@ -1,3 +1,4 @@
+import {useOperationNotice} from './components/ui/operation-toast.tsx';
 import { Button } from './components/ui/button.tsx';
 // Loaded only by the development preview entry. No IPC, storage or model requests.
 import { useMemo, useRef, useState } from 'react';
@@ -52,7 +53,7 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const resources=usePiResources(null);
   const [active,setActive]=useState(sessions[0]),[scenario,setScenario]=useState<Scenario>('complete');
   const [selectedModel,setSelectedModel]=useState(MODEL);
-  const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useState<string|null>(null);
+  const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useOperationNotice<string|null>(null);
   const [choices,setChoices]=useState<Record<string,boolean>>({});
   const [modelForm,setModelForm]=useState<PiController['modelForm']>({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
   const scroll=useRef<Record<string,{top:number;following:boolean}>>({});

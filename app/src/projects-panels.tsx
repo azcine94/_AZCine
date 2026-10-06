@@ -5,8 +5,12 @@ import { Disclosure } from './components/ui/disclosure.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
+import { MoreHorizontal, Trash2, Undo2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './components/ui/dialog.tsx';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './components/ui/dropdown-menu.tsx';
+import { FormDialog, useCreationDialog } from './components/ui/form-dialog.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ChangeEventHandler, FocusEvent, FocusEventHandler } from 'react';
+import type { ChangeEventHandler, FocusEvent, FocusEventHandler, ReactNode } from 'react';
 import type { ChecklistBlock, ProjectContent, ProjectBlock, ProjectDocument } from './projects-contract.ts';
 import { deriveDeliveries } from './projects-contract.ts';
 import type { ProjectsController } from './use-projects.ts';
@@ -20,10 +24,10 @@ const id = () => crypto.randomUUID();
 export function projectLink(projectId: string, blockId?: string, rowId?: string) {
   return `#projects/${projectId}${blockId && rowId ? `/${blockId}/${rowId}` : ''}`;
 }
-function status(model: ProjectsController, projectId: string, includeNotice = true) {
+function status(model: ProjectsController, projectId: string) {
   return <div className="workspace-feedback" aria-live="polite">
     {model.errors[projectId] && <Feedback as="p" tone="error" className="form-error" role="alert">{model.errors[projectId]}</Feedback>}
-    {includeNotice && model.notices[projectId] && <p role="status">{model.notices[projectId]}</p>}
+
   </div>;
 }
 function DocumentIcon({ name }: { name: 'folder' | 'arrow' | 'plus' | 'up' | 'down' | 'terminal' }) {
@@ -56,28 +60,80 @@ export function DeliveryList({ projects, compact = false }: { projects: ProjectD
     </section>;
   })}{groups.size > 3 && <Button variant="app-text" className="text-action" aria-expanded={allDates} onClick={() => setAllDates(!allDates)}>{allDates ? '收起更多日期' : `展开其余 ${groups.size - 3} 个日期分组`}</Button>}</>;
 }
+interface ProjectDeletionTarget { project: ProjectDocument; deleted: boolean; opener: HTMLElement | null }
+function ProjectDeletionConfirmation({ model, target, close }: { model: ProjectsController; target: ProjectDeletionTarget | null; close: () => void }) {
+  // Retain the dialog body during its exit animation.
+  const previous = useRef(target); if (target) previous.current = target;
+  const shown = target ?? previous.current;
+  const cancel = useRef<HTMLButtonElement>(null);
+  const closingContent = useRef<ReactNode>(null);
+  if (!shown) return null;
+  const { project, deleted } = shown, key = `delete:${project.id}`;
+  const pending = model.deletionPending[project.id];
+  const current = (deleted ? model.projects : model.removedProjects).find(item => item.id === project.id);
+  const stale = !pending && (!current || current.revision !== project.revision);
+  const blocked = !!model.busy || model.loading || !!model.loadError || !!model.pending[project.id] || stale;
+  const body = <><DialogHeader><DialogTitle>{deleted ? '删除项目' : '恢复项目'}</DialogTitle><DialogDescription>{deleted ? '项目移入“已删除”，可随时恢复。' : '恢复后回到项目列表，原交付安排重新参与汇总。'}</DialogDescription></DialogHeader>
+      <p className="project-deletion-name">{project.name}</p>
+      <p className="subtle">{deleted ? '项目将退出列表和交付汇总，文档内容、待办和灵感关联保留。' : '恢复原文档，保留原有待办和灵感关联。'}</p>
+      {model.drafts[project.id]?.dirty && <Feedback tone="pending">未保存的编辑会保留为本地草稿，恢复后需核对版本再保存。</Feedback>}
+      {status(model, key)}
+      {model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
+      {stale && model.busy !== key && <Feedback tone="pending">项目版本或状态已变化，请关闭后按最新列表重新选择。</Feedback>}
+      {model.pending[project.id] && <Feedback tone="pending">保存结果尚未确认，请先回文档核对。</Feedback>}
+      {pending && <Feedback tone="pending">操作结果待核对，重试会沿用原请求。</Feedback>}
+      <DialogFooter><Button ref={cancel} variant="outline" disabled={!!model.busy} onClick={close}>取消</Button>{pending && <Button variant="outline" disabled={!!model.busy || model.loading} onClick={() => void model.reconcileDeletion(project.id)}>核对结果</Button>}<Button variant={deleted ? 'destructive' : 'default'} style={{ minInlineSize: '7em' }} disabled={blocked} onClick={() => { void model.setDeleted(project, deleted).then(success => { if (success) close(); }); }}>{model.busy === key ? '正在处理…' : pending ? '重试原请求' : deleted ? '确认删除' : '恢复项目'}</Button></DialogFooter></>;
+  if (target) closingContent.current = body;
+  return <Dialog open={!!target} onOpenChange={open => { if (!open && !model.busy) close(); }}>
+    <DialogContent showCloseButton={!model.busy} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus(); }} onCloseAutoFocus={event => {
+      const opener = shown.opener?.isConnected ? shown.opener : document.querySelector<HTMLElement>('[data-project-trash]');
+      if (opener) { event.preventDefault(); opener.focus({ preventScroll: true }); }
+    }} onEscapeKeyDown={event => { if (model.busy) event.preventDefault(); }} onInteractOutside={event => { if (model.busy) event.preventDefault(); }}>
+      {closingContent.current}
+    </DialogContent>
+  </Dialog>;
+}
+function ProjectDeletionFeedback({ model }: { model: ProjectsController }) {
+  const ids = new Set([...Object.keys(model.deletionPending), ...Object.keys(model.errors).filter(key => key.startsWith('delete:') && model.errors[key]).map(key => key.slice(7))]);
+  return <div className="workspace-feedback" aria-live="polite">{[...ids].map(id => <div key={id}>{status(model, `delete:${id}`)}{model.deletionPending[id] && <Feedback tone="pending">项目操作结果待核对。<Button variant="app-text" disabled={!!model.busy || model.loading} onClick={() => void model.reconcileDeletion(id)}>核对结果</Button></Feedback>}</div>)}</div>;
+}
 export function ProjectsOverview({ model, create = false }: { model: ProjectsController; create?: boolean }) {
-  const visible = model.projects.filter(project => project.name.toLocaleLowerCase().includes(model.query.trim().toLocaleLowerCase()));
-  const creationFeedback = <>{status(model, 'create')}{model.newId && <Feedback as="div" tone="pending" className="pending-note"><p>创建结果尚未确认，名称已保留，不会重复创建。</p>{status(model, model.newId)}<Button variant="app-pill" className="pill" disabled={!!model.busy} onClick={() => { if (model.newId) void model.reconcile(model.newId); }}>核对创建结果</Button></Feedback>}</>;
-  if (create) return <div className="project-content project-create-page"><UILink variant="document" className="doc-button" href="#projects">← 全部项目</UILink><section className="project-create"><h2>新建公司项目文档</h2><p className="subtle">从一份空文档开始，内容由你决定。</p><form className="entry-form" noValidate onSubmit={event => { event.preventDefault(); const from = window.location.hash; void model.create().then(projectId => { if (projectId && window.location.hash === from) window.location.hash = projectLink(projectId); }); }}>
-    <label htmlFor="new-project-name">项目名称</label><Input variant="inline" id="new-project-name" value={model.newName} aria-required="true" autoComplete="off" placeholder="填写公司项目名称" disabled={!!model.busy || !!model.newId || model.loading || !!model.loadError} onChange={event => model.changeNewName(event.target.value)} />
-    <div className="project-create-footer"><span className="meta">公司项目 · 不预设标签或清单</span><Button variant="app-pill" className="pill on" disabled={!!model.busy || model.loading || !!model.loadError}>{model.busy === 'create' ? '正在保存…' : model.newId ? '重试创建（同一请求）' : '新建公司项目'}</Button></div>
-  </form>{creationFeedback}{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</section></div>;
-  return <div className="project-content project-index"><div className="project-index-toolbar"><p className="subtle">文档与交付，按项目组织</p><label className="project-search"><span className="visually-hidden">搜索公司项目</span><Input variant="app" className="input" id="project-search" type="search" placeholder="搜索公司项目" value={model.query} onChange={event => model.changeQuery(event.target.value)} /></label><UILink variant="pill" className="pill on" href="#projects/new"><DocumentIcon name="plus" />新建公司项目</UILink></div>
-    {creationFeedback}{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
-    <section className="project-company-module" aria-labelledby="company-projects-title"><header className="project-module-heading"><h2 id="company-projects-title">公司项目</h2><span className="meta">自由文档 · 清单 · 交付</span></header>
-      {!visible.length ? <div className="project-empty-panel" aria-busy={model.loading}><h3>{model.loading ? '正在读取公司项目…' : model.loadError ? '公司项目暂时未能读取' : model.query.trim() ? '没有找到公司项目' : '还没有公司项目'}</h3><p>{model.query.trim() ? '换个名称试试，或者清除搜索。' : '从一份文档开始，按你的需要组织清单和交付。'}</p>{model.query.trim() ? <Button variant="app-document" className="doc-button" onClick={() => model.changeQuery('')}>清除搜索</Button> : <UILink variant="pill" className="pill on" href="#projects/new">新建第一份文档</UILink>}</div> : <div className="project-grid">{visible.map(project => {
+  const creation = useCreationDialog(create);
+  const [showRemoved, setShowRemoved] = useState(false);
+  const [deletionTarget, setDeletionTarget] = useState<ProjectDeletionTarget | null>(null);
+  const menuOpener = useRef<HTMLElement | null>(null);
+  const opensConfirmation = useRef(false);
+  useEffect(() => { if (create) creation.setOpen(true); }, [create]);
+  function closeCreation(open: boolean) {
+    creation.setOpen(open);
+    if (!open && location.hash === '#projects/new') location.hash = '#projects';
+  }
+  const visible = (showRemoved ? model.removedProjects : model.projects).filter(project => project.name.toLocaleLowerCase().includes(model.query.trim().toLocaleLowerCase()));
+  const creationFeedback = <>{status(model, 'create')}{model.newId && <Feedback as="div" tone="pending" className="pending-note"><p>创建结果尚未确认，名称已保留，不会重复创建。</p>{status(model, model.newId)}<Button type="button" variant="app-pill" className="pill" disabled={!!model.busy} onClick={() => { if (model.newId) void model.reconcile(model.newId); }}>核对创建结果</Button></Feedback>}</>;
+  return <div className="project-content project-index"><div className="project-index-toolbar"><p className="subtle">文档与交付，按项目组织</p><label className="project-search"><span className="visually-hidden">搜索公司项目</span><Input variant="app" className="input" id="project-search" type="search" placeholder="搜索公司项目" value={model.query} onChange={event => model.changeQuery(event.target.value)} /></label><Button variant="app-pill" className="pill" data-project-trash aria-pressed={showRemoved} onClick={() => setShowRemoved(!showRemoved)}><Trash2 />{showRemoved ? '返回项目' : `已删除 (${model.removedProjects.length})`}</Button><Button variant="app-pill" className="pill on" data-create="project" onClick={() => creation.setOpen(true)}><DocumentIcon name="plus" />新建公司项目</Button></div>
+    {!deletionTarget && <ProjectDeletionFeedback model={model} />}{!creation.open && model.newId && creationFeedback}{!creation.open && !deletionTarget && model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
+    <section className="project-company-module" aria-labelledby="company-projects-title"><header className="project-module-heading"><h2 id="company-projects-title">{showRemoved ? '已删除的公司项目' : '公司项目'}</h2><span className="meta">{showRemoved ? '原内容保留，可恢复' : '自由文档 · 清单 · 交付'}</span></header>
+      {!visible.length ? <div className="project-empty-panel" aria-busy={model.loading}><h3>{model.loading ? '正在读取公司项目…' : model.loadError ? '公司项目暂时未能读取' : model.query.trim() ? '没有找到公司项目' : showRemoved ? '没有已删除的项目' : '还没有公司项目'}</h3><p>{model.query.trim() ? '换个名称试试，或者清除搜索。' : showRemoved ? '删除的项目会出现在这里，可随时恢复。' : '从一份文档开始，按你的需要组织清单和交付。'}</p>{model.query.trim() ? <Button variant="app-document" className="doc-button" onClick={() => model.changeQuery('')}>清除搜索</Button> : !showRemoved && <Button variant="app-pill" className="pill on" onClick={() => creation.setOpen(true)}>新建第一份文档</Button>}</div> : <div className="project-grid">{visible.map(project => {
+        if (showRemoved) return <article className="project-card" key={project.id} data-project-id={project.id}><div className="project-card-identity"><div className="project-card-top"><span><Trash2 size={16} />已删除</span><span className="project-card-count">{project.blocks.length} 个内容块</span></div><h2 title={project.name}>{project.name}</h2><p>文档及关联已保留</p></div><div className="project-card-bottom"><Button variant="app-pill" data-project-restore disabled={!!model.busy || model.loading || !!model.loadError || !!model.pending[project.id] || !!model.deletionPending[project.id]} onClick={event => setDeletionTarget({ project, deleted: false, opener: event.currentTarget })}><Undo2 />恢复项目</Button></div></article>;
         const deliveries = deriveDeliveries([project]); const next = deliveries.find(item => item.dueDate); const sameDate = next ? deliveries.filter(item => item.dueDate === next.dueDate) : deliveries; const missing = deliveries.filter(item => item.missing.length).length;
         const description = project.blocks.length ? project.blocks.slice(0, 3).map(block => block.title).join(' · ') : '按你的需要组织项目文档';
         const stages = next ? [...new Set(sameDate.map(item => item.stageName || '阶段待补'))].join(' / ') : '';
         const detail = `${deliveries.length ? `${sameDate.length} 项待交` : '由参与汇总的清单整理'}${stages ? ` · ${stages}` : ''}${missing ? ` · ${missing} 行信息待补` : ''}`;
-        return <UILink variant="plain" className="project-card" href={projectLink(project.id)} key={project.id} data-project-id={project.id} data-delivery-state={next ? 'scheduled' : deliveries.length ? 'incomplete' : 'empty'}>
-          <div className="project-card-identity"><div className="project-card-top"><span><span className="project-card-icon"><DocumentIcon name="folder" /></span>公司项目</span><span className="project-card-count">{project.blocks.length} 个内容块</span></div><h2 title={project.name}>{project.name}</h2><p title={description}>{description}</p></div>
+        return <article className="project-card-frame" key={project.id}><UILink variant="plain" className="project-card" href={projectLink(project.id)} key={project.id} data-project-id={project.id} data-delivery-state={next ? 'scheduled' : deliveries.length ? 'incomplete' : 'empty'}>
+          <div className="project-card-identity"><div className="project-card-top"><span><span className="project-card-icon"><DocumentIcon name="folder" /></span>公司项目</span></div><h2 title={project.name}>{project.name}</h2><p title={description}><span className="project-card-count">{project.blocks.length} 个内容块 · </span>{description}</p></div>
           <div className="project-card-bottom"><div className="project-card-summary"><span className="project-card-status"><span aria-hidden="true" />{next ? '最近交付' : '交付安排'}</span>{next ? <time className="project-card-value" dateTime={next.dueDate}>{next.dueDate}</time> : <span className="project-card-value">{deliveries.length ? '日期待补' : '暂无交付安排'}</span>}<span className="project-card-detail" title={detail}>{detail}</span></div><span className="project-card-open"><span className="visually-hidden">打开文档</span><DocumentIcon name="arrow" /></span></div>
-        </UILink>;
+        </UILink><DropdownMenu><DropdownMenuTrigger asChild><Button variant="app-icon" className="project-card-menu" data-project-menu aria-label={`项目“${project.name}”的操作`} disabled={!!model.busy || model.loading || !!model.loadError} onPointerDown={event => { menuOpener.current = event.currentTarget; }} onKeyDown={event => { menuOpener.current = event.currentTarget; }}><MoreHorizontal size={16} /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" onCloseAutoFocus={event => { if (opensConfirmation.current) { event.preventDefault(); opensConfirmation.current = false; } }}><DropdownMenuItem variant="destructive" disabled={!!model.pending[project.id] || !!model.deletionPending[project.id]} onSelect={() => { opensConfirmation.current = true; setDeletionTarget({ project, deleted: true, opener: menuOpener.current }); }}><Trash2 />删除项目</DropdownMenuItem></DropdownMenuContent></DropdownMenu></article>;
       })}</div>}
     </section><section className="project-personal-module" aria-labelledby="personal-projects-title"><header className="project-module-heading"><h2 id="personal-projects-title">个人项目</h2><span className="meta">待定</span></header><div className="personal-project-placeholder"><span className="personal-project-icon"><DocumentIcon name="terminal" /></span><div><h3>给自己的项目，留一个位置</h3><p>这个模块暂不设计内部功能。</p></div><span className="meta personal-project-state">待定</span></div></section>
     <Button variant="app-document" className="doc-button project-reload" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取项目</Button>
+    <ProjectDeletionConfirmation model={model} target={deletionTarget} close={() => setDeletionTarget(null)} />
+    <FormDialog open={creation.open} onOpenChange={closeCreation} title="新建公司项目" description="从一份空文档开始。关闭保留未提交的项目名称。">
+      <form className="entry-form" noValidate onSubmit={event => { event.preventDefault(); const from = location.hash, session = creation.session.current; void model.create().then(projectId => { if (projectId && location.hash === from && creation.session.current === session) closeCreation(false); }); }}>
+        <label htmlFor="new-project-name">项目名称</label><Input id="new-project-name" value={model.newName} aria-required="true" autoComplete="off" placeholder="填写公司项目名称" disabled={!!model.busy || !!model.newId || model.loading || !!model.loadError} onChange={event => model.changeNewName(event.target.value)} />
+        {creationFeedback}{model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
+        <div className="ui-form-dialog-actions"><Button type="button" variant="ghost" onClick={() => closeCreation(false)}>关闭，保留草稿</Button><Button disabled={!!model.busy || model.loading || !!model.loadError}>{model.busy === 'create' ? '正在保存…' : model.newId ? '重试创建（同一请求）' : '新建项目'}</Button></div>
+      </form>
+    </FormDialog>
   </div>;
 }
 function DocumentBody({ value, ...props }: { value: string; id: string; disabled: boolean; 'aria-label': string; onChange: ChangeEventHandler<HTMLTextAreaElement>; onBlur: FocusEventHandler<HTMLTextAreaElement> }) {
@@ -94,15 +150,18 @@ function newBlock(kind: ProjectBlock['kind']): ProjectBlock {
 }
 export function ProjectEditor({ model, projectId, targetRow }: { model: ProjectsController; projectId: string; targetRow?: { blockId: string; rowId: string } }) {
   const official = model.projects.find(doc => doc.id === projectId);
+  const removed = model.removedProjects.find(project => project.id === projectId);
   const draft = model.drafts[projectId];
   const doc = draft?.content;
   const saving = model.busy === projectId;
-  const disabled = !!model.busy || !!model.pending[projectId] || model.loading || !!model.loadError;
+  const disabled = !!removed || !!model.busy || !!model.deletionPending[projectId] || !!model.pending[projectId] || model.loading || !!model.loadError;
   const locked = disabled && !saving;
   // Text may keep changing during this project's in-flight save. The controller
   // retains it over the response and queues the next blur, avoiding lost input
   // when moving directly from one field to another. Structure stays locked.
-  const editingDisabled = model.loading || !!model.loadError || (!!model.busy && model.busy !== projectId) || (!!model.pending[projectId] && model.busy !== projectId);
+  const editingDisabled = !!removed || !!model.deletionPending[projectId] || model.loading || !!model.loadError || (!!model.busy && model.busy !== projectId) || (!!model.pending[projectId] && model.busy !== projectId);
+  const [deletionTarget, setDeletionTarget] = useState<ProjectDeletionTarget | null>(null);
+  useEffect(() => setDeletionTarget(null), [projectId]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [hideChecklists, setHideChecklists] = useState(() => window.matchMedia('(max-width:1100px)').matches);
   const [checklistFocus, setChecklistFocus] = useState<string>();
@@ -177,6 +236,8 @@ export function ProjectEditor({ model, projectId, targetRow }: { model: Projects
     if (model.change(projectId, content => restoreEntity(content, model.undos[projectId]), true)) void model.save(projectId, true);
   }
   const [labelError, setLabelError] = useState('');
+  const removedView = removed ?? (deletionTarget && !deletionTarget.deleted ? deletionTarget.project : null);
+  if (removedView && !deletionTarget?.deleted) return <div className="project-content"><UILink variant="pill" href="#projects">返回项目</UILink><h2>项目已删除</h2><p className="subtle">“{removedView.name}”的文档及关联已保留，恢复后可继续编辑。</p>{!deletionTarget && <ProjectDeletionFeedback model={model} />}<Button data-project-restore disabled={!!model.busy || model.loading || !!model.loadError || !!model.deletionPending[projectId] || !!model.pending[projectId]} onClick={event => setDeletionTarget({ project: removedView, deleted: false, opener: event.currentTarget })}>恢复项目</Button><ProjectDeletionConfirmation model={model} target={deletionTarget} close={() => setDeletionTarget(null)} /></div>;
   if (model.loading && !doc) return <p role="status">正在读取项目文档…</p>;
   if (!doc || !draft) return <div className="project-content"><UILink variant="pill" className="pill" href="#projects">返回项目</UILink><h2>项目未能打开</h2><p role="alert">{model.loadError || '未找到这个项目，未创建空文档。'}</p><Button variant="app-pill" className="pill" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取</Button></div>;
   const checklists = doc.blocks.filter((block): block is ChecklistBlock => block.kind === 'checklist');
@@ -219,8 +280,7 @@ export function ProjectEditor({ model, projectId, targetRow }: { model: Projects
     if (!name || [...name].length > 80 || stageLabels.some(label => label.id !== labelId && label.name.trim() === name)) { setLabelError('请填写 1–80 字且不重复的标签名称。'); return false; }
     setLabelError(''); return true;
   }
-  const notice = model.notices[projectId];
-  const saveState = saving ? '正在保存…' : model.pending[projectId] ? '保存结果待核对' : draft.dirty ? '有未保存编辑，摘要仍使用已保存记录' : `已保存 · 修订 ${official?.revision ?? 0}${notice && notice !== '项目已保存。' ? ` · ${notice}` : ''}`;
+  const saveState = saving ? '正在保存…' : model.pending[projectId] ? '保存结果待核对' : draft.dirty ? '有未保存编辑，摘要仍使用已保存记录' : `已保存 · 修订 ${official?.revision ?? 0}`;
   return <div className="project-content project-document" data-project-document={projectId} data-saving={saving} onClickCapture={event => {
     // Temporary locks use aria-disabled so fast IPC cannot drop focus or fade
     // every control. Capture plus the controller guard still blocks mutation.
@@ -238,14 +298,16 @@ export function ProjectEditor({ model, projectId, targetRow }: { model: Projects
     const leavingPicker = picker && !(event.relatedTarget instanceof Element && picker.contains(event.relatedTarget));
     if (commitControl || leavingPicker) blurSave(event);
   }}>
+    {!deletionTarget && <ProjectDeletionFeedback model={model} />}
+    <ProjectDeletionConfirmation model={model} target={deletionTarget} close={() => { setDeletionTarget(null); if (model.removedProjects.some(project => project.id === projectId) && location.hash.startsWith(`#projects/${projectId}`)) location.hash = '#projects'; }} />
     <header className="project-document-header">
       <div className="document-breadcrumb"><UILink variant="document" className="doc-button" href="#projects">← 全部项目</UILink><p className="meta document-save-state" role="status" aria-busy={saving}>{saveState}</p></div>
-      <div className="document-top"><label className="visually-hidden" htmlFor="project-name">项目名称</label><Input variant="inline" className="input project-name" id="project-name" value={doc.name} disabled={editingDisabled} onChange={event => change(content => ({ ...content, name: event.target.value }))} onBlur={blurSave} /><div className="document-heading-actions"><Button variant="app-document" type="button" className="doc-button project-checklists-toggle" aria-expanded={!hideChecklists} aria-controls="project-checklists-panel" onClick={() => setHideChecklists(!hideChecklists)}>{hideChecklists ? '展开项目清单' : '收起项目清单'}<span className="project-checklists-toggle-count">{checklists.length}</span></Button><Button variant="app-document" className="doc-button" data-project-commit disabled={locked || !draft.dirty} aria-disabled={disabled || !draft.dirty} onClick={() => void model.save(projectId)}>保存文档</Button><ProjectAddMenu primary disabled={disabled} onAdd={add} /></div></div>
+      <div className="document-top"><label className="visually-hidden" htmlFor="project-name">项目名称</label><Input variant="inline" className="input project-name" id="project-name" value={doc.name} disabled={editingDisabled} onChange={event => change(content => ({ ...content, name: event.target.value }))} onBlur={blurSave} /><div className="document-heading-actions"><Button variant="app-document" type="button" className="doc-button project-checklists-toggle" aria-expanded={!hideChecklists} aria-controls="project-checklists-panel" onClick={() => setHideChecklists(!hideChecklists)}>{hideChecklists ? '展开项目清单' : '收起项目清单'}<span className="project-checklists-toggle-count">{checklists.length}</span></Button><Button variant="app-document" className="doc-button" data-project-commit disabled={locked || !draft.dirty} aria-disabled={disabled || !draft.dirty} onClick={() => void model.save(projectId)}>保存文档</Button><ProjectAddMenu primary disabled={disabled} onAdd={add} /><Button variant="app-document" className="doc-button" data-project-delete-document data-project-preserve disabled={disabled || !official} onClick={event => { if (official) setDeletionTarget({ project: official, deleted: true, opener: event.currentTarget }); }}><Trash2 size={16} />删除项目</Button></div></div>
     </header>
     <div className="project-document-layout" data-checklists-hidden={hideChecklists}>
       <ProjectChecklistPanel id="project-checklists-panel" groups={checklists} hidden={hideChecklists} disabled={disabled} locked={locked} editingDisabled={editingDisabled} focusBlockId={checklistFocus} addGroup={() => add('checklist')} update={(blockId, update, save) => blockChange(blockId, block => block.kind === 'checklist' ? update(block) : block, save)} remove={(blockId, itemId) => remove(blockId, itemId ? 'checklist-item' : 'block', itemId)} move={move} blurSave={blurSave} undo={checklistUndo ? undoEntry : null} />
       <div className="project-document-scroll" role="region" aria-label="项目文档正文" tabIndex={0}>
-    {status(model, projectId, false)}{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
+    {!deletionTarget && status(model, projectId)}{!deletionTarget && model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
     {model.pending[projectId] && !model.busy && <Feedback as="div" tone="pending" className="pending-note"><p>输入和原请求已保留。重试不重复创建，核对后再继续修改。</p><div className="form-actions"><Button variant="app-pill" className="pill" onClick={() => void model.save(projectId)}>重试保存（同一请求）</Button><Button variant="app-pill" className="pill" onClick={() => void model.reconcile(projectId)}>核对保存结果</Button></div></Feedback>}
     {stale && <Feedback as="section" tone="conflict" className="project-conflict" aria-label="项目修订冲突"><h2>正式记录已变化</h2><p>草稿仍保留在原修订 {draft.baseline}。先核对当前正式修订 {official.revision}。下面采用新基线后仍需点击保存；保存会以当前整份草稿替换正式文档，不自动合并。</p><Disclosure><summary>查看当前正式记录</summary><pre>{JSON.stringify(official, null, 2)}</pre></Disclosure><Button variant="app-pill" className="pill" data-project-preserve disabled={locked} aria-disabled={disabled} onClick={() => model.rebase(projectId)}>已核对，将草稿改用当前修订</Button></Feedback>}
     <section className="delivery-summary" aria-label="交付摘要"><div className="summary-feature"><p className="summary-eyebrow">最近待交</p>{next ? <FeatureDate value={next.dueDate} /> : <p className="project-date summary-no-date">{summary.length ? '日期待补' : '暂无待交'}</p>}<p>{next ? `${sameDate.length} 项交付 · ${[...new Set(sameDate.map(item => item.stageName || '阶段待补'))].join(' / ')}` : '只统计指定 list 中未交完的行'}</p><span className="meta">由参与汇总的清单整理</span></div><div className="summary-items"><header className="summary-heading"><h2>交付摘要</h2><span className="meta">{summary.length} 项待交 · 点镜头定位原行</span></header><DeliveryList projects={official ? [official] : []} />{missingCount > 0 && <p className="meta summary-missing">{missingCount} 行信息待补；未填日期、镜头或阶段仍明确保留。</p>}</div></section>

@@ -2,6 +2,7 @@ import { EmptyState } from './components/ui/empty-state.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
 import { Button } from './components/ui/button.tsx';
+import { FormDialog, useCreationDialog } from './components/ui/form-dialog.tsx';
 import { Input } from './components/ui/input.tsx';
 import { NativeSelect } from './components/ui/native-select.tsx';
 import { filterTodos } from './workspace-contract.ts';
@@ -9,13 +10,13 @@ import type { TodoFilter } from './workspace-contract.ts';
 import type { WorkspaceController } from './use-workspace.ts';
 import type { ProjectDocument } from './projects-contract.ts';
 import { DateInput } from './date-input.tsx';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Idea } from './ideas-contract.ts';
 
-function WorkspaceFeedback({ model }: { model: WorkspaceController }) {
+function WorkspaceFeedback({ model, todo = false }: { model: WorkspaceController; todo?: boolean }) {
   return <div className="workspace-feedback" aria-live="polite">
-    {model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
-    {model.notice && <p role="status">{model.notice}</p>}
+    {model.error && (todo ? ['save-todo', 'reconcile'].includes(model.errorScope ?? '') : !['save-todo', 'reconcile'].includes(model.errorScope ?? '')) && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
+    
   </div>;
 }
 export function WorkspaceGate({ model }: { model: WorkspaceController }) {
@@ -39,6 +40,13 @@ const filters: { id: TodoFilter; title: string }[] = [{ id: 'incomplete', title:
 export function TodoPanel({ model, projects, projectsLoading = false, projectsError = '', ideas = [], targetId = null }: {
   model: WorkspaceController; projects: ProjectDocument[]; projectsLoading?: boolean; projectsError?: string; ideas?: Idea[]; targetId?: string | null;
 }) {
+  const creation = useCreationDialog();
+  const submitted = useRef<number | null>(null);
+  useEffect(() => {
+    if (submitted.current === null || model.busy) return;
+    if (!model.error && !model.pendingCreate && !model.draft.title && model.notice === '待办已保存。') creation.finish(submitted.current);
+    submitted.current = null;
+  }, [model.busy, model.draft, model.notice, model.error, model.pendingCreate]);
   const disabled = !!model.busy || model.loading || !!model.loadError;
   const draftLocked = disabled || !!model.pendingCreate;
   const projectLocked = draftLocked || projectsLoading || !!projectsError;
@@ -49,25 +57,30 @@ export function TodoPanel({ model, projects, projectsLoading = false, projectsEr
     const row = document.querySelector<HTMLElement>(`[data-todo-id="${targetId}"]`);
     row?.scrollIntoView({ block: 'center' }); row?.focus({ preventScroll: true });
   }, [targetId, model.filter, model.workspace?.todos]);
-  const state = model.loading ? '正在读取待办…' : model.busy === 'save-todo' ? '正在保存…' : model.busy ? '正在更新…' : model.notice || '日期和项目可不填';
+  const state = creation.open ? '' : model.loading ? '正在读取待办…' : model.busy === 'save-todo' ? '正在保存…' : model.busy ? '正在更新…' : '日期和项目可不填';
   return <div className="todo-panel" data-working={!!model.busy || model.loading} onClickCapture={event => {
     if (event.target instanceof Element && event.target.closest('[aria-disabled="true"]')) { event.preventDefault(); event.stopPropagation(); }
   }} onKeyDownCapture={event => {
     if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof Element && event.target.closest('[aria-disabled="true"]')) { event.preventDefault(); event.stopPropagation(); }
   }}>
-    <form className="entry-form todo-composer" aria-label="新增待办" onSubmit={event => { event.preventDefault(); if (!disabled) void model.saveTodo(); }} noValidate>
-      <label className="visually-hidden" htmlFor="todo-title">待办标题</label><Input variant="inline" id="todo-title" value={model.draft.title} readOnly={draftLocked} aria-disabled={draftLocked} onChange={event => model.changeDraft('title', event.target.value)} placeholder="记下一件要做的事…" aria-required="true" />
+    <div className="form-actions"><Button data-create="todo" onClick={() => creation.setOpen(true)}>新增待办</Button></div>
+    <FormDialog open={creation.open} onOpenChange={creation.setOpen} title="新增待办" description="记下一件要做的事，日期和项目可选。关闭保留未提交输入。">
+    <form className="entry-form todo-create-form" aria-label="新增待办" onSubmit={event => { event.preventDefault(); if (!disabled) { submitted.current = creation.session.current; void model.saveTodo(); } }} noValidate>
+      <label htmlFor="todo-title">待办标题</label><Input id="todo-title" value={model.draft.title} readOnly={draftLocked} aria-disabled={draftLocked} onChange={event => model.changeDraft('title', event.target.value)} placeholder="记下一件要做的事…" aria-required="true" />
       <div className="todo-composer-options"><DateInput id="todo-date" label="待办日期" value={model.draft.dueDate} readOnly={draftLocked} selectionDisabled={draftLocked} onChange={value => { if (!draftLocked) model.changeDraft('dueDate', value); }} />
       <label className="todo-project-select"><span className="visually-hidden">公司项目（可选）</span><NativeSelect variant="inline" id="todo-project" aria-disabled={projectLocked} aria-busy={projectsLoading} aria-describedby="todo-project-hint" value={model.draft.projectId} onChange={event => { if (!projectLocked) model.changeDraft('projectId', event.target.value); }}><option value="">不关联项目</option>{projectsLoading ? <option disabled>正在读取项目…</option> : projectsError ? <option disabled>项目未能读取，请到项目页重试</option> : projects.length === 0 ? <option disabled>暂无公司项目</option> : null}{model.draft.projectId && !projects.some(project => project.id === model.draft.projectId) && <option value={model.draft.projectId} disabled>原关联项目（名称待读取）</option>}{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</NativeSelect><span id="todo-project-hint" className="visually-hidden">{projectHint}</span></label></div>
-      <Button variant="app-pill" className="pill on todo-save" aria-disabled={disabled}>{model.pendingCreate ? '重试保存（同一请求）' : '保存待办'}</Button>
+      <WorkspaceFeedback model={model} todo />
+      {model.pendingCreate && <Feedback tone="pending"><p>保存结果尚未确认，原输入与请求已保留。</p><Button type="button" variant="outline" disabled={disabled} onClick={() => void model.reconcileCreate()}>核对保存结果</Button></Feedback>}
+      <div className="ui-form-dialog-actions"><Button type="button" variant="ghost" onClick={() => creation.setOpen(false)}>关闭，保留草稿</Button><Button disabled={disabled}>{model.pendingCreate ? '重试保存（同一请求）' : '保存待办'}</Button></div>
     </form>
-    <div className="todo-feedback" aria-live="polite" aria-busy={!!model.busy || model.loading}><p role="status" className="meta">{state}</p>{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.loadError && model.loadError !== model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</div>
-    {model.pendingCreate && <Feedback as="div" tone="pending" className="pending-note"><p>保存结果尚未确认，原输入与请求已保留；重试不重复建项。</p><Button variant="app-pill" type="button" className="pill" aria-disabled={disabled} onClick={() => void model.reconcileCreate()}>重新核对保存结果</Button></Feedback>}
+    </FormDialog>
+    <div className="todo-feedback" aria-live="polite" aria-busy={!!model.busy || model.loading}><p role="status" className="meta">{state}</p>{!creation.open && !['save-todo', 'reconcile'].includes(model.errorScope ?? '') && model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.loadError && model.loadError !== model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</div>
+    {!creation.open && model.pendingCreate && <Feedback as="div" tone="pending" className="pending-note"><p>保存结果尚未确认，原输入与请求已保留；重试不重复建项。</p><Button variant="app-pill" type="button" className="pill" aria-disabled={disabled} onClick={() => void model.reconcileCreate()}>重新核对保存结果</Button></Feedback>}
     <div className="form-actions todo-filters" aria-label="待办筛选">{filters.map(filter => <Button variant="app-pill" key={filter.id} className={`pill${model.filter === filter.id ? ' on' : ''}`} aria-pressed={model.filter === filter.id} onClick={() => model.setFilter(filter.id)}>{filter.title}</Button>)}</div>
     {todos.length === 0 ? <EmptyState as="p" className="todo-empty">{model.filter === 'completed' ? '还没有已完成的待办。' : model.filter === 'today' ? '今天没有到期待办，未设日期的事项仍在“未完成”。' : '暂无待办，先记下一件事。'}</EmptyState> : <ul className="todo-list">{todos.map(todo => <li key={todo.id} data-todo-id={todo.id} data-targeted={targetId === todo.id} tabIndex={targetId === todo.id ? -1 : undefined}>
       <div className="todo-row"><Button variant="app-control" className="todo-toggle" aria-pressed={todo.completed} aria-label={`${todo.completed ? '恢复' : '完成'}待办：${todo.title}`} aria-disabled={disabled} onClick={() => void model.changeCompletion(todo, !todo.completed)}><span className="todo-check" aria-hidden="true">{todo.completed ? '✓' : ''}</span><span className={todo.completed ? 'todo-done' : ''}>{todo.title}</span></Button><span className="meta todo-date">{todo.dueDate ?? '未设日期'}</span></div>{todo.projectId && <UILink variant="text" className="foundation-link todo-project" href={`#projects/${todo.projectId}`}>{projects.find(project => project.id === todo.projectId)?.name ?? '打开关联公司项目'}</UILink>}
       {ideas.find(idea => idea.todoId === todo.id) && <UILink variant="plain" className="todo-source" href={`#ideas/${ideas.find(idea => idea.todoId === todo.id)!.id}`}>查看来源灵感</UILink>}
     </li>)}</ul>}
-    <div className="form-actions todo-footer"><span className="meta">{model.undo ? '最近一次状态修改' : '保存在本机'}</span><div className="todo-undo-slot">{model.undo && <Button variant="app-text" className="text-action" aria-disabled={disabled} onClick={() => { if (model.undo) void model.changeCompletion(model.undo.todo, model.undo.completed, true); }}>撤销</Button>}</div><Button variant="app-text" className="text-action" aria-disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取待办</Button></div>
+    <div className="form-actions todo-footer"><span className="meta">保存在本机</span><Button variant="app-text" className="text-action" aria-disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取待办</Button></div>
   </div>;
 }

@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-pub(crate) const SCHEMA_VERSION: i64 = 8;
+pub(crate) const SCHEMA_VERSION: i64 = 12;
 const DATABASE: &str = "db/azcine.sqlite3";
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
@@ -174,6 +174,7 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
     crate::news_reader_store::create_schema(&tx)?;
     crate::news_scope::create_schema(&tx)?;
     crate::news_reset::create_schema(&tx)?;
+    crate::bookkeeping::create_schema(&tx)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
@@ -198,7 +199,7 @@ fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), S
         1 | 2 => !ideas && !news && !editorial,
         3 => ideas != news && !editorial,
         4 => !ideas && news && editorial,
-        5 | 6 | 7 | 8 => ideas && news && editorial,
+        5..=SCHEMA_VERSION => ideas && news && editorial,
         _ => false,
     };
     if !recognized { return Err(incompatible()); }
@@ -211,6 +212,10 @@ fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), S
     }
     if version>=7{crate::news_scope::validate_schema(db)?;}
     if version>=8{crate::news_reset::validate_schema(db)?;}
+    if version>=12{crate::news_reset::validate_history_schema(db)?;}
+    let has_bookkeeping=group(&["bookkeeping_expenses","bookkeeping_receipts","bookkeeping_requests"])?;
+    if has_bookkeeping!=(version>=9){return Err(incompatible());}
+    if has_bookkeeping{if version>=10{crate::bookkeeping::validate_schema(db)?;}else{crate::bookkeeping::validate_legacy_schema(db)?;}}
     Ok((ideas, news, editorial))
 }
 
@@ -300,18 +305,25 @@ impl Store {
             if !has_editorial { crate::news_editorial_store::create_schema(&tx)?; }
             if version<6{crate::news_reader_store::create_schema(&tx)?;}
             if version<7{crate::news_scope::create_schema(&tx)?;}
-            crate::news_reset::create_schema(&tx)?;
+            if version<8{crate::news_reset::create_schema(&tx)?;}
+            if version<9{crate::bookkeeping::create_schema(&tx)?;}
+            if version==9{tx.execute_batch("ALTER TABLE bookkeeping_expenses ADD COLUMN exchange TEXT;").map_err(db_error)?;}
+            if version<11{crate::projects::create_deletion_schema(&tx)?;}
+            if version<12{crate::news_reset::create_history_schema(&tx)?;}
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
         db.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
+        crate::projects::validate_deletion_schema(&db)?;
         crate::ideas::validate_schema(&db)?;
         crate::news_store::validate_schema(&db)?;
         crate::news_editorial_store::validate_schema(&db)?;
         crate::news_reader_store::validate_schema(&db)?;
         crate::news_scope::validate_schema(&db)?;
         crate::news_reset::validate_schema(&db)?;
+        crate::news_reset::validate_history_schema(&db)?;
+        crate::bookkeeping::validate_schema(&db)?;
         crate::news_reset::recover_files(&root,&db)?;
         crate::news_store::recover_runs(&db, &root)?;
         crate::news_editorial_store::recover(&db)?;

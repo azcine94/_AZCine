@@ -1,3 +1,4 @@
+import { notifyOperation } from './components/ui/operation-toast.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callPi, desktopPi, piError } from './pi-client.ts';
 import { parseProviders, parseRemoteModels } from './pi-provider-client.ts';
@@ -52,7 +53,10 @@ export function usePiProviders(root:string|null,enabled:boolean,pi:PiController)
   }
   function addManual(uid:string){change(before=>before.map<ProviderDraft>(d=>d.uid!==uid?d:{...d,dirty:true,revision:d.revision+1,tab:'models',models:[...d.models,{uid:id(),persisted:false,id:'',name:'',contextWindow:'32768',maxTokens:'4096',reasoning:false,supportsImages:false,baseUrl:'',api:'',limitsAssumed:true}]}));}
   function removeNew(uid:string,modelUid:string){change(before=>before.map<ProviderDraft>(d=>d.uid!==uid?d:{...d,dirty:true,revision:d.revision+1,models:d.models.filter(m=>m.uid!==modelUid||m.persisted)}));}
-  function addSelected(uid:string){change(before=>before.map<ProviderDraft>(d=>{
+  function addSelected(uid:string){
+    const sent=current.current.find(d=>d.uid===uid);
+    if(sent?.remote){const ids=new Set(sent.models.map(m=>m.id));const selected=new Set(sent.selectedIds);const added=sent.remote.models.filter(m=>selected.has(m.id)&&!ids.has(m.id)).length;if(added&&sent.models.length+added<=200)notifyOperation(`已加入 ${added} 个模型，保存后生效。`);}
+    change(before=>before.map<ProviderDraft>(d=>{
     if(d.uid!==uid||!d.remote)return d;const existing=new Set(d.models.map(m=>m.id));const selected=new Set(d.selectedIds);
     const additions=d.remote.models.filter(m=>selected.has(m.id)&&!existing.has(m.id)).map(m=>({...m,uid:id(),persisted:false,contextWindow:String(m.contextWindow??32768),maxTokens:String(m.maxTokens??4096),supportsImages:m.supportsImages??false,reasoning:false,baseUrl:'',api:'',limitsAssumed:m.contextWindow===null||m.maxTokens===null}));
     if(d.models.length+additions.length>200)return {...d,error:'每个服务商最多添加200个模型，请减少本次选择。'};
@@ -61,6 +65,7 @@ export function usePiProviders(root:string|null,enabled:boolean,pi:PiController)
   async function fetchModels(uid:string){const sent=current.current.find(v=>v.uid===uid);if(!sent||requests.current.has(uid)||sent.root!==rootRef.current)return;
     requests.current.add(uid);const address=signature(sent);change(before=>before.map<ProviderDraft>(d=>d.uid===uid?{...d,fetching:true,error:null,notice:null}:d));
     try{const result=parseRemoteModels(await callPi('pi_fetch_models',{input:{provider:sent.provider,baseUrl:sent.baseUrl.trim(),api:sent.api,apiKey:sent.apiKey||null}}));
+      if(mounted.current&&rootRef.current===sent.root&&current.current.some(d=>d.uid===uid&&signature(d)===address))notifyOperation(result.models.length?`获取到 ${result.models.length} 个模型，请选择要添加的模型。`:'服务商返回了空模型列表，可手动添加。');
       if(mounted.current)change(before=>before.map<ProviderDraft>(d=>d.uid===uid&&signature(d)===address?{...d,remote:result,tab:'models',selectedIds:[],notice:result.models.length?`获取到 ${result.models.length} 个模型，请选择要添加的模型。`:'服务商返回了空模型列表，可手动添加。'}:d));
     }catch(e){if(mounted.current)change(before=>before.map<ProviderDraft>(d=>d.uid===uid&&signature(d)===address?{...d,error:piError(e)}:d));}
     finally{requests.current.delete(uid);if(mounted.current)change(before=>before.map<ProviderDraft>(d=>d.uid===uid?{...d,fetching:false}:d));}

@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Copy, Minus, PanelLeft, Square, X } from 'lucide-react';
 import { isTauri } from '../../desktop-api.ts';
 import { Button } from './button.tsx';
+import { notifyOperation, OperationToast } from './operation-toast.tsx';
 
 interface WorkspaceHeaderProps {
   sidebarCollapsed: boolean;
@@ -15,7 +16,6 @@ export function WorkspaceHeader({ sidebarCollapsed, onToggleSidebar }: Workspace
   const native = isTauri();
   const preview = document.documentElement.dataset.uiPreview === 'true';
   const [maximized, setMaximized] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!native) return;
@@ -34,7 +34,6 @@ export function WorkspaceHeader({ sidebarCollapsed, onToggleSidebar }: Workspace
 
   async function operate(action: 'minimize' | 'maximize' | 'close' | 'drag') {
     if (!native) return;
-    setError('');
     const appWindow = getCurrentWindow();
     try {
       if (action === 'minimize') await appWindow.minimize();
@@ -45,22 +44,22 @@ export function WorkspaceHeader({ sidebarCollapsed, onToggleSidebar }: Workspace
         setMaximized(await appWindow.isMaximized());
       }
     } catch {
-      setError('窗口操作未完成，请重试。');
+      notifyOperation('窗口操作未完成，请重试。', { tone: 'error' });
     }
   }
 
   function drag(event: MouseEvent<HTMLElement>) {
     if (!native || event.button !== 0 || !(event.target instanceof Element)) return;
     // 顶部空白可拖动；交互控件及其图标保持正常点击。
-    if (event.target.closest('button,a,input,select,textarea,[role="button"],[contenteditable="true"]')) return;
+    if (event.target.closest('button,a,input,select,textarea,[role="button"],[contenteditable="true"],[data-slot="operation-toast"]')) return;
     event.preventDefault();
     void operate(event.detail === 2 ? 'maximize' : 'drag');
   }
 
   return <header className="site-header" data-slot="workspace-header" data-window-controls={native || preview} onMouseDown={drag}>
+    <OperationToast />
     <Button variant="ghost" size="icon-sm" className="sidebar-trigger" onClick={onToggleSidebar} aria-label={sidebarCollapsed ? '展开侧栏' : '收起侧栏'} aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar"><PanelLeft /></Button>
     <div className="site-header-actions">
-      {error && <span className="window-action-error" role="alert">{error}</span>}
       {(native || preview) && <div className="window-controls" role="group" aria-label={preview ? '窗口控制（总览仅展示）' : '窗口控制'}>
         <Button variant="ghost" size="app" className="window-control h-full w-11 rounded-none" aria-label="最小化窗口" title="最小化" disabled={!native} onClick={() => void operate('minimize')}><Minus /></Button>
         <Button variant="ghost" size="app" className="window-control h-full w-11 rounded-none" aria-label={maximized ? '还原窗口' : '最大化窗口'} title={maximized ? '还原' : '最大化'} disabled={!native} onClick={() => void operate('maximize')}>{maximized ? <Copy /> : <Square />}</Button>

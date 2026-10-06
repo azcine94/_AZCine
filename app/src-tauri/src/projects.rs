@@ -51,11 +51,23 @@ pub struct ProjectDocument {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SaveProject { pub request_id: String, pub expected_revision: Option<i64>, pub document: ProjectContent }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DeleteProject { pub request_id: String, pub project_id: String, pub expected_revision: i64, pub deleted: bool }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletionReceipt { pub request_id: String, pub deleted: bool, pub project: ProjectDocument }
+#[derive(Serialize)]
+pub struct ProjectCatalog { pub projects: Vec<ProjectDocument>, pub removed: Vec<ProjectDocument> }
+
 // Persist request responses in a nested internal envelope: the public document
 // remains flat, while serde deny_unknown_fields stays useful for the content.
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SavedResponse { content: ProjectContent, revision: i64, created_at: String }
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SavedDeletion { request_id: String, deleted: bool, project: SavedResponse }
 impl From<&ProjectDocument> for SavedResponse {
     fn from(doc: &ProjectDocument) -> Self { Self { content: doc.content.clone(), revision: doc.revision, created_at: doc.created_at.clone() } }
 }
@@ -149,7 +161,20 @@ pub(crate) fn create_schema(db: &Connection) -> Result<(), StorageError> {
       BEGIN SELECT RAISE(ABORT, 'invalid project'); END;
     CREATE TRIGGER todos_project_update BEFORE UPDATE OF project_id ON todos
       WHEN NEW.project_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM projects WHERE id=NEW.project_id)
-      BEGIN SELECT RAISE(ABORT, 'invalid project'); END;").map_err(database_error)
+      BEGIN SELECT RAISE(ABORT, 'invalid project'); END;").map_err(database_error)?;
+    create_deletion_schema(db)
+}
+pub(crate) fn create_deletion_schema(db: &Connection) -> Result<(), StorageError> {
+    db.execute_batch("CREATE TABLE IF NOT EXISTS project_deletions (
+        project_id TEXT PRIMARY KEY REFERENCES projects(id), deleted INTEGER NOT NULL CHECK(deleted IN (0,1))
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS project_deletion_requests (id TEXT PRIMARY KEY, input TEXT NOT NULL, result TEXT NOT NULL) STRICT;").map_err(database_error)?;
+    validate_deletion_schema(db)
+}
+pub(crate) fn validate_deletion_schema(db: &Connection) -> Result<(), StorageError> {
+    db.prepare("SELECT project_id,deleted FROM project_deletions LIMIT 0").map_err(database_error)?;
+    db.prepare("SELECT id,input,result FROM project_deletion_requests LIMIT 0").map_err(database_error)?;
+    Ok(())
 }
 fn document_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, String, i64, String)> {
     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
@@ -168,9 +193,45 @@ fn decode_response(json: &str) -> Result<ProjectDocument, StorageError> {
 }
 impl Store {
     pub fn projects(&self) -> Result<Vec<ProjectDocument>, StorageError> {
-        let mut query = self.db.prepare("SELECT id,name,content,revision,created_at FROM projects ORDER BY created_at,id").map_err(database_error)?;
+        let mut query = self.db.prepare("SELECT id,name,content,revision,created_at FROM projects WHERE NOT EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=projects.id AND d.deleted=1) ORDER BY created_at,id").map_err(database_error)?;
         let rows = query.query_map([], document_row).map_err(database_error)?.collect::<Result<Vec<_>, _>>().map_err(database_error)?;
         rows.into_iter().map(decode_row).collect()
+    }
+    pub fn project_catalog(&self) -> Result<ProjectCatalog, StorageError> {
+        let mut query = self.db.prepare("SELECT id,name,content,revision,created_at FROM projects WHERE EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=projects.id AND d.deleted=1) ORDER BY created_at,id").map_err(database_error)?;
+        let rows = query.query_map([], document_row).map_err(database_error)?.collect::<Result<Vec<_>, _>>().map_err(database_error)?;
+        let removed = rows.into_iter().map(decode_row).collect::<Result<Vec<_>, _>>()?;
+        Ok(ProjectCatalog { projects: self.projects()?, removed })
+    }
+    pub fn project_deletion_request(&self, id: &str) -> Result<Option<DeletionReceipt>, StorageError> {
+        request_id(id)?;
+        let raw: Option<String> = self.db.query_row("SELECT result FROM project_deletion_requests WHERE id=?1", [id], |r| r.get(0)).optional().map_err(database_error)?;
+        raw.as_deref().map(decode_deletion).transpose()
+    }
+    pub fn set_project_deleted(&mut self, input: DeleteProject) -> Result<DeletionReceipt, StorageError> {
+        request_id(&input.request_id)?; request_id(&input.project_id)?;
+        if !(1..MAX_REVISION).contains(&input.expected_revision) { return Err(invalid("项目修订号无效，未删除或恢复。")); }
+        let input_json = serde_json::to_string(&input).map_err(|_| corrupt())?;
+        let tx = self.db.transaction().map_err(database_error)?;
+        let previous: Option<(String, String)> = tx.query_row("SELECT input,result FROM project_deletion_requests WHERE id=?1", [&input.request_id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(database_error)?;
+        if let Some((old, result)) = previous {
+            if old != input_json { return Err(StorageError::new("request_conflict", "同一项目操作编号已有不同内容，未覆盖。")); }
+            return decode_deletion(&result);
+        }
+        let raw = tx.query_row("SELECT id,name,content,revision,created_at FROM projects WHERE id=?1", [&input.project_id], document_row).optional().map_err(database_error)?
+            .ok_or_else(|| StorageError::new("project_missing", "项目不存在，未删除或恢复。"))?;
+        let mut project = decode_row(raw)?;
+        let deleted: bool = tx.query_row("SELECT deleted FROM project_deletions WHERE project_id=?1", [&input.project_id], |r| r.get(0)).optional().map_err(database_error)?.unwrap_or(false);
+        if project.revision != input.expected_revision || deleted == input.deleted { return Err(StorageError::new("stale_record", "项目内容或删除状态已变化，请重新核对后操作。")); }
+        let changed = tx.execute("UPDATE projects SET revision=revision+1 WHERE id=?1 AND revision=?2", params![input.project_id, input.expected_revision]).map_err(database_error)?;
+        if changed != 1 { return Err(StorageError::new("stale_record", "项目版本已变化，未删除或恢复。")); }
+        project.revision += 1;
+        tx.execute("INSERT INTO project_deletions(project_id,deleted) VALUES(?1,?2) ON CONFLICT(project_id) DO UPDATE SET deleted=excluded.deleted", params![input.project_id, input.deleted]).map_err(database_error)?;
+        let saved = SavedDeletion { request_id: input.request_id.clone(), deleted: input.deleted, project: SavedResponse::from(&project) };
+        let result_json = serde_json::to_string(&saved).map_err(|_| corrupt())?;
+        tx.execute("INSERT INTO project_deletion_requests(id,input,result) VALUES(?1,?2,?3)", params![input.request_id, input_json, result_json]).map_err(database_error)?;
+        tx.commit().map_err(database_error)?;
+        Ok(DeletionReceipt { request_id: input.request_id, deleted: input.deleted, project })
     }
     pub fn project(&self, id: &str) -> Result<Option<ProjectDocument>, StorageError> {
         request_id(id)?;
@@ -192,6 +253,8 @@ impl Store {
             if previous != input_json { return Err(StorageError::new("request_conflict", "相同请求编号已有不同内容，未覆盖或重复创建。请核对保存结果。")); }
             return decode_response(&result);
         }
+        let deleted: bool = tx.query_row("SELECT deleted FROM project_deletions WHERE project_id=?1", [&input.document.id], |r| r.get(0)).optional().map_err(database_error)?.unwrap_or(false);
+        if deleted { return Err(StorageError::new("project_deleted", "项目已删除，草稿保留，请先恢复项目后核对保存。")); }
         let old: Option<(i64, String)> = tx.query_row("SELECT revision,created_at FROM projects WHERE id=?1", [&input.document.id], |row| Ok((row.get(0)?, row.get(1)?))).optional().map_err(database_error)?;
         let (revision, created_at) = match (old, input.expected_revision) {
             (None, None) => {
@@ -210,4 +273,10 @@ impl Store {
         tx.commit().map_err(database_error)?;
         Ok(result)
     }
+}
+fn decode_deletion(json: &str) -> Result<DeletionReceipt, StorageError> {
+    let saved: SavedDeletion = serde_json::from_str(json).map_err(|_| corrupt())?;
+    request_id(&saved.request_id)?;
+    let project = decode_response(&serde_json::to_string(&saved.project).map_err(|_| corrupt())?)?;
+    Ok(DeletionReceipt { request_id: saved.request_id, deleted: saved.deleted, project })
 }

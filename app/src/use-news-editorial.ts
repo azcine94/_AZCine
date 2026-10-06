@@ -1,3 +1,4 @@
+import { useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
 import { listen } from './desktop-api.ts';
@@ -13,9 +14,9 @@ export function useNewsEditorial(root: string | null) {
   const [tab, setTab] = useState<ReadingTab>('featured'); const [domain, setDomain] = useState<Domain | ''>('');
   const [editionId, setEditionId] = useState(''); const [limit, setLimit] = useState(50);
   const [loading, setLoading] = useState(false); const [busy, setBusy] = useState(''); const busyRef = useRef('');
-  const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [loadError, setLoadError] = useState('');
+  const [error, setError] = useState(''); const [notice, setNotice] = useOperationNotice(''); const [loadError, setLoadError] = useState('');
   const [copyText, setCopyText] = useState(''); const [copyEditionId, setCopyEditionId] = useState(''); const reads = useRef(0); const loadedRoot = useRef<string | null>(null);
-  const [readingNotice, setReadingNotice] = useState(''); const [readingError, setReadingError] = useState('');
+  const [readingNotice, setReadingNotice] = useOperationNotice(''); const [readingError, setReadingError] = useState('');
   function putDraft(p: Preferences) { draftRef.current = p; setDraft(p); }
   function putPending(p: SavePreferences | null) { pendingRef.current = p; setPending(p); }
   function acceptPreferences(p: Preferences, request?: SavePreferences) {

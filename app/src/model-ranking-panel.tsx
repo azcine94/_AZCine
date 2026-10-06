@@ -96,7 +96,6 @@ export function ModelRankingPanel({ model, hasRoot, rootError }: { model: ModelR
   const sourceContent = <><span>Arena 原榜</span><Icon name="external" /></>;
   const official = model.connected ? <Button variant="app-control" type="button" className="ranking-source-link" onClick={() => void model.openSource(selected)}>{sourceContent}</Button>
     : <UILink variant="plain" className="ranking-source-link" href={BOARD_INFO[selected].url} target="_blank" rel="noopener noreferrer">{sourceContent}</UILink>;
-  const cancelled = model.notices[selected].startsWith('已取消获取');
   const boardIcon = (id: ModelBoard) => id === 'agent' ? 'agent' as const : 'image' as const;
   return <section className="ranking-board" aria-labelledby="ranking-board-title">
     <header className="ranking-hero">
@@ -106,7 +105,7 @@ export function ModelRankingPanel({ model, hasRoot, rootError }: { model: ModelR
       </div>
       <div className="ranking-hero-bottom"><div className="ranking-selectors" role="group" aria-label="选择模型榜单">
         {MODEL_BOARDS.map(id => <Button variant="app-ranking-tab" type="button" key={id} aria-pressed={id === selected} onClick={() => model.setSelected(id)}>{BOARD_INFO[id].title}</Button>)}
-      </div><div className="ranking-times"><Icon name="clock" /><span>采集时间</span>{snapshot ? <time dateTime={snapshot.capturedAt}>{rankingTime(snapshot.capturedAt)}<span> 北京时间</span></time> : <span>尚未采集</span>}{cancelled && <span role="status" className="ranking-cancelled">已取消获取</span>}</div></div>
+      </div><div className="ranking-times"><Icon name="clock" /><span>采集时间</span>{snapshot ? <time dateTime={snapshot.capturedAt}>{rankingTime(snapshot.capturedAt)}<span> 北京时间</span></time> : <span>尚未采集</span>}</div></div>
     </header>
     {!model.connected && <p className="ranking-notice">当前为网页预览，请在这个工作目录根运行 npm run dev 打开桌面版。</p>}
     {model.connected && !hasRoot && !rootError && <p className="ranking-notice">先在<UILink variant="plain" href="#settings/data">设置中选择数据目录</UILink>，随后自动获取并保存榜单。</p>}

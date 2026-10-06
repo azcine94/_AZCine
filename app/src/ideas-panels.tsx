@@ -5,6 +5,7 @@ import { Input } from './components/ui/input.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
 import { NativeSelect } from './components/ui/native-select.tsx';
 import { Button } from './components/ui/button.tsx';
+import { FormDialog, useCreationDialog } from './components/ui/form-dialog.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Idea, IdeaDraft } from './ideas-contract.ts';
@@ -24,16 +25,17 @@ function Mark({ kind = 'bulb' }: { kind?: 'bulb' | 'plus' | 'search' | 'arrow' |
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
 }
-interface FormProps { model: IdeasController; draft: IdeaDraft; draftKey: string; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string }
-function IdeaForm({ model, draft, draftKey, projects, projectsLoading, projectsError }: FormProps) {
+interface FormProps { model: IdeasController; draft: IdeaDraft; draftKey: string; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; onSave?: () => void; onClose?: () => void }
+function IdeaForm({ model, draft, draftKey, projects, projectsLoading, projectsError, onSave, onClose }: FormProps) {
   const isNew = draftKey === 'new', prefix = `idea-${draftKey}`, waiting = model.busy === `save:${draftKey}`;
   const input = (field: 'title' | 'body' | 'tags' | 'projectId', value: string) => model.changeDraft(draftKey, field, value);
   return <form className={`idea-form ${isNew ? 'idea-composer' : 'idea-editor'}`} aria-label={isNew ? '收集新灵感' : '编辑灵感'} noValidate
-    onSubmit={event => { event.preventDefault(); void model.save(draftKey); }} onKeyDown={event => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void model.save(draftKey); }
+    onSubmit={event => { event.preventDefault(); if (onSave) onSave(); else void model.save(draftKey); }} onKeyDown={event => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); if (onSave) onSave(); else void model.save(draftKey); }
     }}>
     <div className="idea-writing">
-      <label className="visually-hidden" htmlFor={`${prefix}-title`}>灵感标题（可选）</label>
+      {model.error && [`save:${draftKey}`, `reconcile:${draftKey}`].includes(model.errorScope ?? '') && <Feedback tone="error" role="alert">{model.error}</Feedback>}
+    <label className="visually-hidden" htmlFor={`${prefix}-title`}>灵感标题（可选）</label>
       <Input variant="inline" id={`${prefix}-title`} className="idea-title-input" value={draft.title} onChange={e => input('title', e.target.value)} placeholder="灵感标题（可选）" autoComplete="off"/>
       <label className="visually-hidden" htmlFor={`${prefix}-body`}>灵感内容</label>
       <Textarea variant="inline" id={`${prefix}-body`} className="idea-body-input" value={draft.body} onChange={e => input('body', e.target.value)} placeholder="想到什么，就先记下来…" aria-required="true" rows={isNew ? 3 : 5}/>
@@ -46,6 +48,7 @@ function IdeaForm({ model, draft, draftKey, projects, projectsLoading, projectsE
     </div>
     <footer className="idea-form-footer"><span className="meta">{waiting ? '正在保存，后续输入会保留' : `${[...draft.body].length.toLocaleString()} / 20,000 字 · Ctrl + Enter 保存`}</span><div>
       {!isNew && <Button variant="app-idea" type="button" className="idea-action" onClick={() => model.closeEdit(draftKey)}>收起编辑</Button>}
+      {onClose && <Button variant="ghost" type="button" onClick={onClose}>关闭，保留草稿</Button>}
       <Button variant="app-pill" className="pill on" disabled={!!model.busy || model.loading}>{waiting ? '正在保存…' : model.pending[draftKey] ? '重试原保存' : isNew ? '收集灵感' : '保存修改'}<Mark kind="arrow"/></Button>
     </div></footer>
     {model.pending[draftKey] && <div className="idea-pending"><p>保存结果尚未确认，原请求和输入已保留。</p><Button variant="app-idea" type="button" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.reconcile(draftKey)}>核对保存结果</Button></div>}
@@ -89,20 +92,30 @@ function Card({ idea, model, projects, projectsLoading, projectsError, workspace
   </article>;
 }
 export function IdeasPanel({ model, projects, projectsLoading, projectsError, workspace, targetId }: { model: IdeasController; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; workspace: WorkspaceController; targetId: string | null }) {
+  const creation = useCreationDialog();
+  const submitted = useRef<number | null>(null);
+  useEffect(() => {
+    if (submitted.current === null || model.busy) return;
+    if (!model.error && !model.pending.new && !model.drafts.new.body && model.notice === '灵感已保存。') creation.finish(submitted.current);
+    submitted.current = null;
+  }, [model.busy, model.error, model.pending, model.notice, model.drafts]);
   const target = model.ideas.find(i => i.id === targetId);
   const visible = targetId ? target ? [target] : [] : filterIdeas(model.ideas,model.query,model.tag,model.projectId,model.deleted);
   const active = model.ideas.filter(i => !i.deleted), removed = model.ideas.filter(i => i.deleted);
   const tags = [...new Set(model.ideas.filter(i => i.deleted === model.deleted).flatMap(i => i.tags))].sort((a,b) => a.localeCompare(b,'zh-CN'));
   const dirtyCount = Object.entries(model.drafts).filter(([key,d]) => key !== 'new' && active.some(i => i.id === key && !sameIdeaContent(i,contentFor(key,d)))).length;
   return <div className="ideas-page">
-    <div className="ideas-intro"><div><h2>记录一个想法</h2><p>画面、流程、链接，都可以先留在这里。</p></div><span className="ideas-total"><span className="ideas-total-mark"><Mark/></span><span>已收集 <strong>{active.length.toLocaleString()}</strong> 张灵感</span></span></div>
-    <IdeaForm model={model} draft={model.drafts.new} draftKey="new" projects={projects} projectsLoading={projectsLoading} projectsError={projectsError}/>
+    <div className="ideas-intro"><div><h2>记录一个想法</h2><p>画面、流程、链接，都可以先留在这里。</p></div><span className="ideas-total"><span className="ideas-total-mark"><Mark/></span><span>已收集 <strong>{active.length.toLocaleString()}</strong> 张灵感</span></span><Button data-create="idea" onClick={() => creation.setOpen(true)}>记下新灵感</Button></div>
+    <FormDialog open={creation.open} onOpenChange={creation.setOpen} title="新灵感" description="先留下想法，标题、标签和关联项目可选。关闭保留未提交输入。" wide>
+{model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
+      <IdeaForm model={model} draft={model.drafts.new} draftKey="new" projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} onSave={() => { if (!model.busy && !model.loading) { submitted.current = creation.session.current; void model.save('new'); } }} onClose={() => creation.setOpen(false)} />
+    </FormDialog>
     <datalist id="idea-tag-suggestions">{[...new Set(['流程','项目','画面','工具',...tags])].map(t => <option key={t} value={t}/>)}</datalist>
-    <div className="ideas-feedback" aria-live="polite"><span role="status">{model.loading ? '正在读取灵感…' : model.busy ? '正在处理…' : model.notice}{model.undo && <Button variant="app-idea" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.remove(model.undo!,false)}>撤销移除</Button>}</span>{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</div>
+    <div className="ideas-feedback" aria-live="polite"><span role="status">{creation.open ? '' : model.loading ? '正在读取灵感…' : model.busy ? '正在处理…' : ''}</span>{!model.errorScope?.startsWith('save:') && !model.errorScope?.startsWith('reconcile:') && model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{!creation.open && model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</div>
     <section className="ideas-collection" aria-labelledby="ideas-collection-title"><header className="ideas-collection-heading"><div><h2 id="ideas-collection-title">{targetId ? '来源灵感' : model.deleted ? '已移除的灵感' : '我的灵感'}</h2><span className="meta">{targetId ? '原卡与关联完整保留' : `${visible.length} 张${dirtyCount ? ` · ${dirtyCount} 张有编辑草稿` : ''}`}</span></div><div className="ideas-collection-actions">{targetId && <UILink variant="idea" className="idea-action" href="#ideas">返回全部灵感</UILink>}<Button variant="app-idea" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取</Button><Button variant="app-idea" className="idea-action" aria-pressed={model.deleted} onClick={() => { model.setDeleted(!model.deleted); model.setTag(''); if (targetId) window.location.hash = 'ideas'; }}><Mark kind="trash"/>{model.deleted ? '查看灵感' : `已移除${removed.length ? ` (${removed.length})` : ''}`}</Button></div></header>
     {!targetId && <><div className="ideas-tools"><label className="ideas-search"><Mark kind="search"/><span className="visually-hidden">搜索灵感</span><Input variant="inline" value={model.query} onChange={e => model.setQuery(e.target.value)} placeholder="搜索标题、内容或标签"/></label><label className="ideas-company-filter"><span className="visually-hidden">按公司筛选灵感</span><NativeSelect variant="inline" value={model.projectId} onChange={e => model.setProjectId(e.target.value)}><option value="">全部公司</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></label></div><div className="ideas-tags" aria-label="按标签筛选"><Button variant="app-idea-filter" className="idea-filter" aria-pressed={!model.tag} onClick={() => model.setTag('')}>全部<span>{model.ideas.filter(i => i.deleted === model.deleted).length}</span></Button>{tags.map(t => <Button variant="app-control" key={t} className="idea-filter" title={t} aria-pressed={model.tag === t} onClick={() => model.setTag(t)}><span className="idea-filter-label">{t}</span><span>{model.ideas.filter(i => i.deleted === model.deleted && i.tags.includes(t)).length}</span></Button>)}{model.tag && !tags.includes(model.tag) && <Button variant="app-idea-filter" className="idea-filter" aria-pressed onClick={() => model.setTag('')}>{model.tag} · 清除</Button>}</div></>}
     <div className="idea-grid">{visible.map(idea => <Card key={idea.id} idea={idea} model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} workspace={workspace} targeted={targetId === idea.id}/>)}
-    {!visible.length && <div className="ideas-empty"><span className="ideas-empty-mark"><Mark/></span><h3>{model.loading ? '正在打开你的灵感收集箱' : model.loadError ? '灵感暂时未能读取' : targetId ? '没有找到这张来源灵感' : model.query || model.tag || model.projectId ? '没有找到匹配的灵感' : model.deleted ? '没有已移除的灵感' : '第一个想法，从这里开始'}</h3><p>{model.loadError ? '原记录保留，重新读取后继续。' : targetId ? '请核对来源，或返回全部灵感查看。' : model.query || model.tag || model.projectId ? '换个关键词，或者清除筛选再看看。' : model.deleted ? '移除的卡片会保留在这里，随时可以恢复。' : '记下一束光、一段流程，或一个尚未成形的念头。'}</p>{(model.query || model.tag || model.projectId) && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={model.clearFilters}>清除筛选</Button>}{!model.deleted && !model.query && !model.tag && !model.projectId && !targetId && !model.loadError && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={() => document.getElementById('idea-new-body')?.focus()}>记下第一个灵感<Mark kind="plus"/></Button>}</div>}
+    {!visible.length && <div className="ideas-empty"><span className="ideas-empty-mark"><Mark/></span><h3>{model.loading ? '正在打开你的灵感收集箱' : model.loadError ? '灵感暂时未能读取' : targetId ? '没有找到这张来源灵感' : model.query || model.tag || model.projectId ? '没有找到匹配的灵感' : model.deleted ? '没有已移除的灵感' : '第一个想法，从这里开始'}</h3><p>{model.loadError ? '原记录保留，重新读取后继续。' : targetId ? '请核对来源，或返回全部灵感查看。' : model.query || model.tag || model.projectId ? '换个关键词，或者清除筛选再看看。' : model.deleted ? '移除的卡片会保留在这里，随时可以恢复。' : '记下一束光、一段流程，或一个尚未成形的念头。'}</p>{(model.query || model.tag || model.projectId) && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={model.clearFilters}>清除筛选</Button>}{!model.deleted && !model.query && !model.tag && !model.projectId && !targetId && !model.loadError && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={() => creation.setOpen(true)}>记下第一个灵感<Mark kind="plus"/></Button>}</div>}
     </div></section>
   </div>;
 }

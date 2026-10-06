@@ -24,6 +24,7 @@
 
 .todo-filters { margin-top:var(--s-3); }
 .todo-panel { min-width:0; }
+.todo-create-form .todo-composer-options { display:grid; grid-template-columns:1fr; align-items:stretch; }
 .todo-composer { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--s-2); padding:var(--s-3); border-radius:var(--r-panel); background:var(--island-2); margin:0; }
 .todo-composer>#todo-title { grid-column:1/-1; background:var(--island); }
 .todo-composer-options { display:flex; align-items:center; gap:var(--s-2); min-width:0; flex-wrap:wrap; }

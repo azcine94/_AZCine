@@ -1,3 +1,4 @@
+import { useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from './desktop-api.ts';
 import { invoke, isTauri } from './desktop-api.ts';
@@ -14,13 +15,14 @@ export function useNewsProcessing(root:string|null,enabled:boolean,active:boolea
   const [range,setRange]=useState(()=>initialNewsRange('latest'));
   const [rangeSnapshot,setRangeSnapshot]=useState<{scope:FrozenNewsScope;ids:string[];key:string}|null>(null);
   const [clearRequest,setClearRequest]=useState<{scope:FrozenNewsScope;ids:string[];requestId:string}|null>(null);
-  const [clearing,setClearing]=useState(false),[clearNotice,setClearNotice]=useState('');
+  const [clearing,setClearing]=useState(false),[clearNotice,setClearNotice]=useOperationNotice('');
   const clearingRef=useRef(false);
   const [dailyCount,setDailyCount]=useState<{total:number;at:string}|null>(null);
   const [eventQuery,setEventQuery]=useState('');
   const [progress,setProgress]=useState<ProcessingProgress|null>(null),[detail,setDetail]=useState<TaskDetail|null>(null);
   const [error,setError]=useState(''),[detailError,setDetailError]=useState(''),[loading,setLoading]=useState(false),[detailLoading,setDetailLoading]=useState(false);
   const [detailTarget,setDetailTarget]=useState<{id:string;batch:number}|null>(null);
+  const detailTargetRef=useRef(detailTarget);detailTargetRef.current=detailTarget;
   const mounted=useRef(false),rootRef=useRef(root),readSeq=useRef(0),detailSeq=useRef(0),pulling=useRef(false),again=useRef(false);
   const filters=useRef({query,source,range});filters.current={query,source,range};rootRef.current=root;
   const previousQuery=useRef(query);
@@ -56,6 +58,13 @@ export function useNewsProcessing(root:string|null,enabled:boolean,active:boolea
     void listen('news-data-reset',()=>{if(disposed)return;readSeq.current++;detailSeq.current++;setSelected(null);setProgress(null);setDetail(null);setDetailTarget(null);setDetailError('');setError('');setRangeSnapshot(null);setClearRequest(null);setClearNotice('');setDetailLoading(false);if(enabled)void refresh();}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setError(workspaceError(e));});
     return()=>{disposed=true;off?.();};
   },[root,enabled,refresh]);
+  useEffect(()=>{if(!root||!isTauri())return;let disposed=false,off:(()=>void)|undefined;
+    void listen<string|null>('news-history-changed',event=>{if(disposed)return;const id=event.payload;
+      if(id===null||detailTargetRef.current?.id===id){detailSeq.current++;setDetail(null);setDetailTarget(null);setDetailError('');setDetailLoading(false);}
+      setProgress(before=>id===null||before?.runId===id?null:before);
+    }).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setError(workspaceError(e));});
+    return()=>{disposed=true;off?.();};
+  },[root]);
   return {pending,query,setQuery,source,setSource,selected,select:setSelected,scope,setScope,batchSize,setBatchSize,dailyCount,eventQuery,setEventQuery,progress,detail,detailTarget,loading:loading||Boolean(root&&enabled&&!scopeReady&&!error),detailLoading,error,detailError,refresh,readProgress,inspect,range,setRange,rangeSnapshot,scopeReady,clearRequest,clearing,clearNotice,prepareClear,confirmClear,cancelClear:()=>setClearRequest(null)};
 }
 export type NewsProcessingController=ReturnType<typeof useNewsProcessing>;

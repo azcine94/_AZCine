@@ -76,7 +76,7 @@ interface SettingsProps {
 export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, news, editorial, processing, desktop, theme, selectTheme }: SettingsProps) {
   const content = useRef<HTMLDivElement>(null);
   const positions = useRef<Record<string, number>>({});
-  const title = sourceId ? (sourceId === 'new' ? '新增信源' : '编辑信源') : settingsTitle(route) ?? '设置';
+  const title = sourceId ? (sourceId === 'new' ? '信源管理' : '编辑信源') : settingsTitle(route) ?? '设置';
   useLayoutEffect(() => {
     const area = content.current;
     const heading = area?.querySelector<HTMLHeadingElement>('h2');
@@ -95,6 +95,7 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
     <div className="check-actions"><Button variant="app-pill" className="pill on" onClick={() => void desktop.check()} disabled={!desktop.connected || desktop.state.status === 'loading'}>{desktop.state.status === 'loading' ? '正在检查…' : '检查桌面连接'}</Button>{!desktop.connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>
   </section>;
   else if (!workspace.workspace?.root || workspace.loadError) page = <WorkspaceGate model={workspace} />;
+  else if (sourceId === 'new') page = <NewsSourceManager model={news} create />;
   else if (sourceId) page = <NewsSourceEditor model={news} sourceId={sourceId} />;
   else if (route === 'settings/news') page = <NewsSourceManager model={news} />;
   else if (route === 'settings/news/materials') page = <NewsFeed model={news} />;

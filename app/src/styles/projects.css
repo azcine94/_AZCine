@@ -236,3 +236,10 @@
   
 }
 @media(max-width:900px) { .summary-line { grid-template-columns:112px minmax(0,1fr); } .summary-records { grid-column:1/-1; } }
+
+/* The card action is a sibling of the document link. */
+.project-card-frame { position:relative; min-width:0; }
+.project-card-frame>.project-card { height:100%; }
+.project-card-menu { position:absolute; top:var(--s-3); right:var(--s-3); }
+.project-card-frame .project-card-top { padding-right:var(--control-h); }
+.project-deletion-name { font-weight:600; overflow-wrap:anywhere; }

@@ -7,6 +7,7 @@ export const pages = [
   { id: 'news', title: '资讯', icon: 'news' },
   { id: 'models', title: '模型榜', icon: 'models' },
   { id: 'ideas', title: '灵感', icon: 'ideas' },
+  { id: 'bookkeeping', title: '记账', icon: 'bookkeeping' },
   { id: 'agent', title: 'Agent', icon: 'agent' },
   { id: 'jobs', title: '后台任务', icon: 'jobs' },
   { id: 'resources', title: '规则与资源', icon: 'resources' },
@@ -14,15 +15,17 @@ export const pages = [
 ] as const;
 
 export type PageId = typeof pages[number]['id'];
-export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | 'missing';
+export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | `bookkeeping/${string}` | 'missing';
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const projectPattern = new RegExp(`^projects/(${uuidPattern})(?:/(${uuidPattern})/(${uuidPattern}))?$`);
 const newsSourcePattern = new RegExp(`^settings/news/sources/(new|rss-[a-z0-9-]{1,96}|${uuidPattern})$`);
 const sourcePattern = new RegExp(`^(ideas|today)/(${uuidPattern})$`);
+const bookkeepingPattern = new RegExp(`^bookkeeping/(new|${uuidPattern})$`);
 export function resolveRoute(hash: string): Route {
   const id = hash.replace(/^#/, '') || 'today';
   if (['settings/resources', 'settings/skills', 'settings/extensions'].includes(id)) return 'resources';
   if (id === 'projects/new' || projectPattern.test(id)) return id as `projects/${string}`;
+  if (bookkeepingPattern.test(id)) return id as `bookkeeping/${string}`;
   const setting = settingsRoute(id);
   if (setting) return setting;
   if (id === 'news/materials') return 'settings/news/materials';
@@ -40,6 +43,7 @@ export function projectTarget(route: Route): { projectId: string; row?: { blockI
 }
 export function newsSourceTarget(route: Route): string | null { return newsSourcePattern.exec(route)?.[1] ?? null; }
 export function navigationPage(route: Route): PageId | 'missing' {
+  if (bookkeepingPattern.test(route)) return 'bookkeeping';
   if (route === 'projects/new' || projectPattern.test(route)) return 'projects';
   if (settingsRoute(route) || newsSourcePattern.test(route)) return 'settings';
   if (route === 'news/materials' || route.startsWith('news/')) return 'news';
@@ -48,6 +52,7 @@ export function navigationPage(route: Route): PageId | 'missing' {
 }
 export function sourceTarget(route: Route): string | null { return sourcePattern.exec(route)?.[2] ?? null; }
 export function pageTitle(route: Route): string {
+  if (bookkeepingPattern.test(route)) return route === 'bookkeeping/new' ? '记一笔' : '编辑开销';
   const setting = settingsTitle(route);
   if (setting) return setting;
   if (route === 'news/materials') return '采集资料';

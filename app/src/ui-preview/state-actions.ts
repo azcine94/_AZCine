@@ -1,9 +1,30 @@
 import { useEffect, useState } from 'react';
 
-export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'collapse';text?:string}
+export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'collapse'|'create';text?:string;skipWhenDialogOpen?:boolean;optional?:boolean}
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'.pi-chat-options',action:'open'};
 export const stateActions:Record<string,StateAction[]>={
+  'operation-toast':[{selector:'[data-toast-demo]'}],
+  'history-delete':[{selector:'[data-history-delete]'}],
+  'history-clear':[{selector:'[data-history-clear]'}],
+  'bookkeeping-validation':[{selector:'[data-create="bookkeeping"]'}],
+  'bookkeeping-create':[{selector:'[data-create="bookkeeping"]'}],
+  'bookkeeping-edit':[{selector:'[data-edit="bookkeeping"]'}],
+  'bookkeeping-save-feedback':[{selector:'[data-edit="bookkeeping"]'}],
+  'bookkeeping-refresh-fast':[{selector:'button[aria-label="刷新记账"]'}],
+  'project-delete-confirm':[{selector:'[data-project-menu],[data-project-delete-document]'},{selector:'[data-slot="dropdown-menu-item"]',text:'删除项目',skipWhenDialogOpen:true}],
+
+  'project-removed':[{selector:'[data-project-trash]',optional:true}],
+  'project-restore-confirm':[{selector:'[data-project-trash]',optional:true},{selector:'[data-project-restore]'}],
+  'project-create':[{selector:'[data-create="project"]'}],
+  'todo-create':[{selector:'[data-create="todo"]'}],
+  'idea-create':[{selector:'[data-create="idea"]'}],
+  'source-create':[{selector:'[data-create="source"]'}],
+  'bookkeeping-fx':[{selector:'[data-create="bookkeeping"]',action:'create'}],
+  'bookkeeping-fx-loading':[{selector:'[data-create="bookkeeping"]',action:'create'}],
+  'bookkeeping-fx-error':[{selector:'[data-create="bookkeeping"]',action:'create'}],
+  'bookkeeping-saving':[{selector:'[data-create="bookkeeping"]',action:'create'}],
+  'month-open':[{selector:'.month-input-trigger'}],
   'shell-collapsed':[{selector:'.sidebar-trigger',action:'collapse'}],
   'agent-more':[more], 'agent-runtime':[more,{selector:'.pi-options-panel .pi-runtime',action:'open'}],
   'agent-models':[{selector:'.pi-model-trigger'}], 'agent-sessions':[{selector:'.pi-sessions',action:'open'}],
@@ -46,6 +67,9 @@ export function useStateActions(state:string) {
         for(const node of document.querySelectorAll<HTMLDetailsElement>('details'))if(!node.open)node.querySelector<HTMLElement>('summary')?.click();
       }
       for(const step of stateActions[state]??[]) {
+        if (step.skipWhenDialogOpen && document.querySelector('[role="dialog"]')) continue;
+        if (step.action === 'create' && document.querySelector('[role="dialog"],.bookkeeping-editor')) continue;
+        if (step.optional && !document.querySelector(step.selector)) continue;
         let node:HTMLElement|undefined;
         for(let attempt=0;attempt<60&&!cancelled;attempt++) {
           node=Array.from(document.querySelectorAll<HTMLElement>(step.selector)).find(node=>!step.text||node.textContent?.includes(step.text));

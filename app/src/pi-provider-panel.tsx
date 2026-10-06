@@ -18,11 +18,12 @@ export function PiProviderPanel({model,pi}:{model:PiProvidersController;pi:PiCon
   const saveDisabled=!available||!model.ready||busy||!d||!d.dirty||model.loading||!!model.loadError;
   const providers=model.providers.filter(v=>`${v.provider} ${v.models.map(m=>`${m.id} ${m.name}`).join(' ')}`.toLowerCase().includes(query.toLowerCase()));
   const candidates=d?.remote?.models.filter(m=>`${m.id} ${m.name}`.toLowerCase().includes(d.modelQuery.toLowerCase()))??[];
+  const connectionError=pi.error??s?.error?.message;
   const connection=s?.connection==='ready'?'Pi 已连接':s?.connection==='connecting'||pi.action==='连接'?'Pi 正在连接…':s?.connection==='error'?'Pi 连接失败':'Pi 尚未连接';
   return <section className="settings-page provider-page">
     <header className="settings-page-header provider-page-header"><div><h2>模型服务商</h2><p className="subtle">添加多个服务商，为每个服务商选择可用模型。</p></div><div className="pi-actions"><Button variant="app-pill" type="button" className="pill on" disabled={saveDisabled} onClick={()=>d&&void model.save(d.uid)}>{model.saving?'正在保存…':'保存此服务商'}</Button><Button variant="app-pill" type="button" className="pill" disabled={!available||!model.ready||model.loading||!!model.loadError} onClick={model.addProvider}>＋ 添加服务商</Button></div></header>
     <div className="provider-status"><span role="status">{connection}</span>{s?.connection==='ready'?<UILink variant="text" className="foundation-link" href="#agent">打开 Agent →</UILink>:<Button variant="app-pill" type="button" className="pill" disabled={!available||busy} onClick={()=>void pi.connect()}>重试连接</Button>}</div>
-    {(pi.error??s?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{pi.error??s?.error?.message}</Feedback>}
+    {connectionError && d?.error !== connectionError && <Feedback as="p" tone="error" className="form-error" role="alert">{connectionError}</Feedback>}
     {!available&&<p className="subtle">{!pi.root?'请先在数据设置中选择有效的数据目录。':'请在桌面版配置服务商。'} <UILink variant="text" className="foundation-link" href="#settings/data">数据设置 →</UILink></p>}
     {model.loadError&&<div className="provider-load-error"><Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback><Button variant="app-pill" type="button" className="pill" disabled={model.loading} onClick={()=>void model.reload()}>重新读取服务商</Button></div>}
     <div className="provider-manager" aria-busy={model.loading}>
@@ -52,7 +53,7 @@ export function PiProviderPanel({model,pi}:{model:PiProvidersController;pi:PiCon
             </section>}
           </>}
           {d.tab==='advanced'&&<><p className="subtle">按服务商公布的规格填写模型长度和能力。</p>{!d.models.length&&<p className="meta">请先在模型页添加模型。</p>}{d.models.map(m=><fieldset className="provider-model-advanced" key={m.uid}><legend>{m.name||m.id||'未命名模型'}</legend><div className="pi-fields"><label className="pi-field">上下文长度<Input variant="inline" inputMode="numeric" value={m.contextWindow} onChange={e=>model.editModel(d.uid,m.uid,{contextWindow:e.target.value})}/></label><label className="pi-field">最大输出长度<Input variant="inline" inputMode="numeric" value={m.maxTokens} onChange={e=>model.editModel(d.uid,m.uid,{maxTokens:e.target.value})}/></label></div><div className="pi-actions"><label className="pi-check"><Input variant="inline" type="checkbox" checked={m.reasoning} onChange={e=>model.editModel(d.uid,m.uid,{reasoning:e.target.checked})}/>支持思考</label><label className="pi-check"><Input variant="inline" type="checkbox" checked={m.supportsImages} onChange={e=>model.editModel(d.uid,m.uid,{supportsImages:e.target.checked})}/>支持图片</label></div><Disclosure><summary>单独配置模型接口</summary><label className="pi-field">模型 Base URL<Input variant="inline" value={m.baseUrl} onChange={e=>model.editModel(d.uid,m.uid,{baseUrl:e.target.value})} placeholder="留空使用服务商地址" spellCheck={false}/></label><label className="pi-field">模型 API 类型<NativeSelect variant="inline" value={m.api} onChange={e=>model.editModel(d.uid,m.uid,{api:e.target.value})}><option value="">使用服务商类型</option><ApiOptions/></NativeSelect></label></Disclosure></fieldset>)}</>}
-          {d.error&&<Feedback as="p" tone="error" className="form-error" role="alert">{d.error}</Feedback>}{d.notice&&<p className="provider-notice" role="status">{d.notice}</p>}
+          {d.error&&<Feedback as="p" tone="error" className="form-error" role="alert">{d.error}</Feedback>}
         </div>
       </div>}
     </div>

@@ -1,0 +1,24 @@
+[data-slot="dialog-content"].ui-form-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  background: var(--background);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-pop);
+}
+[data-slot="dialog-content"].ui-form-dialog--wide { width: min(760px, calc(100vw - 32px)); }
+.ui-form-dialog-header { flex: 0 0 auto; padding: var(--s-5) var(--s-7) var(--s-4) var(--s-5); border-bottom: 1px solid var(--border); text-align: left; }
+.ui-form-dialog-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--s-5); }
+.ui-form-dialog-body > form { margin: 0; }
+.ui-form-dialog-body .entry-form { max-width: none; }
+.ui-form-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--s-2); margin-top: var(--s-4); }
+@media (max-width: 560px) {
+  .ui-form-dialog-header { padding: var(--s-4) var(--s-7) var(--s-4) var(--s-4); }
+  .ui-form-dialog-body { padding: var(--s-4); }
+}

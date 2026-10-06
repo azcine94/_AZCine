@@ -45,7 +45,7 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     if (parent!==window) parent.postMessage({type:'azcine-ui-route',route,theme:theme.theme},location.origin);
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
-    <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{models.notice&&<span role="status">{models.notice}<Button variant="app-text" className="text-action" onClick={models.clearNotice}>关闭提示</Button></span>}{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
+    <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
     {scene.route ? <WorkspaceView {...models} {...theme} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
   </div>;
 }

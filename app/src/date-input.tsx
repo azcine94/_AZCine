@@ -7,12 +7,12 @@ import { localDate, validDate } from './workspace-contract.ts';
 import { useAnchoredPopover } from './use-anchored-popover.ts';
 
 interface DateInputProps {
-  id?: string; label: string; value: string;
+  id?: string; label: string; value: string; invalid?: boolean; describedBy?: string;
   onChange(value: string, selected?: boolean): void;
   onBlur?: FocusEventHandler<HTMLInputElement>;
   disabled?: boolean; selectionDisabled?: boolean; readOnly?: boolean;
 }
-export function DateInput({ id, label, value, onChange, onBlur, disabled = false, selectionDisabled = disabled, readOnly = false }: DateInputProps) {
+export function DateInput({ id, label, value, onChange, onBlur, disabled = false, selectionDisabled = disabled, readOnly = false, invalid, describedBy }: DateInputProps) {
   const instance = useId();
   const panelId = `${instance}-calendar`;
   const root = useRef<HTMLDivElement>(null);
@@ -70,7 +70,7 @@ export function DateInput({ id, label, value, onChange, onBlur, disabled = false
   }} onKeyDown={event => {
     if (open && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(true); }
   }}>
-    <Input variant="app" id={id} className="input" type="text" aria-label={label} placeholder="YYYY-MM-DD" autoComplete="off" spellCheck={false} value={value} disabled={disabled} readOnly={readOnly} aria-disabled={disabled || readOnly} onChange={event => onChange(event.target.value)} onBlur={onBlur} />
+    <Input variant="app" id={id} className="input" type="text" aria-invalid={invalid} aria-describedby={describedBy} aria-label={label} placeholder="YYYY-MM-DD" autoComplete="off" spellCheck={false} value={value} disabled={disabled} readOnly={readOnly} aria-disabled={disabled || readOnly} onChange={event => onChange(event.target.value)} onBlur={onBlur} />
     <Button variant="app-control" ref={triggerRef} type="button" className="date-input__trigger" data-project-commit aria-label={`${label}：选择日期`} aria-disabled={selectionDisabled} aria-haspopup="dialog" aria-expanded={open && !selectionDisabled} aria-controls={panelId} onClick={() => {
       if (selectionDisabled) return;
       if (open) close(true);

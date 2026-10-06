@@ -1,3 +1,4 @@
+import { notifyOperation, useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listen } from './desktop-api.ts';
 import { callPi, desktopPi, parseSnapshot, parseSessions, piError } from './pi-client.ts';
@@ -14,7 +15,7 @@ export function usePi(root:string|null){
   const [acceptedInputs,setAcceptedInputs]=useState<Record<string,{id:string;draft:ChatDraft;disposition:string}[]>>({});
   const transferred=useRef<Record<string,string>>({});
   const [sessions,setSessions]=useState<PiSession[]>([]),[unreadable,setUnreadable]=useState(0),[sessionError,setSessionError]=useState<string|null>(null);
-  const [cwd,setCwd]=useState(''),[notice,setNotice]=useState<string|null>(null);
+  const [cwd,setCwd]=useState(''),[notice,setNotice]=useOperationNotice<string|null>(null);
   const [modelForm,setModelForm]=useState({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
   const [sessionName,setSessionName]=useState('');
   const [processChoices,setProcessChoices]=useState<Record<string,boolean>>({});
@@ -29,6 +30,7 @@ export function usePi(root:string|null){
   const autoStarted=useRef(new Set<string>());
   const connectRef=useRef(connect);connectRef.current=connect;
   function acceptSnapshot(value:PiSnapshot){
+    if (value.notice && (snap.current || actionRef.current) && (value.notice !== snap.current?.notice || value.generation !== snap.current?.generation)) notifyOperation(value.notice);
     const context=`${rootRef.current}/${value.state?.sessionId??'unconnected'}/${value.generation}`;
     const previous=runTrack.current,projection=value.projection;
     const start=previous?.context!==context?projection.messages.length

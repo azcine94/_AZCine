@@ -5,7 +5,7 @@ import { Disclosure } from './components/ui/disclosure.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
 import { NewsRangeControl } from './news-range-control.tsx';
-import {NewsResetControl} from './news-reset-control.tsx';
+import {NewsResetControl,NewsHistoryControl} from './news-reset-control.tsx';
 import { NativeSelect } from './components/ui/native-select.tsx';
 import { useEffect, useState } from 'react';
 import type { NewsController } from './use-news.ts';
@@ -91,7 +91,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
       <nav className="processing-page-links" aria-label="资讯管理"><UILink variant="plain" href="#settings/news/materials">采集资料</UILink><UILink variant="plain" href="#settings/news/ai">处理规则</UILink><UILink variant="plain" href="#news">查看资讯 ↗</UILink></nav>
     </header>
     <div className="news-feedback" aria-live="polite">
-      {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{model.notice && <p className="subtle" role="status">{model.notice}</p>}
+      {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
       <LoadingStatus active={model.loading}>正在读取，已有内容保留…</LoadingStatus>
       {news.error && <Feedback as="p" tone="error" className="form-error" role="alert">{news.error}</Feedback>}{processing.error && <Feedback as="p" tone="error" className="form-error" role="alert">{processing.error}</Feedback>}
     </div>
@@ -112,7 +112,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
         </>
         <div className="processing-queue-actions"><Button variant="app-text" className="text-action" disabled={locked||processing.loading||!processing.scopeReady||!total||!!processing.clearRequest} onClick={processing.prepareClear}>清空当前范围待处理</Button><span className="meta">仅移出队列，资料与报道保留</span></div>
         {processing.clearRequest&&<section className="processing-clear-confirm" aria-label="确认清空待处理"><strong>清出已选范围的 {processing.clearRequest.ids.length} 条待处理资料？</strong><p className="meta">原始资料、去重记录和已整理报道保留；下次重复采集不会重新加入。此处清空不会调用模型。</p><div className="form-actions"><Button variant="app-pill" className="pill on" disabled={locked} onClick={()=>void processing.confirmClear()}>{processing.clearing?'正在清空…':'确认清空'}</Button><Button variant="app-pill" className="pill" disabled={processing.clearing} onClick={processing.cancelClear}>取消</Button></div></section>}
-        {processing.clearNotice&&<p className="meta" role="status">{processing.clearNotice}</p>}
+        
         <footer className="processing-picker-footer">
           <div className="processing-chosen"><span className="meta">{processing.scope === 'single' ? selectedDone ? '上次选择已处理，请选择新资料' : selected ? '本次选择 · 1 条' : '请选择一条资料' : `本次范围 · 当前筛选 ${total} 条`}</span>{processing.scope === 'single' && selected && <strong title={selected.title}>{selected.title}</strong>}{processing.scope === 'single' && selected && <Disclosure className="disclosure"><summary>查看原始资料</summary><Inputs news={news} items={[selected]} /></Disclosure>}</div>
           <Button variant="app-pill" className="pill on processing-start" disabled={locked || !processing.scopeReady || processing.loading || !!processing.clearRequest || (processing.scope === 'single' ? !selected || selectedDone : !total || model.loading)} onClick={() => void start('organize')}>{model.active ? '任务进行中' : processing.scope === 'single' ? selectedDone ? '已处理' : '开始整理' : `整理当前范围 ${total} 条`}</Button>
@@ -127,12 +127,13 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
     </div>
 
     <NewsReceiptPanel runId={processing.detailTarget?.id??current?.id??null} active={model.active}/><section className="processing-history" aria-labelledby="processing-history-title">
-      <header className="processing-section-heading"><h3 id="processing-history-title">处理记录</h3><span className="meta">输入、规则与返回按批保留</span></header>
+      <header className="processing-section-heading"><h3 id="processing-history-title">处理记录</h3><span className="meta">输入、规则与返回按批保留</span><NewsHistoryControl model={news} disabled={locked} total={runs.filter(run=>!['running','saving'].includes(run.status)).length}/></header>
       <ul className="processing-records">{runs.slice(0, runLimit).map(run => <li className={`processing-record${processing.detailTarget?.id === run.id ? ' selected' : ''}`} key={run.id}>
         <Button variant="app-control" className="processing-record-open" aria-controls="news-processing-detail" aria-pressed={processing.detailTarget?.id === run.id} onClick={() => { setRetry(null); void processing.inspect(run.id); }}>
           <span className="processing-record-top"><strong>{run.kind === 'daily' ? '日报' : run.kind === 'analysis' ? '事件分析' : '资讯整理'}</strong><span className="processing-record-status" data-status={run.status}>{editorialStatusLabels[run.status]}</span></span><time className="meta" dateTime={run.startedAt}>{formatNewsTime(run.startedAt)}</time><span className="processing-record-bottom"><span>已保存 {run.processed} / {run.total}</span><span className="meta">详情 →</span></span>
         </Button>
-        {['failed', 'awaitingModel', 'cancelled', 'interrupted'].includes(run.status) && <Button variant="app-text" className="text-action processing-record-retry" disabled={locked} onClick={() => { setRetry(run.id); void processing.inspect(run.id); }}>重试原任务…</Button>}
+        <div className="processing-record-actions"><Button variant="app-text" data-history-delete disabled={locked||!!news.reset.request||['running','saving'].includes(run.status)} onClick={()=>void news.reset.prepare(`history:${run.id}`)}>删除记录</Button>
+        {['failed', 'awaitingModel', 'cancelled', 'interrupted'].includes(run.status) && <Button variant="app-text" className="text-action processing-record-retry" disabled={locked} onClick={() => { setRetry(run.id); void processing.inspect(run.id); }}>重试原任务…</Button>}</div>
       </li>)}</ul>
       {!runs.length && <p className="subtle">还没有处理记录。</p>}
       <div className="processing-history-footer">{runs.length > runLimit && <Button variant="app-text" className="text-action" onClick={() => setRunLimit(runLimit + 4)}>再显示 4 条记录</Button>}{processing.detailTarget && <Button variant="app-text" className="text-action" onClick={() => { document.getElementById('news-processing-detail')?.focus(); document.getElementById('news-processing-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>查看下方已展开的任务详情 ↓</Button>}</div>

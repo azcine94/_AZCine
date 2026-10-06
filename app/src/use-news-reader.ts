@@ -1,3 +1,4 @@
+import { useOperationNotice } from './components/ui/operation-toast.tsx';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {invoke,isTauri,listen} from './desktop-api.ts';
 import {parseReader} from './news-reader-contract.ts';
@@ -5,7 +6,7 @@ import type {ReaderSnapshot,ReaderEdition} from './news-reader-contract.ts';
 import {workspaceError} from './workspace-contract.ts';
 export function useNewsReader(root:string|null,enabled=true){
   const [snapshot,setSnapshot]=useState<ReaderSnapshot|null>(null),[tab,setTab]=useState<'featured'|'all'|'hot'|'bookmarks'|'daily'>('all'),[category,setCategory]=useState(''),[query,setQuery]=useState(''),[limit,setLimit]=useState(100),[editionId,setEditionId]=useState('');
-  const [loading,setLoading]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');const seq=useRef(0),mounted=useRef(false),currentRoot=useRef(root),busyRef=useRef(false);currentRoot.current=root;
+  const [loading,setLoading]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useOperationNotice('');const seq=useRef(0),mounted=useRef(false),currentRoot=useRef(root),busyRef=useRef(false);currentRoot.current=root;
   const filters=useRef({tab,category,query,limit});filters.current={tab,category,query,limit};
   const previousQuery=useRef(query);
   const refresh=useCallback(async()=>{const target=currentRoot.current;if(!target||!isTauri())return;const request=++seq.current;setLoading(true);const f={...filters.current},key=JSON.stringify(f);const current=()=>mounted.current&&request===seq.current&&currentRoot.current===target&&JSON.stringify(filters.current)===key;try{const value=parseReader(await invoke('news_reader_snapshot',{...f,tab:f.tab==='daily'?'all':f.tab}));if(current()){setSnapshot(value);setError('');}}catch(e){if(current())setError(workspaceError(e));}finally{if(current())setLoading(false);}},[]);

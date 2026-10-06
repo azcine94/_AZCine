@@ -123,3 +123,5 @@
 .processing-section-heading .text-action { min-width:5em; }
 .news-range-control[data-period="latest"] .news-range-undated { visibility:hidden; }
 .news-range-control > .meta { min-height:calc(var(--lh-xs) * 2); }
+
+.processing-record-actions { display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); padding:0 var(--s-3) var(--s-3); flex-wrap:wrap; }
