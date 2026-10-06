@@ -68,9 +68,11 @@ app/
 │   ├── model-ranking-prices.ts # Models.dev模型匹配及报价
 │   ├── use-model-ranking.ts / model-ranking-panel.tsx # App持有状态、取数与榜单显示
 │   ├── ideas-contract.ts / use-ideas.ts / ideas-panels.tsx # 灵感契约、逐卡草稿与防重转换
+│   ├── bookkeeping-contract.ts / use-bookkeeping.ts / bookkeeping-panels.tsx # 开销、报价快照、报销与表单草稿
 │   ├── news-*.ts / news-*-panels.tsx / use-news*.ts # 采集/编辑、阅读、规则和刊期状态
 │   ├── components/ui/       # 通用组件、业务变体和统一控件CSS
 │   ├── lib/utils.ts         # cn/类名合并
+│   ├── lib/display-path.ts  # Windows路径显示归一，真实IPC路径不改
 │   ├── ui-preview/          # 场景清单/虚构控制器/状态交互/源码展示
 │   ├── styles/              # globals唯一入口、tokens亮暗变量与模块布局
 │   └── assets/              # 生产引用的受控资源
@@ -82,6 +84,7 @@ app/
 │   │   ├── storage.rs        # 根目录/独占锁/SQLite/待办
 │   │   ├── projects.rs       # 公司文档/修订/CAS事务
 │   │   ├── ideas.rs          # 灵感修订/请求回执/软删除/待办关联事务
+│   │   ├── bookkeeping.rs / bookkeeping-commands.rs / bookkeeping-exchange.rs # 记账事务、有限IPC与外币报价
 │   │   ├── news-*.rs         # 信源/HTTP/RSS/采集、独立Pi整理、刊期/PDF及本地调度
 │   │   ├── model-ranking.rs / model-ranking-commands.rs # 模型榜事务存储与有限IPC
 │   │   ├── native_paths.rs / diagnostics.rs # 原生路径与临时诊断
@@ -174,7 +177,7 @@ Agent `feat/agent-design` 的12a5c89＋06a2251已由29ef06e合入main。`App`仍
 
 ### 业务与编辑
 
-SQLite单业务写入者、根锁；当前统一schema 8；polish新增v6文章/原文/步骤回执与刊期、v7范围/待处理标记、v8清空请求回执。`storage.rs` 按实际模块表组区分main v1/v2、灵感v3、资讯采集v3与编辑v4，验证已有结构后在同一事务补齐缺失模块并推进版本；部分/歧义/未知结构拒绝，不降低版本或重建旧库。稳定项目/块/行/阶段ID，公司修订与CAS整批事务。一个镜头一行，日期/阶段/交完互不自动联动，只有指定list派生。分页不裁持久数据，异步回执不覆盖后续草稿，撤销消耗一次、冲突有明确反馈。
+SQLite单业务写入者、根锁；当前统一schema 12；v6文章/原文/步骤回执与刊期、v7范围/待处理标记、v8清空请求回执、v9记账、v10外币字段、v11项目删除/请求、v12处理历史隐藏。`storage.rs` 按实际模块表组区分main v1/v2、灵感v3、资讯采集v3与编辑v4及后续版本，只校验对应旧版已有表，再在同一事务补齐缺失模块并推进版本；部分/歧义/未知结构拒绝，不降低版本或重建旧库。本轮未执行实际迁移，新版升级共享库后旧schema8及更早程序不能打开。稳定项目/块/行/阶段ID，公司修订与CAS整批事务。一个镜头一行，日期/阶段/交完互不自动联动，只有指定list派生。分页不裁持久数据，异步回执不覆盖后续草稿，撤销消耗一次、冲突有明确反馈。
 
 `App.tsx` / `styles/app.css` 维护窗口高度内的固定外壳：标题栏、导航、模块标题不随正文滚动，普通模块使用 `workspace-scroll`。项目详情由 `projects-panels.tsx` / `styles/projects.css` 使用全宽 `project-document`，顶部操作固定，`project-checklists-scroll` 与 `project-document-scroll` 分别滚动；详情外层 `workspace-scroll--project-document` 不再滚正文，窄窗口清单可收起/容器内展开，不影响其他模块业务。
 
@@ -187,6 +190,14 @@ SQLite单业务写入者、根锁；当前统一schema 8；polish新增v6文章/
 `project-list-editor.tsx` 负责分页、单元格键盘、行列拖动与列宽预览，纯操作在 `project-table-operations.ts`，不重建行列ID或转换单元格语义。`fitColumnWidths` 按测得的容器宽度拟合显示列宽，达到可读最小宽度后才局部横滚；表格内部纵滚/固定表头与统一list容器由样式维护，不新增列分组功能。列宽作为可选字段跟随公司JSON文档保存；旧列不含宽度仍合法，TS/Rust都校验112–640整数。`tauri.conf.json` 的 `dragDropEnabled:false` 关闭WebView2被Tauri替换的内部拖放处理，使Windows HTML5行列拖动工作；不是禁用表内拖动或宣称附件导入已实现。
 
 `date-input.tsx` 为项目和待办共用输入/浮动月历，`calendar.ts` 用UTC日期作纯公历偏移，今天取既有本地日期函数；不猜不完整输入年份。项目选择日按原项目保存、待办选择只更新新增草稿。今天等待不卸载已有事项/表单，失败保旧记录，正式数据仍由Rust写入。
+
+项目整文档删除独立于文档内部撤销：`projects.rs` 的删除标记/请求表经 `project_catalog`、`set_project_deleted`、`project_deletion_request` IPC接入 `use-projects.ts`。软删除退出汇总，已删除列表可恢复；文档、关联和草稿保留，修订与请求幂等保护旧撤销不覆盖新变更。
+
+### 记账
+
+`App`持有 `use-bookkeeping.ts`，表单与列表通过 `bookkeeping-contract.ts` 校验，经 `bookkeeping_list`、`bookkeeping_mutate`、`bookkeeping_request` 进入 `bookkeeping-commands.rs` 与 `bookkeeping.rs` 的Rust事务；票据添加/打开、CSV导出及报价各有有限IPC，命令在lib.rs/build.rs/main白名单登记。请求回执、修订冲突及软删除沿用保输入策略，不由前端直写库。
+
+`bookkeeping-exchange.rs` 通过 `news-http.rs` 获取Frankfurter的ECB报价，绑定币种/请求日期并保存实际报价日期/来源、原币金额与人民币结果；金额以整数最小单位及十进制比例处理，不用浮点累计。票据复制到业务根、原件不改，系统文件选择/打开与CSV保存由 `native_paths.rs` 承接。当前真实网络、票据、导出和迁移均未验证。
 
 ### 模型榜与开发实例
 
@@ -232,13 +243,17 @@ accepted/handled只代表接受，不是业务完成；终态结合settled状态
 
 根 `index.html`读取本Worktree忽略的 `.tooling/ui-preview-url.js`，校对iframe来源与Worktree标识后接入本机 `/ui.html`；无服务只显示说明。总览复用 `WorkspaceView`、生产组件与明确fixture，原 `desktop-api.ts` 的preview边界阻止真实IPC。`catalog.ts`登记场景/来源/状态，`state-actions.ts`承担展示交互；`ui-inventory.ts`枚举TSX控件和条件，未登记提示并非测试/自动完整覆盖。
 
+`components/ui/form-dialog.tsx` 统一创建与开销编辑容器，保留关闭过渡内容和弹窗会话归属；`month-input.tsx` 提供中文月份。`operation-toast.tsx` 由控制器发布通知、WorkspaceHeader挂载唯一展示实例，通过Portal定位并处理替换/计时/暂停/撤销。`globals.css` 统一导入控件和记账布局，总览使用内存fixture；通知/表单规则数值只维护于设计规范。
+
 ### polish资讯链与资源基础
 
 `news-prompts.rs`读取打包规则/分类和上游来源标识，模板与分类参与prompt hash；`news-pipeline.rs`经原版Pi执行内容理解/结构/预筛/评分/归组/中文整理，`news-reader-store.rs`保存原文、文章、步骤回执和缓存、阅读标记，`news-reader-editions.rs`保存固定报告，`news-reader-export.rs`提供Markdown导出。React统一阅读路由为 `news/items` / `news/stories`，旧事件链接转统一详情；旧日报/PDF实现保留，不因旧技术结果证明新reader链通过。
 
-`news-scope.rs`维护范围及待处理排除标记，`news-reset.rs`只操作资讯表与自有快照，预览指纹/幂等请求/占用锁/事务及暂存恢复保护现有记录；当前schema8迁移未运行，不读取或改真实库。本轮没有执行清空或采集。
+`news-scope.rs`维护范围及待处理排除标记，`news-reset.rs`只操作资讯表与自有快照，预览指纹/幂等请求/占用锁/事务及暂存恢复保护现有记录。新增history/history:<uuid>范围以 `news_hidden_runs` 移除历史可见性，保留结果、快照与去重信息；实际任务锁内拒绝移除运行中任务或重试已隐藏记录，前端news-history-changed事件清理对应详情。当前schema12迁移未运行，不读取或改真实库，本轮没有执行清空或采集。
 
 工具 `resources`由 `PiResourcesPanel`与长寿命 `usePi`中的 `use-pi-resources`状态承接。有限IPC经PiManager操作锁进入 `pi-resources.rs`，自有Node辅助进程执行应用侧inspector，导入已安装上游SDK的SettingsManager/DefaultPackageManager/loadSkills/buildSystemPrompt；不创建Agent、不执行扩展工厂、不调用模型、不安装缺包。官方默认提示词是只读预览，命令注册仅代表可确认范围。
+
+`use-pi-resources.ts` 复用进行中的读取Promise，对短暂pi_busy/pi_cancelled有限退避，写入不自动重试；保存锁和失效回执检查保草稿。`lib/display-path.ts` 只在显示层隐藏Windows扩展路径前缀并处理UNC，IPC与文件操作使用原生路径。
 
 规则/Skill写入限制在agent/受控workspace、单文件128KB、拒绝链接/越界、对hash核对并临时文件发布；扩展源码只读，启停通过原版FileSettingsStorage原生锁内hash核对更新extensions并保其他配置。保存不自动重连。SDK辅助进程实际运行、Windows路径、并发锁、真实保存均未验证；`--no-context-files`仍限制AGENTS自动注入，TUI/扩展请求响应留待。
 
