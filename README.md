@@ -14,7 +14,7 @@ npm run dev
 
 独立Worktree也在各自根目录使用同一条 `npm run dev`，打开所在目录的版本，不要求指定模块。流程仍为独立分支开发、交接后合main；后续从最新main开始打磨，业务数据库共用原应用定位配置，Windows位置为 `%LOCALAPPDATA%/com.azcine.workbench/data-root.json`。本机当前原数据根是 `C:/Users/A/Documents/AZCineData`，业务库是其 `db/azcine.sqlite3`；源码不写死该机器路径。缺原定位配置或数据被另一窗口占用时明确报错，不回退新空库。当前只能一个桌面窗口持有库锁，先关闭另一窗口再打开分支。
 
-正常开发的Pi配置、认证、会话、Skills和扩展共用本仓库main的 `.tooling/dev-instance/data/pi/`；启动器从Git common-dir自动定位main并传共享参数，不运行PATH中的其他Pi。Skills放 `agent/skills/<name>/SKILL.md`，用户扩展放 `agent/extensions/`，可在“工具 → 规则与资源”查看。既有进程需正常结束后在其Worktree根重新 `npm run dev` 才生效，缺共享参数明确报错。明确测试根和正式版不用开发共享覆盖，也不自动迁移旧Pi文件。各Worktree的WebView使用 `.tooling/dev-instance/webview/`，Vite缓存使用 `.tooling/vite-cache/`；明确测试根继续隔离。旧分支数据库和原Pi目录全部保留，本次不复制/合并/迁移数据。旧源码分支须带上最新main的数据入口改动才使用这套行为，不跨目录改其源码。启动器自动检测可用端口、同步Vite/Tauri devUrl与CSP，并有限重试端口竞争；配置/业务根/Pi根/端口/自有PID打印并保存于不入Git的 `.tooling/instance/run-state.json`，启动锁防同目录重复运行。远程调试默认关闭。旧独立库入口的验证记录不覆盖新共用库入口；本轮未运行测试、构建或真实启动，范围见[开发计划](docs/development-plan.md)。
+正常开发的Pi配置、认证、会话、Skills和扩展共用本仓库main的 `.tooling/dev-instance/data/pi/`；启动器从Git common-dir自动定位main并传共享参数，不运行PATH中的其他Pi。Skills放 `agent/skills/<name>/SKILL.md`，用户扩展放 `agent/extensions/`，可在“工具 → 规则与资源”查看。既有进程需正常结束后在其Worktree根重新 `npm run dev` 才生效，缺共享参数明确报错。明确测试根和正式版不用开发共享覆盖，也不自动迁移旧Pi文件。各Worktree的WebView使用 `.tooling/dev-instance/webview/`，Vite缓存使用 `.tooling/vite-cache/`；明确测试根继续隔离。旧分支数据库和原Pi目录全部保留，本次不复制/合并/迁移数据。旧源码分支须带上最新main的数据入口改动才使用这套行为，不跨目录改其源码。启动器自动检测可用端口、同步Vite/Tauri devUrl与CSP，并有限重试端口竞争；配置/业务根/Pi根/端口/自有PID打印并保存于不入Git的 `.tooling/instance/run-state.json`，启动锁防同目录重复运行。远程调试默认关闭。旧独立库入口的验证记录不覆盖新共用库入口；polish整分支合并时未运行测试、构建或真实启动；本次缺依赖修复后的正常启动另列于本页末尾，范围见[开发计划](docs/development-plan.md)。
 
 Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立复核尚未完成；没有模型不会生成假回复。主窗关闭目前退出。资讯本地自动采集和北京时间日报调度已接，默认关闭、仅电脑及应用实际运行时执行；通用任务队列、托盘和登录自启仍留待。当前实际进度、留待和暂停点分别看[开发计划](docs/development-plan.md)与[当前工作](docs/current-work.md)，不把可运行等同全产品完成。
 
@@ -63,7 +63,7 @@ Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立�
 
 后续界面开发从设计规范第1节进入：`app/src/styles/tokens.css` 为主题与尺寸真源，`globals.css` 为唯一生产样式入口，`components/ui/` 为通用组件库，`ui-preview/` 为展示覆盖。不要照旧原型恢复蓝紫主题、旧导航尺寸或另写一套控件。
 
-2026-10-06合并时只读核对发现：main旧 `app/node_modules` 缺少锁文件新增的 `class-variance-authority`、`clsx`、`lucide-react`、`radix-ui`、`tailwind-merge`、`@tailwindcss/vite`、`tailwindcss`，本轮没有安装或启动。启动前需由主环境维护会话按已授权范围安装合并后的锁定依赖；不可从旧分支的共享链接执行安装，也不宣称仅合并源码即可正常启动。
+2026-10-06用户反馈启动缺包后，主环境已按现有package-lock补齐依赖（`npm --prefix app install --ignore-scripts --no-audit --no-fund --package-lock=false`），声明和锁文件未改动，全部直接依赖版本一致，Tailwind所需Windows包已存在。原缺失的七项依赖已补齐；随后根目录 `npm run dev` 已通过Vite加载、正常桌面编译并运行 `azcine.exe`。这是正常启动记录，不是测试、构建验证或UI验收；详细范围见开发计划。
 
 ## 文档入口
 
