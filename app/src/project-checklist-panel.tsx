@@ -1,3 +1,4 @@
+import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
@@ -101,7 +102,7 @@ export function ProjectChecklistPanel({ id, groups, hidden, disabled, locked, ed
     <div className="project-checklists-scroll" role="region" aria-label="项目清单分组" tabIndex={0}>
       {!groups.length ? <div className="project-checklists-empty"><span><ChecklistIcon name="checklist" /></span><h3>把检查事项留在这里</h3><p>资料确认、版本检查、交付准备，按你的习惯分组。</p><Button variant="app-pill" type="button" className="pill" data-project-commit disabled={locked} aria-disabled={disabled} onClick={addGroup}>＋ 新建第一份清单</Button></div> : groups.map((group, index) => {
         const completed = group.items.filter(item => item.checked).length;
-        return <section key={group.id} className="project-checklist-group" data-block-id={group.id} data-complete={group.items.length > 0 && completed === group.items.length} aria-label={`项目清单：${group.title}`}>
+        return <RecordContextMenu key={group.id} copyText={group.title+'\n'+group.items.map(item=>(item.checked?'☑ ':'☐ ')+item.text).join('\n')} actions={[{label:'添加事项',disabled,run:()=>addItem(group)},{label:'删除清单',destructive:true,disabled,run:()=>removeGroup(group.id)}]}><section className="project-checklist-group" data-block-id={group.id} data-complete={group.items.length > 0 && completed === group.items.length} aria-label={`项目清单：${group.title}`}>
           <header className="project-checklist-group-heading">
             <label className="visually-hidden" htmlFor={`block-${group.id}`}>清单分组名称</label>
             <Input variant="inline" id={`block-${group.id}`} className="project-checklist-title" value={group.title} placeholder="清单分组名称" disabled={editingDisabled} onChange={event => update(group.id, current => ({ ...current, title: event.target.value }))} onBlur={blurSave} />
@@ -113,14 +114,14 @@ export function ProjectChecklistPanel({ id, groups, hidden, disabled, locked, ed
             ]} />
           </header>
           <progress className="project-checklist-progress" value={completed} max={Math.max(1, group.items.length)} aria-label={`${group.title}完成进度`} />
-          <ul className="project-checklist-items">{group.items.map(item => <li key={item.id} data-checklist-item-id={item.id} data-complete={item.checked}>
+          <ul className="project-checklist-items">{group.items.map(item => <RecordContextMenu key={item.id} copyText={item.text} actions={[{label:item.checked?'标记未完成':'标记已完成',disabled,run:()=>{update(group.id,current=>({...current,items:current.items.map(entry=>entry.id===item.id?{...entry,checked:!item.checked}:entry)}),true);}},{label:'删除事项',destructive:true,disabled,run:()=>removeItem(group,item.id)}]}><li data-checklist-item-id={item.id} data-complete={item.checked}>
             <label className="project-checklist-check"><Input variant="inline" type="checkbox" data-project-commit checked={item.checked} disabled={locked} aria-disabled={disabled} aria-label={`勾选：${item.text || '未填写事项'}`} onChange={event => update(group.id, current => ({ ...current, items: current.items.map(entry => entry.id === item.id ? { ...entry, checked: event.target.checked } : entry) }), true)} /><span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg></span></label>
             <ChecklistText id={`checklist-item-${item.id}`} aria-label={`${group.title}，检查事项`} value={item.text} disabled={editingDisabled} onChange={event => update(group.id, current => ({ ...current, items: current.items.map(entry => entry.id === item.id ? { ...entry, text: event.target.value } : entry) }))} onBlur={blurSave} />
             <Button variant="app-control" type="button" className="project-checklist-icon-button project-checklist-delete" data-project-commit aria-label={`删除事项：${item.text || '未填写事项'}`} title="删除此事项" disabled={locked} aria-disabled={disabled} onClick={() => removeItem(group, item.id)}><ChecklistIcon name="delete" /></Button>
-          </li>)}</ul>
+          </li></RecordContextMenu>)}</ul>
           {!group.items.length && <p className="project-checklist-empty">还没有事项，从下面添加一项开始。</p>}
           <Button variant="app-control" type="button" className="project-checklist-add" data-project-commit data-checklist-add disabled={locked} aria-disabled={disabled} onClick={() => addItem(group)}><ChecklistIcon name="plus" />添加事项</Button>
-        </section>;
+        </section></RecordContextMenu>;
       })}
       {groups.length > 0 && <Button variant="app-control" type="button" className="project-checklist-add-group" data-project-commit disabled={locked} aria-disabled={disabled} onClick={addGroup}><ChecklistIcon name="plus" />添加清单分组</Button>}
     </div>

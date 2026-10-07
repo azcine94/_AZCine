@@ -34,9 +34,12 @@ export function useWorkspace() {
     return () => { clearTimeout(timer); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
   const [undo, setUndo] = useState<{ todo: Todo; completed: boolean } | null>(null);
+  const [deletedTodo,setDeletedTodo]=useState<Todo|null>(null);
+  const deletionRoot=useRef<string|null>(null);
   const started = useRef(false);
 
   function acceptWorkspace(next: Workspace) {
+    if(deletionRoot.current!==next.root){setDeletedTodo(null);deletionRoot.current=next.root;}
     setWorkspace(next); setLoadError('');
     // A failed operation on another row must not consume a still-valid undo.
     // Re-reading can invalidate it only when its saved identity/state changed.
@@ -135,7 +138,15 @@ export function useWorkspace() {
       throw e;
     }
   });
-  return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot, draft, changeDraft,
+  async function changeDeletion(todo:Todo,deleted:boolean){let success=false;await action(`todo-delete:${todo.id}`,async()=>{
+    const receipt=await invoke<{todo:unknown;deleted:boolean}>('set_todo_deleted',{id:todo.id,revision:todo.revision,deleted});
+    const saved=parseTodo(receipt.todo);
+    if(receipt.deleted!==deleted||!sameInput(saved,todo)||saved.createdAt!==todo.createdAt||saved.completed!==todo.completed||saved.revision!==todo.revision+1)throw new Error('待办删除响应不匹配，请重新读取核对。');
+    if(deleted){setWorkspace(previous=>previous&&({...previous,todos:previous.todos.filter(row=>row.id!==todo.id)}));setDeletedTodo(saved);setUndo(before=>before?.todo.id===todo.id?null:before);notifyOperation('待办已删除，原记录保留。',{action:{label:'撤销',run:()=>changeDeletion(saved,false)}});}
+    else{acceptTodo(saved);setDeletedTodo(null);setNotice('已撤销删除待办。');}
+    success=true;
+  });return success;}
+  return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot, draft, changeDraft,deletedTodo,changeDeletion,
     pendingCreate, filter, setFilter, today, undo, refresh, pickRoot, selectRoot, openRoot, saveTodo, reconcileCreate, changeCompletion };
 }
 export type WorkspaceController = ReturnType<typeof useWorkspace>;

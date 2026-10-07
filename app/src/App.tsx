@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import type { ReactNode } from 'react';
 import { pages, pageTitle, resolveRoute, projectTarget, navigationPage, newsSourceTarget, sourceTarget } from './routes.ts';
 import type { PageId, Route } from './routes.ts';
+import { listen,isTauri } from './desktop-api.ts';
 import { useTheme } from './use-theme.ts';
 import { useDesktopCheck } from './use-desktop-check.ts';
 import logo from './assets/logo-lockup.png';
@@ -21,7 +22,13 @@ import { deriveDeliveries } from './projects-contract.ts';
 import { usePi } from './use-pi.ts';
 import { usePiProviders } from './use-pi-providers.ts';
 import { SettingsWorkspace } from './settings-panels.tsx';
-import { AgentPanel } from './pi-agent-panel.tsx';
+import { AgentPanel,AgentChat } from './pi-agent-panel.tsx';
+import { AgentSidebar } from './components/ui/agent-sidebar.tsx';
+import { AgentEntry } from './components/ui/agent-entry.tsx';
+import { useAgentData } from './use-agent-data.ts';
+import {useAgentJobs} from './use-agent-jobs.ts';
+import {AgentJobsPanel} from './agent-jobs-panel.tsx';
+import { AgentDraftsPanel } from './agent-drafts-panel.tsx';
 import { PiResourcesPanel } from './pi-resources-panel.tsx';
 import { useModelRanking } from './use-model-ranking.ts';
 import { ModelRankingPanel } from './model-ranking-panel.tsx';
@@ -66,14 +73,14 @@ const routeSnapshot = () => resolveRoute(window.location.hash);
 function Empty({ title, children }: { title: string; children: ReactNode }) {
   return <EmptyState as="div" className="foundation-empty"><h2>{title}</h2><p>{children}</p></EmptyState>;
 }
-function Today({ model, projects, editorial, reader, ideas, targetId }: { model: WorkspaceController; projects: ProjectsController; editorial: EditorialController; reader:ReturnType<typeof useNewsReader>; ideas: IdeasController; targetId: string | null }) {
+function Today({ model, projects, editorial, reader, ideas, targetId, agentData, pi }: { pi:ReturnType<typeof usePi>; agentData:ReturnType<typeof useAgentData>; model: WorkspaceController; projects: ProjectsController; editorial: EditorialController; reader:ReturnType<typeof useNewsReader>; ideas: IdeasController; targetId: string | null }) {
   const deliveries = deriveDeliveries(projects.projects);
   const next = deliveries.find(item => item.dueDate);
   return <>
     <div className="today-cards today-cards-b">
       <section className="today-card review-card">
-        <div className="card-heading"><span className="card-kicker">待核对</span><span className="card-state">未接入</span></div>
-        <div className="review-card-body"><h2>还没有可核对的变更</h2><p className="card-description">资料导入后，变更会先放在这里等你核对。</p></div>
+        <div className="card-heading"><span className="card-kicker">待核对</span><span className="card-state">{agentData.error?'读取失败':`${agentData.drafts.filter(d=>d.status!=='applied').length} 份草案`}</span></div>
+        <div className="review-card-body"><h2>{agentData.error?'草案记录尚未读到':agentData.drafts.some(d=>d.status!=='applied')?'有草案等待本人核对':'还没有可核对的变更'}</h2><p className="card-description">{agentData.error||'Agent完成的业务草案会保存在这里；核对后再写入正式记录。'}</p><AgentDraftsPanel model={agentData} pi={pi}/></div>
       </section>
       <section className="today-card today-tasks-card">
         <header className="card-heading"><h2>今天要做</h2><span className="card-state">本机保存</span></header>
@@ -88,7 +95,7 @@ function Today({ model, projects, editorial, reader, ideas, targetId }: { model:
         {reader.snapshot?.editions.find(e=>e.kind==='daily') ? <div className="news-home-summary"><p className="meta">{reader.snapshot.editions.find(e=>e.kind==='daily')!.date} · 日报</p>{reader.snapshot.editions.find(e=>e.kind==='daily')!.main.slice(0,3).map(a=><p key={a.id}><UILink variant="text" className="foundation-link" href={`#news/items/${a.id}`}>{a.titleZh}</UILink></p>)}{!reader.snapshot.editions.find(e=>e.kind==='daily')!.main.length&&<p className="subtle">本期暂无符合规则的条目。</p>}</div> : editorial.snapshot?.editions[0] ? <div className="news-home-summary"><p className="meta">{editorial.snapshot.editions[0].date} · v{editorial.snapshot.editions[0].version}{editorial.snapshot.editions[0].incomplete && ' · 覆盖不完整'}</p>{editorial.snapshot.editions[0].overviewIds.slice(0, 3).map(id => { const event = editorial.snapshot!.editions[0].events.find(e => e.id === id); return event && <p key={id}><UILink variant="text" className="foundation-link" href={`#news/events/${id}`}>{event.draft.title}</UILink></p>; })}{!editorial.snapshot.editions[0].overviewIds.length && <p className="subtle">本期没有符合规则的看点，不凑数。</p>}</div> : <Empty title="暂无资讯刊期">采集与整理在设置的资讯管理中操作，生成后的日报在资讯页阅读。</Empty>}
       </section>
     </div>
-    <div className="foundation-job"><span>后台队列未接入</span><UILink variant="plain" href="#jobs">查看后台任务</UILink></div>
+    <div className="foundation-job"><span>后台整理与资讯任务</span><UILink variant="plain" href="#jobs">查看后台任务</UILink></div>
   </>;
 }
 function Placeholder({ route }: { route: Route }) {
@@ -116,11 +123,11 @@ export default function App() {
 }
 
 export interface WorkspaceViewProps {
-  readerPreview?:NewsReaderController; articlePreview?:ArticleDetail;
+  agentDataPreview?:ReturnType<typeof useAgentData>;agentJobsPreview?:ReturnType<typeof useAgentJobs>;readerPreview?:NewsReaderController; articlePreview?:ArticleDetail;
   route: Route; theme: ReturnType<typeof useTheme>['theme']; toggle: ReturnType<typeof useTheme>['toggle']; selectTheme: ReturnType<typeof useTheme>['selectTheme']; warning: string;
   desktop: ReturnType<typeof useDesktopCheck>; workspace: WorkspaceController; projects: ProjectsController; pi: ReturnType<typeof usePi>; providers: ReturnType<typeof usePiProviders>; rankings: ReturnType<typeof useModelRanking>; news: ReturnType<typeof useNews>; editorial: EditorialController; processing: ReturnType<typeof useNewsProcessing>; ideas: IdeasController; bookkeeping: BookkeepingController;
 }
-export function WorkspaceView({route, theme, toggle, selectTheme, warning, desktop, workspace, projects, pi, providers, rankings, news, editorial, processing, ideas, bookkeeping,readerPreview,articlePreview}: WorkspaceViewProps) {
+export function WorkspaceView({route, theme, toggle, selectTheme, warning, desktop, workspace, projects, pi, providers, rankings, news, editorial, processing, ideas, bookkeeping,readerPreview,articlePreview,agentDataPreview,agentJobsPreview}: WorkspaceViewProps) {
   const title = pageTitle(route.startsWith('bookkeeping/') ? 'bookkeeping' : route === 'projects/new' ? 'projects' : route === 'settings/news/sources/new' ? 'settings/news' : route);
   const heading = useRef<HTMLHeadingElement>(null);
   const scrollArea = useRef<HTMLDivElement>(null);
@@ -132,6 +139,36 @@ export function WorkspaceView({route, theme, toggle, selectTheme, warning, deskt
   const reader=document.documentElement.dataset.uiPreview==='true'&&readerPreview?readerPreview:nativeReader;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.matchMedia('(max-width:1100px)').matches);
   const sourceId = sourceTarget(route);
+  const [agentOpen,setAgentOpen]=useState(false);
+  const dockSourceRoute=useRef<string|null>(null);
+  const agentEntry=useRef<HTMLButtonElement>(null);
+  const nativeAgentJobs=useAgentJobs(workspace.loadError?null:workspace.workspace?.root??null);
+  const nativeAgentData=useAgentData(workspace.loadError?null:workspace.workspace?.root??null);
+  const agentJobs=document.documentElement.dataset.uiPreview==='true'&&agentJobsPreview?agentJobsPreview:nativeAgentJobs;
+  const agentData=document.documentElement.dataset.uiPreview==='true'&&agentDataPreview?agentDataPreview:nativeAgentData;
+  const agentWaiting=pi.runtimeSummary?.conversations.filter(row=>row.waiting).length??0;
+  const agentSource={module:newsTarget&&newsTarget!=='new'?'news':activePage==='settings'?'settings':activePage,page:route,objectId:target?.projectId??sourceId??(newsTarget&&newsTarget!=='new'?'source:'+newsTarget:activePage==='bookkeeping'&&route!=='bookkeeping'&&route!=='bookkeeping/new'?route.slice(12):route.startsWith('news/items/')?route.slice(11):route.startsWith('news/stories/')?route.slice(13):route.startsWith('news/events/')?route.slice(12):null)};
+  const [businessPending,setBusinessPending]=useState<string[]>([]);
+  useEffect(()=>{
+    if(!workspace.workspace?.root||!isTauri())return;
+    let disposed=false,off:(()=>void)|undefined;
+    void listen<string[]>('azcine-business-data-changed',event=>{if(disposed)return;setBusinessPending(previous=>[...new Set([...previous,...event.payload,...(event.payload.some(module=>module==='projects'||module==='today')?['workspace']:[])])]);}).then(stop=>{if(disposed)stop();else off=stop;});
+    return()=>{disposed=true;off?.();};
+  },[workspace.workspace?.root]);
+  useEffect(()=>{
+    if(!businessPending.length)return;
+    const remaining:string[]=[];
+    for(const module of businessPending){
+      if(module==='workspace'){if(workspace.busy||workspace.loading){remaining.push(module);continue;}void workspace.refresh();}
+      else if(module==='projects'){if(projects.busy||projects.loading){remaining.push(module);continue;}void projects.refresh();}
+      else if(module==='ideas'){if(ideas.busy||ideas.loading){remaining.push(module);continue;}void ideas.refresh();}
+      else if(module==='bookkeeping'){if(bookkeeping.busy||bookkeeping.loading){remaining.push(module);continue;}void bookkeeping.refresh();}
+      else if(module==='news'){if(news.busy||news.loading){remaining.push(module);continue;}void news.refresh(false);}
+    }
+    if(remaining.length!==businessPending.length)setBusinessPending(remaining);
+  },[businessPending,workspace.busy,workspace.loading,projects.busy,projects.loading,ideas.busy,ideas.loading,bookkeeping.busy,bookkeeping.loading,news.busy,news.loading]);
+  useEffect(()=>{if(dockSourceRoute.current===route)return;if(route!=='agent')dockSourceRoute.current=null;if(agentOpen&&route!=='agent'&&!pi.action&&(pi.source.module!==agentSource.module||pi.source.page!==agentSource.page||pi.source.objectId!==agentSource.objectId))void pi.openSource(agentSource);},[route,agentOpen,pi.action]);
+
   useEffect(() => {
     if (activePage === 'today' && sourceId) {
       const todo = workspace.workspace?.todos.find(t => t.id === sourceId);
@@ -155,9 +192,12 @@ export function WorkspaceView({route, theme, toggle, selectTheme, warning, deskt
       </aside>
       <main className="workspace" data-page={route}>
         <WorkspaceHeader sidebarCollapsed={sidebarCollapsed} onToggleSidebar={()=>setSidebarCollapsed(value=>!value)} />
-        <header className="page-heading"><div className="page-name">{activePage === 'settings' && <UILink variant="plain" className="settings-back" href="#today" aria-label="返回工作台"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12" /></svg></UILink>}<h1 tabIndex={-1} ref={heading}>{activePage === 'settings' ? '设置' : title}</h1></div>{(activePage === 'projects' || activePage === 'ideas') && <span className="meta">{activePage === 'projects' ? '文档与交付' : '想法先留下，不必立刻变成任务'}</span>}</header>
+        <div className="workspace-body"><div className="workspace-main"><header className="page-heading"><div className="page-name">{activePage === 'settings' && <UILink variant="plain" className="settings-back" href="#today" aria-label="返回工作台"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12" /></svg></UILink>}<h1 tabIndex={-1} ref={heading}>{activePage === 'settings' ? '设置' : title}</h1></div><div className="agent-page-tools">{(activePage === 'projects' || activePage === 'ideas') && <span className="meta">{activePage === 'projects' ? '文档与交付' : '想法先留下，不必立刻变成任务'}</span>}{route!=='agent'&&workspace.workspace?.root&&<AgentEntry ref={agentEntry} aria-expanded={agentOpen} waitingCount={agentWaiting} activeCount={pi.runtimeSummary?.active??0} onClick={()=>{dockSourceRoute.current=null;setAgentOpen(open=>!open);if(!agentOpen)void pi.openSource(agentSource);}}/>}</div></header>
         <div ref={scrollArea} className={`workspace-scroll${activePage === 'settings' ? ' workspace-scroll--settings' : ''}${target && projects.drafts[target.projectId] && workspace.workspace?.root && !workspace.loadError ? ' workspace-scroll--project-document' : ''}`} role="region" aria-label={`${title}内容`} tabIndex={0}>
-        {activePage === 'bookkeeping' ? (workspace.workspace?.root && !workspace.loadError ? <BookkeepingPanel model={bookkeeping} create={route === 'bookkeeping/new'} editId={route.startsWith('bookkeeping/') && route !== 'bookkeeping/new' ? route.slice(12) : null} /> : <WorkspaceGate model={workspace} />) : activePage === 'today' ? (workspace.workspace?.root && !workspace.loadError ? <Today model={workspace} projects={projects} editorial={editorial} reader={reader} ideas={ideas} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'ideas' ? (workspace.workspace?.root && !workspace.loadError ? <IdeasPanel model={ideas} projects={projects.projects} projectsLoading={projects.loading} projectsError={projects.loadError} workspace={workspace} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'models' ? <ModelRankingPanel model={rankings} hasRoot={!!workspace.workspace?.root && !workspace.loadError} rootError={workspace.loadError} /> : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} /> : <WorkspaceGate model={workspace} />) : route === 'resources' ? (workspace.workspace?.root && !workspace.loadError ? <PiResourcesPanel model={pi} /> : <WorkspaceGate model={workspace} />) : activePage === 'settings' ? <SettingsWorkspace route={route} sourceId={newsTarget} workspace={workspace} pi={pi} providers={providers} news={news} editorial={editorial} processing={processing} desktop={desktop} theme={theme} selectTheme={selectTheme} /> : activePage === 'news' ? (workspace.workspace?.root && !workspace.loadError ? route.startsWith('news/items/') ? <NewsArticlePage key={route} id={route.slice(11)} root={workspace.workspace.root} news={news} onBookmark={()=>void reader.refresh()} preview={document.documentElement.dataset.uiPreview==='true'?articlePreview:undefined} /> : route.startsWith('news/stories/') ? <NewsStoryPage id={route.slice(13)} model={reader} /> : route.startsWith('news/events/') ? <NewsArticlePage key={route} id={route.slice(12)} root={workspace.workspace.root} news={news} onBookmark={()=>void reader.refresh()} preview={document.documentElement.dataset.uiPreview==='true'?articlePreview:undefined} /> : <NewsReaderList model={reader} legacy={editorial} news={news} /> : <WorkspaceGate model={workspace} />) : route === 'jobs' ? (workspace.workspace?.root && !workspace.loadError ? <NewsProcessingPanel model={editorial} news={news} processing={processing} /> : <WorkspaceGate model={workspace} />) : <Placeholder route={route} />}
+        {activePage === 'bookkeeping' ? (workspace.workspace?.root && !workspace.loadError ? <BookkeepingPanel model={bookkeeping} create={route === 'bookkeeping/new'} editId={route.startsWith('bookkeeping/') && route !== 'bookkeeping/new' ? route.slice(12) : null} /> : <WorkspaceGate model={workspace} />) : activePage === 'today' ? (workspace.workspace?.root && !workspace.loadError ? <Today pi={pi} agentData={agentData} model={workspace} projects={projects} editorial={editorial} reader={reader} ideas={ideas} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'ideas' ? (workspace.workspace?.root && !workspace.loadError ? <IdeasPanel model={ideas} projects={projects.projects} projectsLoading={projects.loading} projectsError={projects.loadError} workspace={workspace} targetId={sourceId} /> : <WorkspaceGate model={workspace} />) : activePage === 'projects' ? (workspace.workspace?.root && !workspace.loadError ? target ? <ProjectEditor key={target.projectId} model={projects} projectId={target.projectId} targetRow={target.row} /> : <ProjectsOverview model={projects} create={route === 'projects/new'} /> : <WorkspaceGate model={workspace} />) : route === 'models' ? <ModelRankingPanel model={rankings} hasRoot={!!workspace.workspace?.root && !workspace.loadError} rootError={workspace.loadError} /> : route === 'agent' ? (workspace.workspace?.root && !workspace.loadError ? <AgentPanel model={pi} agentData={agentData} onDock={()=>{const destination=pi.source.page==='agent'?'today':pi.source.page;dockSourceRoute.current=destination;setAgentOpen(true);location.hash=destination;}} /> : <WorkspaceGate model={workspace} />) : route === 'resources' ? (workspace.workspace?.root && !workspace.loadError ? <PiResourcesPanel model={pi} /> : <WorkspaceGate model={workspace} />) : activePage === 'settings' ? <SettingsWorkspace route={route} sourceId={newsTarget} workspace={workspace} pi={pi} providers={providers} news={news} editorial={editorial} processing={processing} desktop={desktop} theme={theme} selectTheme={selectTheme} /> : activePage === 'news' ? (workspace.workspace?.root && !workspace.loadError ? route.startsWith('news/items/') ? <NewsArticlePage key={route} id={route.slice(11)} root={workspace.workspace.root} news={news} onBookmark={()=>void reader.refresh()} preview={document.documentElement.dataset.uiPreview==='true'?articlePreview:undefined} /> : route.startsWith('news/stories/') ? <NewsStoryPage id={route.slice(13)} model={reader} /> : route.startsWith('news/events/') ? <NewsArticlePage key={route} id={route.slice(12)} root={workspace.workspace.root} news={news} onBookmark={()=>void reader.refresh()} preview={document.documentElement.dataset.uiPreview==='true'?articlePreview:undefined} /> : <NewsReaderList model={reader} legacy={editorial} news={news} /> : <WorkspaceGate model={workspace} />) : route === 'jobs' ? (workspace.workspace?.root && !workspace.loadError ? <><AgentJobsPanel model={agentJobs}/><NewsProcessingPanel model={editorial} news={news} processing={processing} /></> : <WorkspaceGate model={workspace} />) : <Placeholder route={route} />}
+        </div>
+        </div>
+      <AgentSidebar returnFocus={()=>agentEntry.current?.focus({preventScroll:true})} open={agentOpen&&route!=='agent'} onClose={()=>setAgentOpen(false)} title={`Agent · ${title}`}><AgentChat model={pi} agentData={agentData} compact onClose={()=>setAgentOpen(false)} onExpand={()=>{setAgentOpen(false);location.hash='agent';}}/></AgentSidebar>
         </div>
       </main>
     </div>

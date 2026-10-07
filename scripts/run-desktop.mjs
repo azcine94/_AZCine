@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, openSync, closeSync, unlinkSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { childExitStatus } from './exit-status.mjs';
 import { prepareEnvironment, availablePort } from './dev-environment.mjs';
+import { acquireLauncherLock } from './launcher-lock.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const app = path.join(root, 'app');
@@ -15,6 +16,9 @@ const cli = path.join(app, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 const mode = process.argv[2] || 'dev';
 if (!['dev', 'test:rust'].includes(mode)) throw new Error(`Unsupported development command: ${mode}`);
 const mainRoot = prepareEnvironment(root);
+const isolatedValidation = mode==='dev' && Boolean(process.env.AZCINE_TEST_CONFIG_DIR);
+const stateDirectory = isolatedValidation ? path.join(path.resolve(process.env.AZCINE_TEST_CONFIG_DIR), 'launcher') : path.join(root, '.tooling', 'instance');
+mkdirSync(stateDirectory,{recursive:true});
 if (!existsSync(cargo) || !existsSync(cli)) {
   console.error('开发依赖尚未安装。请按 README 的项目内工具链说明配置 .tooling/，并运行 npm --prefix app ci。');
   process.exit(1);
@@ -24,7 +28,8 @@ const env = {
   CARGO_HOME: cargoHome,
   RUSTUP_HOME: rustupHome,
   RUSTUP_TOOLCHAIN: '1.99.0-x86_64-pc-windows-msvc',
-  CARGO_TARGET_DIR: path.join(app, 'src-tauri', 'target'),
+  CARGO_TARGET_DIR: isolatedValidation ? path.join(stateDirectory,'target') : path.join(app, 'src-tauri', 'target'),
+  AZCINE_VITE_CACHE_DIR: isolatedValidation ? path.join(stateDirectory,'vite-cache') : path.join(root,'.tooling','vite-cache'),
   WEBVIEW2_USER_DATA_FOLDER: process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(root, '.tooling', 'webview-dev'),
 };
 delete env.AZCINE_DEV_PI_DATA_DIR;
@@ -53,20 +58,11 @@ if (process.env.AZCINE_CDP_PORT) {
 // Rust is added to this owned child only. No system/user PATH or Pi runtime changes.
 for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
 env.PATH = `${path.dirname(cargo)}${path.delimiter}${process.env.PATH || process.env.Path || ''}`;
-const lockPath = path.join(root, '.tooling', 'instance', 'launcher.lock');
-let lock, vite, devConfig;
+const lockPath = path.join(stateDirectory, 'launcher.lock');
+let vite, devConfig;
 if (mode === 'dev') {
-  if (existsSync(lockPath)) {
-    const owner = Number(readFileSync(lockPath, 'utf8'));
-    if (!Number.isSafeInteger(owner) || owner < 1) throw Error('启动锁编号无效，请保留文件并核对。');
-    let absent = false;
-    try { process.kill(owner, 0); } catch (error) { if (error.code === 'ESRCH') absent = true; else throw error; }
-    if (absent) renameSync(lockPath, `${lockPath}.retained-${Date.now()}`);
-  }
-  try { lock = openSync(lockPath, 'wx'); }
-  catch { throw Error('本 Worktree 已有启动器或上次异常留下的 launcher.lock，请先核对所属进程；不会覆盖。'); }
-  writeFileSync(lock, String(process.pid));
-  process.once('exit', () => { stopVite(); closeSync(lock); unlinkSync(lockPath); });
+  const releaseLock = acquireLauncherLock(lockPath);
+  process.once('exit', () => { stopVite(); releaseLock(); });
   for (let attempt = 0; attempt < 4; attempt++) {
     const port = await availablePort();
     vite = spawn(process.execPath, [path.join(app, 'node_modules/vite/bin/vite.js'), '--configLoader', 'runner', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { cwd: app, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -80,7 +76,7 @@ if (mode === 'dev') {
     });
     if (!ready) continue;
     const source = JSON.parse(readFileSync(path.join(app, 'src-tauri/tauri.conf.json'), 'utf8'));
-    devConfig = path.join(root, '.tooling', 'instance', 'tauri-dev.json');
+    devConfig = path.join(stateDirectory, 'tauri-dev.json');
     writeFileSync(devConfig, JSON.stringify({ build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
     const isolated = !!(env.AZCINE_TEST_CONFIG_DIR || env.AZCINE_TEST_DEFAULT_ROOT);
     // Report the real locator target without opening the business database or
@@ -94,7 +90,7 @@ if (mode === 'dev') {
     }
     const data = env.AZCINE_TEST_DEFAULT_ROOT || locatedRoot || (isolated ? path.join(root, '.tooling', 'dev-instance', 'data') : null);
     const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : env.AZCINE_DEV_PI_DATA_DIR, piDataMode: isolated ? 'isolated-validation' : 'shared-main', webview: env.WEBVIEW2_USER_DATA_FOLDER };
-    writeFileSync(path.join(root, '.tooling', 'instance', 'run-state.json'), JSON.stringify(state, null, 2));
+    writeFileSync(path.join(stateDirectory, 'run-state.json'), JSON.stringify(state, null, 2));
     console.log('AZCine Worktree 开发实例：' + JSON.stringify(state));
     break;
   }
@@ -105,7 +101,7 @@ const args = mode === 'dev' ? [cli, 'dev', '--config', devConfig, ...process.arg
 const child = spawn(command, args, { cwd: app, env, stdio: 'inherit', windowsHide: true });
 child.once('spawn', () => {
   if (mode === 'dev') {
-    const statePath=path.join(root,'.tooling','instance','run-state.json');
+    const statePath=path.join(stateDirectory,'run-state.json');
     const state=JSON.parse(readFileSync(statePath,'utf8'));
     writeFileSync(statePath,JSON.stringify({...state,cliPid:child.pid},null,2));
   }
@@ -144,7 +140,7 @@ child.once('exit', (code, signal) => {
   stopVite();
   process.exitCode = childExitStatus({ mode, stopping, code, signal, failureCode: process.exitCode });
   if (mode === 'dev') {
-    const statePath=path.join(root,'.tooling','instance','run-state.json');
+    const statePath=path.join(stateDirectory,'run-state.json');
     const state=JSON.parse(readFileSync(statePath,'utf8'));
     writeFileSync(statePath,JSON.stringify({...state,stoppedAt:new Date().toISOString(),exitCode:process.exitCode},null,2));
   }

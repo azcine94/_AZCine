@@ -1,4 +1,5 @@
 import {useOperationNotice} from './components/ui/operation-toast.tsx';
+import {useAgentObjects} from './use-agent-objects.ts';
 import { Button } from './components/ui/button.tsx';
 // Loaded only by the development preview entry. No IPC, storage or model requests.
 import { useMemo, useRef, useState } from 'react';
@@ -53,17 +54,31 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const resources=usePiResources(null);
   const [active,setActive]=useState(sessions[0]),[scenario,setScenario]=useState<Scenario>('complete');
   const [selectedModel,setSelectedModel]=useState(MODEL);
+  const [removedSessions,setRemovedSessions]=useState<string[]>([]);
+  const [sessionPins,setSessionPins]=useState<string[]>([]);
   const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useOperationNotice<string|null>(null);
   const [choices,setChoices]=useState<Record<string,boolean>>({});
   const [modelForm,setModelForm]=useState<PiController['modelForm']>({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
   const scroll=useRef<Record<string,{top:number;following:boolean}>>({});
   const projection=useMemo<PiProjection>(()=>active.id==='new-demo'?{messages:[],partial:null,tools:[],activity:'idle',outcome:'none',steering:[],followUp:[],notice:null}:exampleProjection(active,scenario),[active,scenario]);
   const generation={complete:1,running:2,error:3,interrupted:4}[scenario];
+  const objects=useAgentObjects(null,active.id);
   const snapshot:PiSnapshot={generation,seq:0,connection:'ready',busy:false,stopping:false,sending:false,state:{sessionId:active.id,sessionFile:active.path,sessionName:active.name,model:selectedModel,thinkingLevel:'medium',isStreaming:scenario==='running',isCompacting:false,pendingMessageCount:0,messageCount:projection.messages.length},models:MODELS,projection,recoveredQueue:[],error:null,notice:null,cwd:'demo',runtime:null,paths:null};
   const switchSession=(session:PiSession)=>{setActive(session);setScenario('complete');setNotice(null);setSessionName('');};
   const controller:PiController={
+    sessionPins,setSessionPinned:(sessionId,pinned)=>setSessionPins(before=>pinned?before.includes(sessionId)?before:[...before,sessionId]:before.filter(id=>id!==sessionId)),
+    objects,prepareRedo:async()=>{},uiAnswers:{},setUiAnswer:()=>{},conversationKey:'ui-demo',source:{module:'agent',page:'agent',objectId:null},openSource:async()=>{},newConversation:async()=>{},selectConversation:async()=>{},runtimeSummary:null,refreshRuntime:async()=>{},saveLimit:async()=>{},files:[],attachFile:async()=>{},removeFile:()=>{},respondUi:async()=>{},stats:null,refreshStats:async()=>{},takeEditor:()=>{},
+    deleteConversation:async target=>{if(target.sessionId===active.id&&scenario==='running')return{deleted:false,error:'请先结束运行，再删除示例会话。'};setRemovedSessions(before=>[...before,target.sessionId]);setSessionPins(before=>before.filter(id=>id!==target.sessionId));if(target.sessionId===active.id)switchSession(sessions.find(session=>session.id!==target.sessionId&&!removedSessions.includes(session.id))??{...sessions[0],id:'new-demo',path:'demo/new',name:'新示例会话',messageCount:0});return{deleted:true};},
+    deleteConversations:async targets=>{
+      const unique=[...new Map(targets.map(target=>[target.sessionId,target])).values()];
+      const protectedRows=unique.filter(target=>target.sessionId===active.id&&scenario==='running');
+      const deleted=unique.filter(target=>!protectedRows.includes(target)).map(target=>target.sessionId);
+      setRemovedSessions(before=>[...new Set([...before,...deleted])]);setSessionPins(before=>before.filter(id=>!deleted.includes(id)));
+      if(deleted.includes(active.id))switchSession(sessions.find(session=>!deleted.includes(session.id)&&!removedSessions.includes(session.id))??{...sessions[0],id:'new-demo',path:'demo/new',name:'新示例会话',messageCount:0});
+      return{deleted,errors:protectedRows.map(target=>({sessionId:target.sessionId,error:'请先结束运行，再删除示例会话。'}))};
+    },
     resources,
-    snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session),unreadable:0,sessionError:null,
+    snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:(active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session)).filter(session=>!removedSessions.includes(session.id)),unreadable:0,sessionError:null,
     draft:{text:drafts[active.id]??'',images:[]},draftKey:active.id,setText:text=>setDrafts(before=>({...before,[active.id]:text})),setImages:()=>{},
     refresh:async()=>{},reloadSessions:async()=>{setNotice('示例会话已全部载入。');},connect:async session=>{if(session)switchSession(session);},disconnect:async()=>{},
     send:async()=>{setNotice('这是界面示例。切回真实会话后才能发送。');},stop:async()=>{},

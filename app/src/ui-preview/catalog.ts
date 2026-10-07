@@ -9,15 +9,20 @@ import { project, event, source, idea, uuid } from './data.ts';
 
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
+const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-conflict','agent-process-retry','agent-answer-table'];
 export const extraStateLabels:Record<string,string>={
+  'agent-draft-create':'Agent · 新建项目表格预览','agent-draft-update':'Agent · 行与单元格差异','agent-draft-long':'Agent · 长草案与表格分页','agent-draft-confirm':'Agent · 固定底栏确认应用','agent-draft-conflict':'Agent · 草案过期保留内容','agent-process-retry':'Agent · 单轮重试与子调用状态','agent-answer-table':'Agent · 回答中的表格',
+  'agent-sidebar':'Agent侧栏 · 正常聊天','agent-sidebar-sessions':'Agent侧栏 · 会话列表与关闭','agent-sidebar-long':'Agent侧栏 · 长标题和正文','agent-sidebar-running':'Agent侧栏 · 正在回复','agent-sidebar-extension':'Agent侧栏 · 等待回答','agent-sidebar-error':'Agent侧栏 · 失败保输入',
   'form-dialog-open':'创建表单弹窗展开','form-dialog-error':'创建弹窗 · 失败保留输入','form-dialog-pending':'创建弹窗 · 回执待核对','form-dialog-loading':'创建弹窗 · 保存中','form-dialog-long':'创建弹窗 · 长输入','operation-toast':'右上角操作提示','history-delete':'删除单条处理记录','history-clear':'清空已结束记录','bookkeeping-validation':'记账 · 字段校验不重复','bookkeeping-create':'记一笔弹窗','bookkeeping-edit':'编辑开销弹窗','bookkeeping-save-feedback':'记账 · 保存反馈稳定','bookkeeping-refresh':'记账 · 刷新保留旧内容','bookkeeping-refresh-fast':'记账 · 短刷新不闪提示','project-create':'新建项目弹窗','todo-create':'新增待办弹窗','idea-create':'新灵感弹窗','source-create':'新增信源弹窗',
   'project-delete-confirm':'项目 · 整项目删除确认','project-removed':'项目 · 已删除与撤销','project-restore-confirm':'项目 · 恢复确认','project-delete-pending':'项目 · 删除回执待核对','project-delete-error':'项目 · 删除失败保留内容',
   'month-open':'月份 · 中文选择展开','bookkeeping-fx':'记账 · 外币折算','bookkeeping-fx-loading':'记账 · 汇率读取中','bookkeeping-fx-error':'记账 · 汇率失败保留输入',
   'bookkeeping-selected':'记账 · 勾选合计','bookkeeping-confirm':'记账 · 报销确认','bookkeeping-delete':'记账 · 移除确认','bookkeeping-saving':'记账 · 保存中',
   'resource-waiting':'资源 · 等待 Pi 操作完成',
+  'agent-session-status':'Agent · 会话状态圆点',
+  'agent-session-pinned':'Agent · 独立置顶分类','agent-session-manage':'Agent · 最近会话批量管理入口','agent-session-pin-action':'Agent · 会话行悬停置顶入口',
   'windows-paths':'Windows 路径 · 本机与共享目录',
   'shell-collapsed':'整站 · 侧栏收起',
-  'agent-more':'Agent · 更多会话操作展开','agent-runtime':'Agent · 运行信息展开','agent-models':'Agent · 多模型菜单展开','agent-sessions':'Agent · 多会话列表','agent-process':'Agent · 思考与工具过程展开',
+  'agent-waiting':'Agent · 等待模型响应','agent-delete':'Agent · 删除会话确认','agent-bulk-delete':'Agent · 会话批量管理','agent-sessions-collapsed':'Agent · 会话分组收起','todo-delete':'今天 · 删除待办确认','agent-objects':'Agent · 真实对象选择与搜索','agent-draft-review':'Agent · 草案核对','agent-draft-decisions':'Agent · 确定变更与待确认事项','agent-extension':'Agent · 原生扩展问题','agent-more':'Agent · 更多会话操作展开','agent-runtime':'Agent · 运行信息展开','agent-models':'Agent · 多模型菜单展开','agent-sessions':'Agent · 多会话列表','agent-process':'Agent · 思考与工具过程展开',
   'provider-interface':'模型 · 接口设置展开','provider-fetching':'服务商 · 获取模型中','provider-saving':'服务商 · 保存中','provider-multiple':'多个服务商 / 多个模型',
   'stage-select':'阶段 · 选择展开','stage-create':'阶段 · 新增标签','stage-manage':'阶段 · 管理标签','stage-rename':'阶段 · 改名','stage-error':'阶段 · 输入错误',
   'calendar-open':'日期 · 日历展开','table-menu':'表格 · 操作菜单展开','add-menu':'项目 · 添加内容菜单展开',
@@ -32,8 +37,8 @@ const files: Record<string,string[]> = {
   today:['workspace-panels.tsx','projects-panels.tsx','news-reading-panels.tsx'],
   projects:['projects-panels.tsx'],
   news:['news-reader-panels.tsx','news-article-body.tsx','news-reading-panels.tsx'],models:['model-ranking-panel.tsx'],ideas:['ideas-panels.tsx'],
-  agent:['pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-panels.tsx'],
-  jobs:['news-processing-panel.tsx'],settings:['settings-panels.tsx'],
+  agent:['components/ui/attachment-preview.tsx','agent-image-limits.ts','agent-object-picker.tsx','agent-drafts-panel.tsx','agent-draft-preview.tsx','pi-extension-panel.tsx','agent-sidebar.tsx','agent-session-navigation.tsx','use-agent-session-pins.ts','components/ui/status-dot.tsx','pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-process-view.ts','pi-messages.ts','agent-message-content.ts','agent-draft-review.ts','components/ui/message-markdown.tsx','pi-panels.tsx'],
+  jobs:['agent-jobs-panel.tsx','news-processing-panel.tsx'],settings:['settings-panels.tsx'],
   'settings/models':['pi-provider-panel.tsx','pi-panels.tsx'],
   resources:['pi-resources-panel.tsx'],
   'settings/runtime':['pi-panels.tsx'],'settings/data':['workspace-panels.tsx'],
@@ -52,14 +57,14 @@ function states(route:string) {
   if (route==='settings') return ['normal','disconnected','long'];
   if (route==='settings/diagnostics') return ['normal','loading','error','success'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open','windows-paths'];
-  if (route==='agent') return [...base,'disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-more','agent-runtime','agent-models','agent-sessions','agent-process'];
+  if (route==='agent') return [...base,...agentRepairStates,'disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-draft-decisions','agent-process'];
   if (route==='news') return [...base,'all','featured','hot','daily','filtered','review','incomplete'];
   if (route==='ideas'||route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','converted','undo','conflict','conflict-details'];
   if(route==='projects')return [...base,'project-create','dirty','create-pending','project-delete-confirm','project-removed','project-restore-confirm','project-delete-pending','project-delete-error'];
   if(route==='projects/new')return [...base,'dirty','create-pending'];
   if(route.startsWith('projects/'))return [...base,'project-delete-confirm','project-removed','project-restore-confirm','project-delete-pending','project-delete-error','dirty','pending','conflict','conflict-details','discard-confirm','project-undo','project-saving','table-menu','table-stage-menu','table-date-menu','table-delivered-menu','table-text-menu','table-row-menu','add-menu','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open'];
   if(route.startsWith('news/events/'))return [...base,'original-source','folds-open'];
-  if (route==='today') return [...base,'todo-create','pending','completed','undo','no-root'];
+  if (route==='today') return [...base,'agent-sidebar','agent-sidebar-sessions','agent-sidebar-long','agent-sidebar-running','agent-sidebar-extension','agent-sidebar-error','agent-draft-review','todo-create','todo-delete','pending','completed','undo','no-root'];
   if (route==='models') return [...base,'busy','no-root'];
   return [...base,'dirty','pending','no-root'];
 }

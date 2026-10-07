@@ -1,3 +1,4 @@
+import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
 import { EmptyState } from './components/ui/empty-state.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
@@ -48,6 +49,7 @@ function Progress({ value, active, news }: { value: ProcessingProgress; active: 
     {value.error && <Feedback as="p" tone="error" className="form-error" role="alert">{value.error}</Feedback>}
     {value.phase === 'waitingModel' && <p className="meta">请求已被 Pi 接受，等待模型回答；当前调用最多等待180秒。</p>}
     {value.phase === 'thinking' && <p className="meta">模型已开始推理，尚未收到完整回答。</p>}
+    {value.phase === 'queued' && <p className="meta">正在等待后台名额，尚未提交资料。</p>}
     {value.phase === 'connecting' && <p className="meta">正在准备资讯专用 Pi，尚未向模型提交资料。</p>}
     {recentSteps.length > 0 && <div className="processing-recent"><h4>最近进展</h4><ol className="processing-recent-steps">{recentSteps.map((step, index) => <li key={`${index}-${step.at}`}><span className="processing-step-dot" aria-hidden="true" /><span>{processingPhases[step.phase] ?? step.phase}</span><time dateTime={step.at}>{formatNewsTime(step.at)}</time></li>)}</ol></div>}
     <div className="processing-evidence">
@@ -128,13 +130,13 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
 
     <NewsReceiptPanel runId={processing.detailTarget?.id??current?.id??null} active={model.active}/><section className="processing-history" aria-labelledby="processing-history-title">
       <header className="processing-section-heading"><h3 id="processing-history-title">处理记录</h3><span className="meta">输入、规则与返回按批保留</span><NewsHistoryControl model={news} disabled={locked} total={runs.filter(run=>!['running','saving'].includes(run.status)).length}/></header>
-      <ul className="processing-records">{runs.slice(0, runLimit).map(run => <li className={`processing-record${processing.detailTarget?.id === run.id ? ' selected' : ''}`} key={run.id}>
+      <ul className="processing-records">{runs.slice(0, runLimit).map(run => <RecordContextMenu key={run.id} copyText={editorialStatusLabels[run.status]+' · '+formatNewsTime(run.startedAt)} actions={[{label:'删除处理记录',destructive:true,disabled:locked||!!news.reset.request||['running','saving'].includes(run.status),run:()=>{void news.reset.prepare(`history:${run.id}`);}}]}><li className={`processing-record${processing.detailTarget?.id === run.id ? ' selected' : ''}`} key={run.id}>
         <Button variant="app-control" className="processing-record-open" aria-controls="news-processing-detail" aria-pressed={processing.detailTarget?.id === run.id} onClick={() => { setRetry(null); void processing.inspect(run.id); }}>
           <span className="processing-record-top"><strong>{run.kind === 'daily' ? '日报' : run.kind === 'analysis' ? '事件分析' : '资讯整理'}</strong><span className="processing-record-status" data-status={run.status}>{editorialStatusLabels[run.status]}</span></span><time className="meta" dateTime={run.startedAt}>{formatNewsTime(run.startedAt)}</time><span className="processing-record-bottom"><span>已保存 {run.processed} / {run.total}</span><span className="meta">详情 →</span></span>
         </Button>
         <div className="processing-record-actions"><Button variant="app-text" data-history-delete disabled={locked||!!news.reset.request||['running','saving'].includes(run.status)} onClick={()=>void news.reset.prepare(`history:${run.id}`)}>删除记录</Button>
         {['failed', 'awaitingModel', 'cancelled', 'interrupted'].includes(run.status) && <Button variant="app-text" className="text-action processing-record-retry" disabled={locked} onClick={() => { setRetry(run.id); void processing.inspect(run.id); }}>重试原任务…</Button>}</div>
-      </li>)}</ul>
+      </li></RecordContextMenu>)}</ul>
       {!runs.length && <p className="subtle">还没有处理记录。</p>}
       <div className="processing-history-footer">{runs.length > runLimit && <Button variant="app-text" className="text-action" onClick={() => setRunLimit(runLimit + 4)}>再显示 4 条记录</Button>}{processing.detailTarget && <Button variant="app-text" className="text-action" onClick={() => { document.getElementById('news-processing-detail')?.focus(); document.getElementById('news-processing-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>查看下方已展开的任务详情 ↓</Button>}</div>
     </section>

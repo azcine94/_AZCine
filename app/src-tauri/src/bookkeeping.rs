@@ -65,7 +65,7 @@ pub fn validate_legacy_schema(db: &Connection) -> Result<(), StorageError> {
         "SELECT id,expense_id,name,media_type,size,sha256 FROM bookkeeping_receipts LIMIT 0", "SELECT id,input,result FROM bookkeeping_requests LIMIT 0"] { db.prepare(sql).map_err(db_error)?; }
     Ok(())
 }
-fn validate(content: &Content) -> Result<(), StorageError> {
+pub(crate) fn validate(content: &Content) -> Result<(), StorageError> {
     if !uuid(&content.id) { return Err(error("开销编号无效。")); }
     let parsed=chrono::NaiveDate::parse_from_str(&content.date,"%Y-%m-%d").ok();
     if content.date.len()!=10 || parsed.is_none_or(|date|date.format("%Y-%m-%d").to_string()!=content.date) || content.date.starts_with("0000") { return Err(error("请填写有效日期，格式为 YYYY-MM-DD。")); }
@@ -80,7 +80,7 @@ fn validate(content: &Content) -> Result<(), StorageError> {
     Ok(())
 }
 fn status(value: &str) -> Result<Status, StorageError> { match value { "unclaimed"=>Ok(Status::Unclaimed), "pending"=>Ok(Status::Pending), "submitted"=>Ok(Status::Submitted), "paid"=>Ok(Status::Paid), _=>Err(error("开销状态损坏，请保留记录并核对。")) } }
-fn read(db: &Connection, id: &str) -> Result<Option<Expense>, StorageError> {
+pub(crate) fn read(db: &Connection, id: &str) -> Result<Option<Expense>, StorageError> {
     let raw = db.query_row("SELECT id,date,purpose,amount_fen,note,status,receipt_ids,revision,deleted,created_at,updated_at,exchange FROM bookkeeping_expenses WHERE id=?1", [id], |r| {
         Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?,r.get::<_,i64>(7)?,r.get::<_,bool>(8)?,r.get::<_,String>(9)?,r.get::<_,String>(10)?,r.get::<_,Option<String>>(11)?))
     }).optional().map_err(db_error)?;
@@ -119,9 +119,18 @@ impl Store {
         targets.iter().map(|target| { if !unique.insert(&target.id) { return Err(error("导出选择有重复记录。")); } current(&self.db,target,false) }).collect()
     }
     pub fn bookkeeping_mutate(&mut self, input: Mutation) -> Result<Vec<Expense>, StorageError> {
+        let tx = self.db.transaction().map_err(db_error)?;
+        let result = mutate_in(&tx, input)?;
+        tx.commit().map_err(db_error)?;
+        Ok(result)
+    }
+}
+
+
+pub(crate) fn mutate_in(tx: &rusqlite::Transaction<'_>, input: Mutation) -> Result<Vec<Expense>, StorageError> {
         if !uuid(input.request_id()) { return Err(error("记账请求编号无效。")); }
         let payload=serde_json::to_string(&input).map_err(|_|error("无法生成记账请求。"))?;
-        let tx=self.db.transaction().map_err(db_error)?;
+
         let previous:Option<(String,String)>=tx.query_row("SELECT input,result FROM bookkeeping_requests WHERE id=?1",[input.request_id()],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(db_error)?;
         if let Some((old,result))=previous {
             if old!=payload { return Err(error("请求编号已用于不同内容，未覆盖原操作。")); }
@@ -130,20 +139,14 @@ impl Store {
         let mut ids=Vec::new();
         match &input {
             Mutation::Save{expected_revision,content,..}=>{
-                validate(content)?;
-                if expected_revision.is_some_and(|r|!valid_revision(r)) { return Err(error("开销版本无效。")); }
-                for id in &content.receipt_ids { receipt(&tx,&content.id,id)?; }
+                validate_save(tx,*expected_revision,content)?;
                 let receipts=serde_json::to_string(&content.receipt_ids).map_err(|_|error("无法保存票据关联。"))?;
                 let exchange=content.exchange.as_ref().map(serde_json::to_string).transpose().map_err(|_|error("无法保存汇率记录。"))?;
                 if let Some(revision)=expected_revision {
-                    let before=current(&tx,&Target{id:content.id.clone(),revision:*revision},false)?;
-                    if content.status!=before.status && !matches!(content.status,Status::Unclaimed|Status::Pending){return Err(error("提交与到账请使用报销状态操作，未改变记录。"));}
-                    if matches!(before.status,Status::Submitted|Status::Paid) && matches!(content.status,Status::Submitted|Status::Paid)
-                        && (before.amount_fen!=content.amount_fen||before.date!=content.date||before.purpose!=content.purpose||before.exchange!=content.exchange){return Err(error("已提交或已到账的开销，请先退回待提交再修改金额、用途、日期或汇率。"));}
                     tx.execute("UPDATE bookkeeping_expenses SET date=?2,purpose=?3,amount_fen=?4,note=?5,status=?6,receipt_ids=?7,exchange=?9,revision=revision+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?1 AND revision=?8 AND deleted=0",params![content.id,content.date,content.purpose,content.amount_fen,content.note,content.status.key(),receipts,revision,exchange]).map_err(db_error)?;
                 } else {
                     if !matches!(content.status,Status::Unclaimed|Status::Pending){return Err(error("新开销只能设为不报销或待提交。"));}
-                    if read(&tx,&content.id)?.is_some() { return Err(StorageError::new("stale_record","这笔开销已存在，未重复创建；请核对原保存结果。")); }
+                    if read(tx,&content.id)?.is_some() { return Err(StorageError::new("stale_record","这笔开销已存在，未重复创建；请核对原保存结果。")); }
                     tx.execute("INSERT INTO bookkeeping_expenses(id,date,purpose,amount_fen,note,status,receipt_ids,exchange) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![content.id,content.date,content.purpose,content.amount_fen,content.note,content.status.key(),receipts,exchange]).map_err(db_error)?;
                 }
                 ids.push(content.id.clone());
@@ -153,9 +156,7 @@ impl Store {
                 let mut unique=std::collections::HashSet::new();
                 for target in targets {
                     if !unique.insert(&target.id) { return Err(error("选择有重复记录。")); }
-                    let before=current(&tx,target,false)?;
-                    let allowed=matches!((before.status,*status),(Status::Pending,Status::Submitted)|(Status::Submitted,Status::Paid)|(Status::Submitted,Status::Pending)|(Status::Paid,Status::Pending));
-                    if !allowed { return Err(error("所选记录的报销状态不一致，整批未应用；请选择同一状态的记录。")); }
+                    validate_status(tx,target,*status)?;
                 }
                 for target in targets {
                     tx.execute("UPDATE bookkeeping_expenses SET status=?2,revision=revision+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?1 AND revision=?3",params![target.id,status.key(),target.revision]).map_err(db_error)?;
@@ -163,16 +164,33 @@ impl Store {
                 }
             }
             Mutation::Delete{target,deleted,..}=>{
-                let before=current(&tx,target,true)?;
+                let before=current(tx,target,true)?;
                 if before.deleted==*deleted { return Err(error("记录移除状态已变化，请刷新核对。")); }
                 tx.execute("UPDATE bookkeeping_expenses SET deleted=?2,revision=revision+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?1 AND revision=?3",params![target.id,deleted,target.revision]).map_err(db_error)?;
                 ids.push(target.id.clone());
             }
         }
-        let result=ids.iter().map(|id|read(&tx,id)?.ok_or_else(||error("操作回执不完整，未提交。"))).collect::<Result<Vec<_>,_>>()?;
+        let result=ids.iter().map(|id|read(tx,id)?.ok_or_else(||error("操作回执不完整，未提交。"))).collect::<Result<Vec<_>,_>>()?;
         let raw=serde_json::to_string(&result).map_err(|_|error("无法保存操作回执，未提交。"))?;
         tx.execute("INSERT INTO bookkeeping_requests(id,input,result) VALUES(?1,?2,?3)",params![input.request_id(),payload,raw]).map_err(db_error)?;
-        tx.commit().map_err(db_error)?;
+
         Ok(result)
-    }
+
+}
+
+pub(crate) fn validate_save(db:&Connection,revision:Option<i64>,content:&Content)->Result<(),StorageError>{
+    validate(content)?;
+    if revision.is_some_and(|r|!valid_revision(r)){return Err(error("开销版本无效。"));}
+    for id in &content.receipt_ids{receipt(db,&content.id,id)?;}
+    if let Some(revision)=revision{
+        let before=current(db,&Target{id:content.id.clone(),revision},false)?;
+        if content.status!=before.status&&!matches!(content.status,Status::Unclaimed|Status::Pending){return Err(error("提交与到账请使用报销状态操作，未改变记录。"));}
+        if matches!(before.status,Status::Submitted|Status::Paid)&&matches!(content.status,Status::Submitted|Status::Paid)&&(before.amount_fen!=content.amount_fen||before.date!=content.date||before.purpose!=content.purpose||before.exchange!=content.exchange){return Err(error("已提交或已到账的开销，请先退回待提交再修改金额、用途、日期或汇率。"));}
+    }else if !matches!(content.status,Status::Unclaimed|Status::Pending){return Err(error("新开销只能设为不报销或待提交。"));}
+    Ok(())
+}
+pub(crate) fn validate_status(db:&Connection,target:&Target,status:Status)->Result<(),StorageError>{
+    let before=current(db,target,false)?;
+    if !matches!((before.status,status),(Status::Pending,Status::Submitted)|(Status::Submitted,Status::Paid)|(Status::Submitted,Status::Pending)|(Status::Paid,Status::Pending)){return Err(error("所选记录的报销状态不一致，整批未应用；请选择同一状态的记录。"));}
+    Ok(())
 }

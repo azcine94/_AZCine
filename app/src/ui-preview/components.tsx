@@ -1,11 +1,16 @@
+import { RecordContextMenu } from '../components/ui/record-context-menu.tsx';
 import { OperationToast, notifyOperation, useOperationNotice } from '../components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Button, appButtonVariants } from '../components/ui/button.tsx';
+import { AgentEntry } from '../components/ui/agent-entry.tsx';
+import { AttachmentPreview } from '../components/ui/attachment-preview.tsx';
+import { attachmentImageData } from './data.ts';
 import { UILink } from '../components/ui/ui-link.tsx';
 import { Disclosure } from '../components/ui/disclosure.tsx';
 import { Feedback } from '../components/ui/feedback.tsx';
 import { LoadingStatus } from '../components/ui/loading-status.tsx';
 import { StatusBadge } from '../components/ui/status-badge.tsx';
+import { StatusDot } from '../components/ui/status-dot.tsx';
 import { ActionGroup } from '../components/ui/action-group.tsx';
 import { EmptyState } from '../components/ui/empty-state.tsx';
 import { Input } from '../components/ui/input.tsx';
@@ -34,15 +39,16 @@ import { ProjectAddMenu } from '../project-add-menu.tsx';
 import { TableMenu } from '../table-menu.tsx';
 import { project } from './data.ts';
 
-export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','action-group','empty-state','month-input','form-dialog','operation-toast'];
+export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu'];
 export function Components({state}:{state:string}) {
   const [date,setDate]=useState('2026-10-06'),[stage,setStage]=useState<string|null>(project.labels[0].id);
   const [formOpen, setFormOpen] = useState(state.startsWith('form-dialog-'));
   const [formName, setFormName] = useState(state === 'form-dialog-long' ? '长名称示例'.repeat(20) : '');
   const [month, setMonth] = useState('2026-10');
+  const [agentEntryOpen, setAgentEntryOpen] = useState<string | null>(null);
   const [,setNote]=useOperationNotice('');
   const [refreshing, setRefreshing] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const refreshTimer = useRef<number | null>(null);
   useEffect(() => () => { if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current); }, []);
   function showRefresh(duration: number) {
     if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
@@ -56,6 +62,10 @@ export function Components({state}:{state:string}) {
   return <div className="catalog-components"><OperationToast/>
     <header><h1>通用组件与项目控件</h1><p className="text-muted-foreground mt-2">这里直接使用应用组件。可以打开菜单、日历、弹层，查看焦点、悬停、禁用与选中态。</p></header>
     <div className="catalog-kit-grid">
+      <Card><CardHeader><CardTitle>附件缩略图</CardTitle><CardDescription>图片可放大；表格、PDF 和文本使用文件类型缩略图。这里使用虚构附件。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3"><AttachmentPreview value={{name:'示例.png',imageUrl:`data:image/png;base64,${attachmentImageData}`}} onRemove={()=>setNote('示例：移除图片')}/><AttachmentPreview value={{name:'镜头表.xlsx',bytes:2048}}/><AttachmentPreview value={{name:'交付说明.pdf',bytes:4096}}/></CardContent></Card>
+      <Card><CardHeader><CardTitle>Agent 入口</CardTitle><CardDescription>单色 ScaleLoader；运行和待回答使用虚构状态，点击切换入口选中态。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-6">
+        {[{id:'idle',label:'空闲',active:0,waiting:0},{id:'active',label:'正在工作',active:2,waiting:0},{id:'waiting',label:'待回答',active:0,waiting:1},{id:'disabled',label:'禁用',active:0,waiting:0}].map(item=><div key={item.id} className="flex items-center gap-2"><AgentEntry activeCount={item.active} waitingCount={item.waiting} disabled={item.id==='disabled'} aria-expanded={agentEntryOpen===item.id} onClick={()=>setAgentEntryOpen(current=>current===item.id?null:item.id)}/><span className="text-muted-foreground text-xs">{item.label}</span></div>)}
+      </CardContent></Card>
       <Card><CardHeader><CardTitle>应用实际使用的业务变体</CardTitle><CardDescription>修改 controls.css / business-controls.css 会同步到这些控件及业务页面。专用控件的完整形态见对应页面状态。</CardDescription></CardHeader><CardContent>
         <div className="catalog-business-buttons">{(Object.keys(appButtonVariants) as (keyof typeof appButtonVariants)[]).map(variant=><div key={variant} className="catalog-business-button"><code>{variant}</code><Button variant={variant} onClick={()=>setNote(`${variant}：仅展示操作反馈`)} aria-label={buttonNames[variant]??variant}>{variant==='app-icon'?'＋':buttonNames[variant]??variant}</Button><Button variant={variant} disabled>禁用</Button></div>)}</div>
       </CardContent></Card>
@@ -63,6 +73,7 @@ export function Components({state}:{state:string}) {
         <ActionGroup><UILink href="#settings/models">模型设置</UILink><UILink href="#resources">规则与资源</UILink><Button variant="app-text" onClick={()=>setNote('示例文字操作')}>文字操作</Button></ActionGroup>
         <ActionGroup direction="column" aria-label="示例会话操作"><UILink variant="menu" href="#settings/models">模型设置</UILink><UILink variant="menu" href="#resources">规则与资源</UILink><Button variant="app-menu" disabled>断开连接（不可用）</Button></ActionGroup>
         <ActionGroup><StatusBadge>待核对</StatusBadge><StatusBadge tone="success">已完成</StatusBadge><StatusBadge tone="warning">尚未接入</StatusBadge><StatusBadge tone="error">失败</StatusBadge></ActionGroup>
+        <ActionGroup aria-label="会话状态圆点示例"><span className="inline-flex items-center gap-2"><StatusDot tone="success" label="空闲"/>空闲</span><span className="inline-flex items-center gap-2"><StatusDot tone="active" label="运行中"/>运行中</span><span className="inline-flex items-center gap-2"><StatusDot tone="warning" label="待回答或连接中"/>待回答 / 连接中</span><span className="inline-flex items-center gap-2"><StatusDot tone="error" label="连接异常"/>连接异常</span><span className="inline-flex items-center gap-2"><StatusDot label="未连接或已保存"/>未连接 / 已保存</span></ActionGroup>
         <Feedback as="p" tone="error" role="alert">示例失败，输入和已有内容保留。</Feedback><Feedback tone="pending">保存回执待核对 <Button variant="app-pill" onClick={()=>setNote('示例核对，不访问业务库')}>核对结果</Button></Feedback>
         <EmptyState><h3>还没有内容</h3><p>空内容说明使用同一公共入口；具体动作由所在页面提供。</p></EmptyState>
         <Disclosure open={state==='error'}><summary>查看详情与限制</summary><div className="dbody">统一折叠标题、图标、间距与键盘焦点；真实页面使用同一组件。</div></Disclosure>
@@ -111,6 +122,7 @@ export function Components({state}:{state:string}) {
       <Card><CardHeader><CardTitle>弹层与菜单</CardTitle><CardDescription>点击查看打开态，Escape 关闭</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
         <Dialog defaultOpen={state==='dialog-open'}><DialogTrigger asChild><Button variant="outline">打开对话框</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>核对变更</DialogTitle><DialogDescription>这是虚构示例，用于调整弹层间距与排版。</DialogDescription></DialogHeader><Input aria-label="弹层输入" placeholder="填写名称"/><DialogFooter><Button onClick={()=>setNote('示例操作，不保存业务资料。')}>示例操作</Button></DialogFooter></DialogContent></Dialog>
         <Popover defaultOpen={state==='popover-open'}><PopoverTrigger asChild><Button variant="outline">打开浮层</Button></PopoverTrigger><PopoverContent><p>查看辅助内容和选项。</p><Input className="mt-3" aria-label="浮层输入" placeholder="输入关键词"/></PopoverContent></Popover>
+        <RecordContextMenu copyText="这是虚构内容，用于检查复制。" actions={[{label:'编辑示例',run:()=>setNote('已选择示例编辑')},{label:'删除示例',destructive:true,run:()=>setNote('示例删除，未操作业务数据')},{label:'运行中不可删除',destructive:true,disabled:true,run:()=>{}}]}><Button variant="outline">右键查看业务操作</Button></RecordContextMenu>
         <DropdownMenu defaultOpen={state==='dropdown-open'}><DropdownMenuTrigger asChild><Button variant="outline">操作菜单</Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onSelect={()=>setNote('已选择示例编辑')}>编辑</DropdownMenuItem><DropdownMenuSeparator/><DropdownMenuItem disabled>不可用操作</DropdownMenuItem><DropdownMenuItem variant="destructive" onSelect={()=>setNote('示例移除，不操作真实数据')}>移除</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         <TooltipProvider><Tooltip defaultOpen={state==='tooltip-open'}><TooltipTrigger asChild><Button variant="outline">悬停提示</Button></TooltipTrigger><TooltipContent>这是辅助说明</TooltipContent></Tooltip></TooltipProvider>
       </CardContent></Card>

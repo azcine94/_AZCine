@@ -25,7 +25,9 @@ fn bridge(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,command:&str,input:Valu
     Ok(reply["data"].clone())
 }
 pub fn inspect(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,generation:u64,commands:Value,connected:bool)->Result<ResourceIndex,PiError>{
-    let data=bridge(runtime,paths,cwd,"resources",json!({"package":runtime.package,"agent":paths.agent,"cwd":cwd,"commands":commands}))?;
+    let mut data=bridge(runtime,paths,cwd,"resources",json!({"package":runtime.package,"agent":paths.agent,"cwd":cwd,"commands":commands}))?;
+    let append=paths.agent.join("APPEND_SYSTEM.md");
+    if let Some(entries)=data["entries"].as_array_mut(){if !entries.iter().any(|e|e["path"].as_str().is_some_and(|p|Path::new(p)==append))&&!append.exists(){entries.push(json!({"id":format!("rule:{}",append.display()),"kind":"rule","name":"APPEND_SYSTEM.md","path":append,"description":"可选的个人工作规则；保存后下次连接全文追加，业务能力由 MCP 提供。","content":crate::pi_rules::SUGGESTED,"hash":null,"editable":true,"enabled":true,"loaded":false,"toggleable":false,"error":null,"commands":[]}));}}
     Ok(ResourceIndex {generation,connected,agent_dir:paths.agent.to_string_lossy().into_owned(),cwd:cwd.to_string_lossy().into_owned(),
         entries:data["entries"].as_array().cloned().ok_or_else(error)?,diagnostics:data["diagnostics"].as_array().ok_or_else(error)?.iter().map(|v|v.as_str().map(str::to_owned).ok_or_else(error)).collect::<Result<_,_>>()?,
         settings_hash:data["settingsHash"].as_str().map(str::to_owned),settings_document:data["settingsDocument"].clone()})
@@ -33,7 +35,7 @@ pub fn inspect(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,generation:u64,com
 fn checked_file(paths:&PiPaths,path:&Path)->Result<(),PiError>{
     let workspaces=paths.pi_root.join("workspaces");
     if !path.is_absolute()||path.components().any(|c|matches!(c,std::path::Component::ParentDir)){return Err(error());}
-    let mut cursor=PathBuf::new();for part in path.components(){cursor.push(part);no_link(&cursor)?;}
+    let mut cursor=PathBuf::new();for part in path.components(){cursor.push(part);if matches!(part,std::path::Component::Normal(_)){no_link(&cursor)?;}}
     let parent=fs::canonicalize(path.parent().ok_or_else(error)?).map_err(|_|error())?;
     if !parent.starts_with(&paths.agent)&&!parent.starts_with(workspaces){return Err(error());}Ok(())
 }
@@ -81,4 +83,9 @@ pub fn update(runtime:&RuntimePaths,paths:&PiPaths,index:&ResourceIndex,input:&R
         if result["saved"]!=true{return Err(error());}
     }else{return Err(error());}
     Ok(())
+}
+
+#[cfg(test)]mod tests{
+ use super::*;
+ #[test]fn owned_verbatim_windows_rule_path_can_be_created_and_conflicting_save_preserves_it(){let base=std::env::var_os("AZCINE_PI_CONFIG_TEST_ROOT").map(PathBuf::from).unwrap_or_else(||PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../artifacts/validation/agent-resource-tests"));std::fs::create_dir_all(&base).unwrap();let root=tempfile::Builder::new().prefix("rules-").tempdir_in(base).unwrap().keep();let paths=PiPaths::prepare(&root).unwrap();let file=paths.agent.join("APPEND_SYSTEM.md");save_file(&paths,&file,None,"保留默认系统提示").unwrap();assert_eq!(std::fs::read_to_string(&file).unwrap(),"保留默认系统提示");assert_eq!(save_file(&paths,&file,None,"旧版本覆盖").unwrap_err().code,"pi_resource_conflict");assert_eq!(std::fs::read_to_string(&file).unwrap(),"保留默认系统提示");}
 }

@@ -5,8 +5,8 @@ use serde::Serialize;
 const MAX_MESSAGES: usize = 20000;
 const MAX_BLOCKS: usize = 4096;
 const MAX_TOOLS: usize = 10000;
-const MAX_VALUE_BYTES: usize = 16 * 1024 * 1024;
-const MAX_HISTORY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_VALUE_BYTES: usize = crate::pi_image_limits::MAX_IMAGE_RPC_BYTES;
+const MAX_HISTORY_BYTES: usize = crate::pi_image_limits::MAX_IMAGE_HISTORY_BYTES;
 fn value_bytes(v:&Value)->usize{match v{Value::String(s)=>s.len(),Value::Array(a)=>a.iter().fold(0usize,|n,v|n.saturating_add(value_bytes(v))),Value::Object(o)=>o.iter().fold(0usize,|n,(k,v)|n.saturating_add(k.len()).saturating_add(value_bytes(v))),_=>8}}
 #[derive(Clone, Serialize)]
 #[serde(rename_all="camelCase")]
@@ -45,10 +45,41 @@ fn content(value:Option<&Value>)->Value {
     Value::Array(blocks.iter().map(|block|match key(block,"type") {
         Some("text")=>json!({"type":"text","text":block.get("text").and_then(text)}),
         Some("thinking")=>json!({"type":"thinking","thinking":block.get("thinking").and_then(text),"redacted":block.get("redacted").and_then(Value::as_bool)}),
-        Some("image")=>json!({"type":"image","mimeType":block.get("mimeType").and_then(text)}),
+        Some("image")=>image_preview(block).unwrap_or_else(||json!({"type":"image","mimeType":block.get("mimeType").and_then(text)})),
         Some("toolCall")=>json!({"type":"toolCall","id":block.get("id").and_then(text),"name":block.get("name").and_then(text),"arguments":scrub(block.get("arguments").unwrap_or(&Value::Null),0)}),
         _=>json!({"type":"unknown"}),
     }).collect())
+}
+// Application display metadata only. Preserve the native sub-call outcome
+// without exposing arbitrary details, arguments, results or credentials.
+fn nested_calls(value:&Value)->Option<Value> {
+    let calls=value.get("details")?.get("calls")?.as_array()?;
+    if calls.len()>MAX_BLOCKS{return Some(json!([{"name":"子调用记录过多，未展开","status":"incomplete"}]));}
+    Some(Value::Array(calls.iter().map(|call|{
+        json!({"name":key(call,"name").unwrap_or("未记录子调用名称"),"status":key(call,"status").unwrap_or("incomplete")})
+    }).collect()))
+}
+fn tool_output(value:&Value)->Value {
+    let mut result=json!({"content":content(value.get("content"))});
+    if let Some(calls)=nested_calls(value){result["calls"]=calls;}
+    result
+}
+pub(crate) fn image_preview(block:&Value)->Option<Value>{
+    let mime=key(block,"mimeType")?;let data=key(block,"data")?;
+    if !crate::pi_image_limits::image_encoded_size_allowed(data){return None;}
+    let mut header=Vec::new();let mut accumulator=0u32;let mut bits=0;
+    for c in data.bytes().take(24){let n=match c{b'A'..=b'Z'=>c-b'A',b'a'..=b'z'=>c-b'a'+26,b'0'..=b'9'=>c-b'0'+52,b'+'=>62,b'/'=>63,b'='=>break,_=>return None};accumulator=(accumulator<<6)|u32::from(n);bits+=6;if bits>=8{bits-=8;header.push((accumulator>>bits) as u8);}}
+    let valid=match mime{"image/png"=>header.starts_with(b"\x89PNG\r\n\x1a\n"),"image/jpeg"=>header.starts_with(b"\xff\xd8\xff"),"image/gif"=>header.starts_with(b"GIF87a")||header.starts_with(b"GIF89a"),"image/webp"=>header.starts_with(b"RIFF")&&header.get(8..12)==Some(b"WEBP"),_=>false};
+    if !valid||!data.bytes().all(|c|c.is_ascii_alphanumeric()||matches!(c,b'+'|b'/'|b'=')){return None;}
+    Some(json!({"type":"image","mimeType":mime,"data":data}))
+}
+#[cfg(test)]
+#[test]
+fn raster_preview_rejects_mime_spoofing_and_nonimage_secret_payloads(){
+    let data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZmcAAAAASUVORK5CYII=";
+    assert!(image_preview(&json!({"mimeType":"image/png","data":data})).is_some());
+    for mime in ["image/svg+xml","image/jpeg","text/html"]{assert!(image_preview(&json!({"mimeType":mime,"data":data})).is_none());}
+    assert!(image_preview(&json!({"mimeType":"image/png","data":"fixture-secret-data"})).is_none());
 }
 pub fn message(value:&Value)->Value {
     let role=key(value,"role").unwrap_or("unknown");let mut result=json!({"role":role});
@@ -61,7 +92,7 @@ pub fn message(value:&Value)->Value {
                     copy_fields(&mut result,value,&["stopReason","provider","model"]);
                     if value.get("errorMessage").and_then(text).is_some_and(|s|!s.is_empty()) {result["errorMessage"]=json!("模型请求未完成。请检查本应用的模型配置、额度与网络；原始诊断未回传，以免暴露认证信息。");}
                 },
-                "toolResult"=>copy_fields(&mut result,value,&["toolCallId","toolName","isError"]),
+                "toolResult"=>{copy_fields(&mut result,value,&["toolCallId","toolName","isError"]);if let Some(calls)=nested_calls(value){result["calls"]=calls;}},
                 "custom"=>copy_fields(&mut result,value,&["customType","display"]),
                 _=>{},
             }
@@ -136,8 +167,8 @@ impl Projection {
                 let pos=match pos{Some(p)=>p,None=>{if self.tools.len()>=MAX_TOOLS{return self.limit();}self.tools.push(json!({"id":id,"name":key(event,"toolName").unwrap_or("未知工具"),"status":"running"}));self.tools.len()-1}};
                 let t=&mut self.tools[pos];
                 match key(event,"type") {
-                    Some("tool_execution_end")=>{t["status"]=json!(match event.get("isError").and_then(Value::as_bool){Some(true)=>"error",Some(false)=>"finished",None=>"incomplete"});t["result"]=json!({"content":content(event["result"].get("content"))});},
-                    _=>{t["args"]=scrub(&event["args"],0);if let Some(r)=event.get("partialResult"){t["result"]=json!({"content":content(r.get("content"))});}},
+                    Some("tool_execution_end")=>{t["status"]=json!(match event.get("isError").and_then(Value::as_bool){Some(true)=>"error",Some(false)=>"finished",None=>"incomplete"});t["result"]=tool_output(&event["result"]);},
+                    _=>{t["args"]=scrub(&event["args"],0);if let Some(r)=event.get("partialResult"){t["result"]=tool_output(r);}},
                 }
             },
             Some("queue_update")=>{let Some(steering)=strings(event.get("steering"))else{return false;};let Some(follow_up)=strings(event.get("followUp"))else{return false;};self.steering=steering;self.follow_up=follow_up;},

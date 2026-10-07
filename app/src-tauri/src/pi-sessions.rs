@@ -6,8 +6,8 @@
 //! Bounds:
 //! - at most four directories below the sessions root;
 //! - at most 5,000 regular JSONL file candidates are opened per listing;
-//! - at most 64 MiB per file;
-//! - at most 16 MiB per physical line, excluding LF, including CR/BOM.
+//! - per-file and per-line bounds account for four 50 MiB images plus overhead;
+//! - physical line bounds exclude LF and include CR/BOM.
 //!
 //! `unreadable` counts rejected files and skipped/unreadable filesystem entries
 //! or subtrees. A skipped subtree counts once; its contents are not enumerated.
@@ -25,8 +25,8 @@ use std::path::{Component, Path};
 
 const MAX_DIRECTORY_DEPTH: usize = 4;
 const MAX_FILE_CANDIDATES: usize = 5_000;
-const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_FILE_BYTES: u64 = crate::pi_image_limits::MAX_IMAGE_HISTORY_BYTES as u64;
+const MAX_LINE_BYTES: usize = crate::pi_image_limits::MAX_IMAGE_RPC_BYTES;
 
 const MAX_ID_BYTES: usize = 1_024;
 const MAX_NAME_BYTES: usize = 4_096;

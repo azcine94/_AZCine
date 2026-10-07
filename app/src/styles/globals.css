@@ -9,6 +9,7 @@
 @import './workspace.css' layer(components);
 @import './projects.css' layer(components);
 @import './pi.css' layer(components);
+@import './agent-foundation.css' layer(components);
 @import './model-ranking.css' layer(components);
 @import './news.css' layer(components);
 @import './ideas.css' layer(components);
@@ -25,6 +26,8 @@
 @import '../components/ui/form-dialog.css' layer(components);
 @import '../components/ui/operation-toast.css' layer(components);
 @import '../components/ui/business-controls.css' layer(components);
+@import '../components/ui/scale-loader.css' layer(components);
+@import '../components/ui/attachment-preview.css' layer(components);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));

@@ -70,12 +70,12 @@ pub(crate) fn recover_runs(db: &Connection, root: &std::path::Path) -> Result<()
     }
     Ok(())
 }
-fn source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, i64, String)> { Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)) }
+pub(crate) fn source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, i64, String)> { Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)) }
 pub(crate) fn row_count(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<usize> {
     let value: i64 = row.get(index)?;
     usize::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
 }
-fn decode_source((id, json, revision, created_at): (String, String, i64, String)) -> Result<Source, StorageError> {
+pub(crate) fn decode_source((id, json, revision, created_at): (String, String, i64, String)) -> Result<Source, StorageError> {
     let config: SourceConfig = serde_json::from_str(&json).map_err(|_| invalid_data())?;
     validate_source(&config).map_err(|_| invalid_data())?;
     if id != config.id || !(1..=MAX_REVISION).contains(&revision) { return Err(invalid_data()); }
@@ -139,32 +139,9 @@ impl Store {
         let saved: Option<String> = self.db.query_row("SELECT result FROM news_source_requests WHERE id=?1", [request_id], |row| row.get(0)).optional().map_err(db_error)?;
         saved.map(|json| serde_json::from_str(&json).map_err(|_| invalid_data())).transpose()
     }
-    pub fn save_news_source(&mut self, mut input: SaveSource) -> Result<Source, StorageError> {
-        if !uuid(&input.request_id) { return Err(StorageError::new("invalid_id", "信源保存请求编号无效。")); }
-        input.source.name = input.source.name.trim().to_owned(); input.source.feed_url = input.source.feed_url.trim().to_owned();
-        input.source.feed_url = crate::news_http::public_url(&input.source.feed_url)?.to_string();
-        validate_source(&input.source)?;
-        if input.expected_revision.is_some_and(|revision| !(1..MAX_REVISION).contains(&revision)) { return Err(invalid_data()); }
-        let json = serde_json::to_string(&input).map_err(|_| invalid_data())?;
-        let config = serde_json::to_string(&input.source).map_err(|_| invalid_data())?;
+    pub fn save_news_source(&mut self, input: SaveSource) -> Result<Source, StorageError> {
         let tx = self.db.transaction().map_err(db_error)?;
-        let previous: Option<(String, String)> = tx.query_row("SELECT input,result FROM news_source_requests WHERE id=?1", [&input.request_id], |row| Ok((row.get(0)?, row.get(1)?))).optional().map_err(db_error)?;
-        if let Some((old, result)) = previous {
-            if old != json { return Err(StorageError::new("request_conflict", "这个请求编号已保存不同内容，未覆盖配置。请先核对保存结果。")); }
-            return serde_json::from_str(&result).map_err(|_| invalid_data());
-        }
-        let old = tx.query_row("SELECT id,config,revision,created_at FROM news_sources WHERE id=?1", [&input.source.id], source_row).optional().map_err(db_error)?.map(decode_source).transpose()?;
-        let duplicate: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM news_sources WHERE name_key=?1 AND id!=?2)", params![input.source.name.to_lowercase(), input.source.id], |row| row.get(0)).map_err(db_error)?;
-        if duplicate { return Err(StorageError::new("duplicate_source_name", "已有相同名称的信源，请换一个名称；输入已保留。")); }
-        let (revision, created_at) = match (old, input.expected_revision) {
-            (None, None) if uuid(&input.source.id) && !input.source.enabled => (1, now()),
-            (Some(old), Some(expected)) if old.revision == expected => (expected + 1, old.created_at),
-            (None, None) => return Err(StorageError::new("new_source_paused", "新信源必须先保存为暂停状态，预览核对后才能启用。")),
-            _ => return Err(StorageError::new("stale_record", "信源配置已改变，未覆盖。草稿保留，请重新读取并核对版本。")),
-        };
-        tx.execute("INSERT INTO news_sources(id,name_key,config,revision,created_at) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(id) DO UPDATE SET name_key=excluded.name_key,config=excluded.config,revision=excluded.revision", params![input.source.id, input.source.name.to_lowercase(), config, revision, created_at]).map_err(db_error)?;
-        let result = Source { config: input.source, revision, created_at, feed_kind: None, last_attempt_at: None, last_success_at: None, last_status: None, last_error: None };
-        tx.execute("INSERT INTO news_source_requests(id,input,result) VALUES (?1,?2,?3)", params![input.request_id, json, serde_json::to_string(&result).map_err(|_| invalid_data())?]).map_err(db_error)?;
+        let result = save_source_in(&tx, input)?;
         tx.commit().map_err(db_error)?;
         Ok(result)
     }
@@ -283,4 +260,36 @@ impl Store {
         tx.execute("UPDATE news_runs SET status=?1,finished_at=?2,added=?3,error=NULL,parsed=NULL WHERE id=?4", params![if added > 0 { "added" } else { "noNew" }, now(), added, work.id]).map_err(db_error)?;
         tx.commit().map_err(db_error)
     }
+}
+
+
+pub(crate) fn save_source_in(tx: &rusqlite::Transaction<'_>, mut input: SaveSource) -> Result<Source, StorageError> {
+        if !uuid(&input.request_id) { return Err(StorageError::new("invalid_id", "信源保存请求编号无效。")); }
+        input.source.name = input.source.name.trim().to_owned(); input.source.feed_url = input.source.feed_url.trim().to_owned();
+        input.source.feed_url = crate::news_http::public_url(&input.source.feed_url)?.to_string();
+        validate_source(&input.source)?;
+        if input.expected_revision.is_some_and(|revision| !(1..MAX_REVISION).contains(&revision)) { return Err(invalid_data()); }
+        let json = serde_json::to_string(&input).map_err(|_| invalid_data())?;
+        let config = serde_json::to_string(&input.source).map_err(|_| invalid_data())?;
+
+        let previous: Option<(String, String)> = tx.query_row("SELECT input,result FROM news_source_requests WHERE id=?1", [&input.request_id], |row| Ok((row.get(0)?, row.get(1)?))).optional().map_err(db_error)?;
+        if let Some((old, result)) = previous {
+            if old != json { return Err(StorageError::new("request_conflict", "这个请求编号已保存不同内容，未覆盖配置。请先核对保存结果。")); }
+            return serde_json::from_str(&result).map_err(|_| invalid_data());
+        }
+        let old = tx.query_row("SELECT id,config,revision,created_at FROM news_sources WHERE id=?1", [&input.source.id], source_row).optional().map_err(db_error)?.map(decode_source).transpose()?;
+        let duplicate: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM news_sources WHERE name_key=?1 AND id!=?2)", params![input.source.name.to_lowercase(), input.source.id], |row| row.get(0)).map_err(db_error)?;
+        if duplicate { return Err(StorageError::new("duplicate_source_name", "已有相同名称的信源，请换一个名称；输入已保留。")); }
+        let (revision, created_at) = match (old, input.expected_revision) {
+            (None, None) if uuid(&input.source.id) && !input.source.enabled => (1, now()),
+            (Some(old), Some(expected)) if old.revision == expected => (expected + 1, old.created_at),
+            (None, None) => return Err(StorageError::new("new_source_paused", "新信源必须先保存为暂停状态，预览核对后才能启用。")),
+            _ => return Err(StorageError::new("stale_record", "信源配置已改变，未覆盖。草稿保留，请重新读取并核对版本。")),
+        };
+        tx.execute("INSERT INTO news_sources(id,name_key,config,revision,created_at) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(id) DO UPDATE SET name_key=excluded.name_key,config=excluded.config,revision=excluded.revision", params![input.source.id, input.source.name.to_lowercase(), config, revision, created_at]).map_err(db_error)?;
+        let result = Source { config: input.source, revision, created_at, feed_kind: None, last_attempt_at: None, last_success_at: None, last_status: None, last_error: None };
+        tx.execute("INSERT INTO news_source_requests(id,input,result) VALUES (?1,?2,?3)", params![input.request_id, json, serde_json::to_string(&result).map_err(|_| invalid_data())?]).map_err(db_error)?;
+
+        Ok(result)
+
 }

@@ -1,3 +1,4 @@
+import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { Disclosure } from './components/ui/disclosure.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
@@ -74,7 +75,7 @@ function Card({ idea, model, projects, projectsLoading, projectsError, workspace
   }, [idea.body, edited, expanded]);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (targeted) { ref.current?.scrollIntoView({ block: 'center' }); ref.current?.focus({ preventScroll: true }); } }, [targeted]);
-  return <article ref={ref} className={`idea-card${edited ? ' idea-card--editing' : ''}${targeted ? ' idea-card--target' : ''}`} data-idea-id={idea.id} tabIndex={targeted ? -1 : undefined} aria-label={ideaTitle(idea)}>
+  return <RecordContextMenu copyText={ideaTitle(idea)+'\n'+idea.body} actions={[...(!idea.deleted?[{label:'编辑灵感',disabled:blocked||!!pendingKey,run:()=>model.edit(idea)}]:[]),{label:idea.deleted?'恢复灵感':'删除灵感',destructive:!idea.deleted,disabled:blocked||!!pendingKey,run:()=>{void model.remove(idea,!idea.deleted);}}]}><article ref={ref} className={`idea-card${edited ? ' idea-card--editing' : ''}${targeted ? ' idea-card--target' : ''}`} data-idea-id={idea.id} tabIndex={targeted ? -1 : undefined} aria-label={ideaTitle(idea)}>
     <div className="idea-card-top"><span className="idea-card-mark"><Mark/></span><time dateTime={idea.updatedAt} title={new Date(idea.updatedAt).toLocaleString('zh-CN')} className="meta">{new Date(idea.updatedAt).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}</time></div>
     {edited ? <>{model.drafts[idea.id].expectedRevision !== idea.revision && <Feedback as="div" tone="conflict" className="idea-version-conflict"><p>已保存的记录有变化，编辑草稿已保留。</p><Disclosure><summary>查看当前已保存版本</summary><h3>{ideaTitle(idea)}</h3><p>{idea.body}</p><p>标签：{idea.tags.join('，') || '无'} · 公司：{project?.name ?? '未关联'}</p></Disclosure><Button variant="app-idea" className="idea-action" disabled={blocked || !!pendingKey} onClick={() => model.continueOnCurrent(idea)}>保留草稿，在当前版本上继续编辑</Button></Feedback>}<IdeaForm model={model} draft={model.drafts[idea.id]} draftKey={idea.id} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError}/></> : <>
       <h3>{ideaTitle(idea)}</h3><p ref={bodyRef} className={`idea-card-body${expanded ? ' is-expanded' : ''}`} tabIndex={expanded ? 0 : undefined} role={expanded ? 'region' : undefined} aria-label={expanded ? '灵感全文' : undefined}>{idea.body}</p>
@@ -89,7 +90,7 @@ function Card({ idea, model, projects, projectsLoading, projectsError, workspace
         <Button variant="app-idea" className="idea-action idea-remove" disabled={blocked || !!pendingKey} aria-label={`移除灵感：${ideaTitle(idea)}`} onClick={() => void model.remove(idea,true)}><Mark kind="trash"/></Button>
       </>}</footer>
     </>}
-  </article>;
+  </article></RecordContextMenu>;
 }
 export function IdeasPanel({ model, projects, projectsLoading, projectsError, workspace, targetId }: { model: IdeasController; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; workspace: WorkspaceController; targetId: string | null }) {
   const creation = useCreationDialog();

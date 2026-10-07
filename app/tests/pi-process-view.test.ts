@@ -28,10 +28,12 @@ test('Given partial转正式消息 When 同位置内容结束 Then 展示标识�
   assert.equal(first[0].key,last[0].key);assert.notEqual(first[0].key,conversationView(projection({partial}),'root/B/1')[0].key);
   assert.notEqual(first[0].key,conversationView(projection({partial}),'root/A/2')[0].key);
 });
-test('Given 中间助手正文穿插过程 When 展示 Then 保持原始次序而不当作思考隐藏',()=>{
+test('Given 中间助手正文穿插过程 When 展示 Then 在同一过程保留执行说明和次序且最终回复独立',()=>{
   const p=projection({messages:[assistant([thinking('先思考'),{type:'text',text:'先说明限制'},call('a')]),result('a'),assistant([{type:'text',text:'最终正文'}],'stop')]});
-  const items=conversationView(p,'context');assert.deepEqual(items.map(x=>x.kind),['process','message','process','message']);
-  assert.equal(items[1].kind==='message'&&items[1].parts[0].text,'先说明限制');
+  const items=conversationView(p,'context');assert.deepEqual(items.map(x=>x.kind),['process','message']);
+  assert.ok(items[0].kind==='process');assert.deepEqual(items[0].entries.map(entry=>entry.kind),['thinking','commentary','tool']);
+  assert.equal(items[0].entries[1].kind==='commentary'&&items[0].entries[1].text,'先说明限制');
+  assert.equal(items[1].kind==='message'&&items[1].parts[0].text,'最终正文');
 });
 test('Given 孤立工具事件或历史结果 When 缺调用位置 Then 保留内容并标明无法关联',()=>{
   const p=projection({messages:[result('orphan')],tools:[{id:'live-only',name:'unknown_native_tool',status:'running',args:{path:'native.md'}}],activity:'running'});

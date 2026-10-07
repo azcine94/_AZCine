@@ -176,10 +176,10 @@ pub(crate) fn validate_deletion_schema(db: &Connection) -> Result<(), StorageErr
     db.prepare("SELECT id,input,result FROM project_deletion_requests LIMIT 0").map_err(database_error)?;
     Ok(())
 }
-fn document_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, String, i64, String)> {
+pub(crate) fn document_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, String, i64, String)> {
     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
 }
-fn decode_row((id, name, json, revision, created_at): (String, String, String, i64, String)) -> Result<ProjectDocument, StorageError> {
+pub(crate) fn decode_row((id, name, json, revision, created_at): (String, String, String, i64, String)) -> Result<ProjectDocument, StorageError> {
     let content: ProjectContent = serde_json::from_str(&json).map_err(|_| corrupt())?;
     validate_content(&content).map_err(|_| corrupt())?;
     if content.id != id || content.name != name || !(1..=MAX_REVISION).contains(&revision) || created_at.is_empty() { return Err(corrupt()); }
@@ -208,31 +208,7 @@ impl Store {
         let raw: Option<String> = self.db.query_row("SELECT result FROM project_deletion_requests WHERE id=?1", [id], |r| r.get(0)).optional().map_err(database_error)?;
         raw.as_deref().map(decode_deletion).transpose()
     }
-    pub fn set_project_deleted(&mut self, input: DeleteProject) -> Result<DeletionReceipt, StorageError> {
-        request_id(&input.request_id)?; request_id(&input.project_id)?;
-        if !(1..MAX_REVISION).contains(&input.expected_revision) { return Err(invalid("项目修订号无效，未删除或恢复。")); }
-        let input_json = serde_json::to_string(&input).map_err(|_| corrupt())?;
-        let tx = self.db.transaction().map_err(database_error)?;
-        let previous: Option<(String, String)> = tx.query_row("SELECT input,result FROM project_deletion_requests WHERE id=?1", [&input.request_id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(database_error)?;
-        if let Some((old, result)) = previous {
-            if old != input_json { return Err(StorageError::new("request_conflict", "同一项目操作编号已有不同内容，未覆盖。")); }
-            return decode_deletion(&result);
-        }
-        let raw = tx.query_row("SELECT id,name,content,revision,created_at FROM projects WHERE id=?1", [&input.project_id], document_row).optional().map_err(database_error)?
-            .ok_or_else(|| StorageError::new("project_missing", "项目不存在，未删除或恢复。"))?;
-        let mut project = decode_row(raw)?;
-        let deleted: bool = tx.query_row("SELECT deleted FROM project_deletions WHERE project_id=?1", [&input.project_id], |r| r.get(0)).optional().map_err(database_error)?.unwrap_or(false);
-        if project.revision != input.expected_revision || deleted == input.deleted { return Err(StorageError::new("stale_record", "项目内容或删除状态已变化，请重新核对后操作。")); }
-        let changed = tx.execute("UPDATE projects SET revision=revision+1 WHERE id=?1 AND revision=?2", params![input.project_id, input.expected_revision]).map_err(database_error)?;
-        if changed != 1 { return Err(StorageError::new("stale_record", "项目版本已变化，未删除或恢复。")); }
-        project.revision += 1;
-        tx.execute("INSERT INTO project_deletions(project_id,deleted) VALUES(?1,?2) ON CONFLICT(project_id) DO UPDATE SET deleted=excluded.deleted", params![input.project_id, input.deleted]).map_err(database_error)?;
-        let saved = SavedDeletion { request_id: input.request_id.clone(), deleted: input.deleted, project: SavedResponse::from(&project) };
-        let result_json = serde_json::to_string(&saved).map_err(|_| corrupt())?;
-        tx.execute("INSERT INTO project_deletion_requests(id,input,result) VALUES(?1,?2,?3)", params![input.request_id, input_json, result_json]).map_err(database_error)?;
-        tx.commit().map_err(database_error)?;
-        Ok(DeletionReceipt { request_id: input.request_id, deleted: input.deleted, project })
-    }
+    pub fn set_project_deleted(&mut self,input:DeleteProject)->Result<DeletionReceipt,StorageError>{let tx=self.db.transaction().map_err(database_error)?;let result=set_project_deleted_in(&tx,input)?;tx.commit().map_err(database_error)?;Ok(result)}
     pub fn project(&self, id: &str) -> Result<Option<ProjectDocument>, StorageError> {
         request_id(id)?;
         self.db.query_row("SELECT id,name,content,revision,created_at FROM projects WHERE id=?1", [id], document_row).optional().map_err(database_error)?.map(decode_row).transpose()
@@ -243,11 +219,26 @@ impl Store {
         result.as_deref().map(decode_response).transpose()
     }
     pub fn save_project(&mut self, input: SaveProject) -> Result<ProjectDocument, StorageError> {
+        let tx = self.db.transaction().map_err(database_error)?;
+        let result = save_project_in(&tx, input)?;
+        tx.commit().map_err(database_error)?;
+        Ok(result)
+    }
+}
+fn decode_deletion(json: &str) -> Result<DeletionReceipt, StorageError> {
+    let saved: SavedDeletion = serde_json::from_str(json).map_err(|_| corrupt())?;
+    request_id(&saved.request_id)?;
+    let project = decode_response(&serde_json::to_string(&saved.project).map_err(|_| corrupt())?)?;
+    Ok(DeletionReceipt { request_id: saved.request_id, deleted: saved.deleted, project })
+}
+
+
+pub(crate) fn save_project_in(tx: &rusqlite::Transaction<'_>, input: SaveProject) -> Result<ProjectDocument, StorageError> {
         request_id(&input.request_id)?; validate_content(&input.document)?;
         if input.expected_revision.is_some_and(|r| !(1..MAX_REVISION).contains(&r)) { return Err(invalid("项目修订号无效，未覆盖正式记录。")); }
         let input_json = serde_json::to_string(&input).map_err(|_| invalid("无法编码保存请求。"))?;
         let content_json = serde_json::to_string(&input.document).map_err(|_| invalid("无法编码项目文档。"))?;
-        let tx = self.db.transaction().map_err(database_error)?;
+
         let existing_request: Option<(String, String)> = tx.query_row("SELECT input,result FROM project_requests WHERE id=?1", [&input.request_id], |row| Ok((row.get(0)?, row.get(1)?))).optional().map_err(database_error)?;
         if let Some((previous, result)) = existing_request {
             if previous != input_json { return Err(StorageError::new("request_conflict", "相同请求编号已有不同内容，未覆盖或重复创建。请核对保存结果。")); }
@@ -270,13 +261,31 @@ impl Store {
         let result = ProjectDocument { content: input.document, revision, created_at };
         let result_json = serde_json::to_string(&SavedResponse::from(&result)).map_err(|_| invalid("无法编码保存结果。"))?;
         tx.execute("INSERT INTO project_requests(id,input,result) VALUES (?1,?2,?3)", params![input.request_id, input_json, result_json]).map_err(database_error)?;
-        tx.commit().map_err(database_error)?;
+
         Ok(result)
-    }
+
 }
-fn decode_deletion(json: &str) -> Result<DeletionReceipt, StorageError> {
-    let saved: SavedDeletion = serde_json::from_str(json).map_err(|_| corrupt())?;
-    request_id(&saved.request_id)?;
-    let project = decode_response(&serde_json::to_string(&saved.project).map_err(|_| corrupt())?)?;
-    Ok(DeletionReceipt { request_id: saved.request_id, deleted: saved.deleted, project })
+
+pub(crate) fn set_project_deleted_in(tx:&rusqlite::Transaction<'_>,input:DeleteProject)->Result<DeletionReceipt,StorageError>{
+        request_id(&input.request_id)?; request_id(&input.project_id)?;
+        if !(1..MAX_REVISION).contains(&input.expected_revision) { return Err(invalid("项目修订号无效，未删除或恢复。")); }
+        let input_json = serde_json::to_string(&input).map_err(|_| corrupt())?;
+        let previous: Option<(String, String)> = tx.query_row("SELECT input,result FROM project_deletion_requests WHERE id=?1", [&input.request_id], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(database_error)?;
+        if let Some((old, result)) = previous {
+            if old != input_json { return Err(StorageError::new("request_conflict", "同一项目操作编号已有不同内容，未覆盖。")); }
+            return decode_deletion(&result);
+        }
+        let raw = tx.query_row("SELECT id,name,content,revision,created_at FROM projects WHERE id=?1", [&input.project_id], document_row).optional().map_err(database_error)?
+            .ok_or_else(|| StorageError::new("project_missing", "项目不存在，未删除或恢复。"))?;
+        let mut project = decode_row(raw)?;
+        let deleted: bool = tx.query_row("SELECT deleted FROM project_deletions WHERE project_id=?1", [&input.project_id], |r| r.get(0)).optional().map_err(database_error)?.unwrap_or(false);
+        if project.revision != input.expected_revision || deleted == input.deleted { return Err(StorageError::new("stale_record", "项目内容或删除状态已变化，请重新核对后操作。")); }
+        let changed = tx.execute("UPDATE projects SET revision=revision+1 WHERE id=?1 AND revision=?2", params![input.project_id, input.expected_revision]).map_err(database_error)?;
+        if changed != 1 { return Err(StorageError::new("stale_record", "项目版本已变化，未删除或恢复。")); }
+        project.revision += 1;
+        tx.execute("INSERT INTO project_deletions(project_id,deleted) VALUES(?1,?2) ON CONFLICT(project_id) DO UPDATE SET deleted=excluded.deleted", params![input.project_id, input.deleted]).map_err(database_error)?;
+        let saved = SavedDeletion { request_id: input.request_id.clone(), deleted: input.deleted, project: SavedResponse::from(&project) };
+        let result_json = serde_json::to_string(&saved).map_err(|_| corrupt())?;
+        tx.execute("INSERT INTO project_deletion_requests(id,input,result) VALUES(?1,?2,?3)", params![input.request_id, input_json, result_json]).map_err(database_error)?;
+        Ok(DeletionReceipt { request_id: input.request_id, deleted: input.deleted, project })
 }

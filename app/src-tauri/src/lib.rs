@@ -1,4 +1,6 @@
 mod diagnostics;
+#[path = "context-menu.rs"] mod context_menu;
+#[path = "pi-session-title.rs"] mod pi_session_title;
 mod storage;
 mod native_paths;
 mod projects;
@@ -41,6 +43,7 @@ mod bookkeeping;
 #[path = "bookkeeping-commands.rs"] mod bookkeeping_commands;
 use bookkeeping_commands::*;
 #[path = "pi-jsonl.rs"] mod pi_jsonl;
+#[path = "pi-image-limits.rs"] mod pi_image_limits;
 #[path = "pi-model-config.rs"] mod pi_model_config;
 #[path = "pi-provider-config.rs"] mod pi_provider_config;
 #[path = "pi-model-discovery.rs"] mod pi_model_discovery;
@@ -53,6 +56,21 @@ use bookkeeping_commands::*;
 #[path = "pi-redactor.rs"] mod pi_redactor;
 #[path = "pi-sessions.rs"] mod pi_sessions;
 #[path = "pi-manager.rs"] mod pi_manager;
+#[path = "pi-session-lock.rs"] mod pi_session_lock;
+#[path = "pi-config-lock.rs"] mod pi_config_lock;
+#[path = "pi-extension-ui.rs"] mod pi_extension_ui;
+#[path = "pi-rules.rs"] mod pi_rules;
+#[path = "agent-runtime.rs"] mod agent_runtime;
+#[path = "agent-store.rs"] mod agent_store;
+#[path = "agent-modules.rs"] mod agent_modules;
+#[path = "agent-mcp.rs"] mod agent_mcp;
+#[path = "agent-mcp-tools.rs"] mod agent_mcp_tools;
+#[path = "agent-commands.rs"] mod agent_commands;
+use agent_commands::*;
+#[cfg(test)] #[path="agent-tests.rs"] mod agent_tests;
+#[cfg(test)] #[path="agent-module-tests.rs"] mod agent_module_tests;
+#[path = "agent-jobs.rs"] mod agent_jobs;
+use agent_jobs::{agent_jobs,agent_submit_job,agent_cancel_job};
 #[path = "pi-commands.rs"] mod pi_commands;
 #[path = "pi-resources.rs"] mod pi_resources;
 use pi_commands::*;
@@ -130,6 +148,9 @@ async fn create_todo(app: tauri::AppHandle, window: tauri::WebviewWindow, input:
     main_window(&window)?;
     with_storage(app, move |manager| manager.store()?.create_todo(input)).await
 }
+#[tauri::command]
+async fn set_todo_deleted(app:tauri::AppHandle,window:tauri::WebviewWindow,id:String,revision:i64,deleted:bool)->Result<serde_json::Value,StorageError>{main_window(&window)?;with_storage(app,move|manager|manager.store()?.set_todo_deleted(&id,revision,deleted)).await}
+
 #[tauri::command]
 async fn complete_todo(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, revision: i64, completed: bool) -> Result<Todo, StorageError> {
     main_window(&window)?;
@@ -231,9 +252,14 @@ pub fn run() {
         .manage(news_commands::NewsState::default())
         .manage(news_ai::AiControl::default())
         .manage(pi_manager::PiManager::default())
+        .manage(agent_runtime::AgentRuntime::default())
+        .manage(agent_jobs::BackgroundSlots::default())
+        .manage(agent_jobs::JobsControl::default())
+        .manage(agent_modules::registered())
+        .manage(agent_mcp::BusinessMcp::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
-        .setup(|app| { news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
+        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, set_todo_deleted, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, agent_context_catalog, agent_conversation, agent_bind, agent_delete_conversation, agent_remember, agent_send, agent_drafts, agent_revalidate_draft, agent_apply_draft, agent_discard_draft, agent_attach_file, agent_attachment_preview, agent_jobs, agent_submit_job, agent_cancel_job, pi_runtime_summary, pi_save_runtime, pi_respond_ui, pi_thinking, pi_stats, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
+        .setup(|app| { if let Some(window)=app.get_webview_window("main"){context_menu::install(&window)?;} news_editorial_commands::start_automation(app.handle().clone()); pi_commands::start_reaper(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")
         .run(pi_commands::on_run_event);

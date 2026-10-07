@@ -32,7 +32,7 @@ export function PiResourcesPanel({ model }: { model: PiController }) {
   const r = model.resources, index = r.index;
   const [query, setQuery] = useState('');
   const generation = model.snapshot?.generation, connecting = model.snapshot?.connection === 'connecting';
-  const operationBusy = !!model.action || !!model.snapshot?.busy || !!model.snapshot?.stopping || !!model.snapshot?.sending || !!model.snapshot && model.snapshot.projection.activity !== 'idle';
+  const operationBusy = model.snapshot?.connection === 'connecting' || !!model.snapshot?.stopping;
   const canRead = !!model.snapshot && !connecting && !operationBusy && !r.saving;
   const waiting = model.connected && !!model.root && !canRead;
   useEffect(() => { if (canRead) void r.refresh(); }, [model.root, generation, canRead, r.refresh]);

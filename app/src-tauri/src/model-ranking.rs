@@ -16,7 +16,7 @@ const DATASET_URL: &str = "https://huggingface.co/datasets/lmarena-ai/leaderboar
 #[serde(rename_all = "kebab-case")]
 pub enum Board { Agent, TextToImage }
 impl Board {
-    fn key(self) -> &'static str { match self { Self::Agent => "agent", Self::TextToImage => "text-to-image" } }
+    pub(crate) fn key(self) -> &'static str { match self { Self::Agent => "agent", Self::TextToImage => "text-to-image" } }
     pub fn source_url(self) -> &'static str {
         match self {
             Self::Agent => "https://arena.ai/leaderboard/agent",
@@ -407,3 +407,6 @@ impl Store {
         Ok(self.ranking_board(board))
     }
 }
+
+
+pub(crate) fn agent_snapshot(db:&Connection,board:Board)->Result<Option<serde_json::Value>,StorageError>{read_saved(db,board)?.map(|saved|serde_json::to_value(saved).map_err(|_|invalid())).transpose()}

@@ -99,7 +99,7 @@ fn csv_cell(value:&str)->String{
     let safe=if first.is_some_and(|c|matches!(c,'='|'+'|'-'|'@'))||value.chars().next().is_some_and(|c|matches!(c,'\t'|'\r'|'\n')){format!("'{value}")}else{value.to_owned()};
     format!("\"{}\"",safe.replace('"',"\"\""))
 }
-fn csv(rows:&[Expense])->String{
+pub(crate) fn csv(rows:&[Expense])->String{
     let mut text="\u{feff}日期,用途,金额（元）,报销状态,备注,票据数量,原币种,原币金额,人民币汇率,汇率日期,汇率来源\r\n".to_owned();
     let mut sum=0i64;
     for row in rows{

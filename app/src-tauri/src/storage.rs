@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-pub(crate) const SCHEMA_VERSION: i64 = 12;
+pub(crate) const SCHEMA_VERSION: i64 = 16;
 const DATABASE: &str = "db/azcine.sqlite3";
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
@@ -166,7 +166,7 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
         INSERT INTO app_meta VALUES ('identity', lower(hex(randomblob(16))));
         CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 500), due_date TEXT,
             project_id TEXT, completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)), revision INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))) STRICT;").map_err(db_error)?;
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1))) STRICT;").map_err(db_error)?;
     crate::projects::create_schema(&tx)?;
     crate::ideas::create_schema(&tx)?;
     crate::news_store::create_schema(&tx)?;
@@ -175,6 +175,7 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
     crate::news_scope::create_schema(&tx)?;
     crate::news_reset::create_schema(&tx)?;
     crate::bookkeeping::create_schema(&tx)?;
+    crate::agent_store::create_schema(&tx)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
@@ -310,9 +311,13 @@ impl Store {
             if version==9{tx.execute_batch("ALTER TABLE bookkeeping_expenses ADD COLUMN exchange TEXT;").map_err(db_error)?;}
             if version<11{crate::projects::create_deletion_schema(&tx)?;}
             if version<12{crate::news_reset::create_history_schema(&tx)?;}
+            if version<13{crate::agent_store::create_schema(&tx)?;}else if version<14{crate::agent_store::upgrade_schema13(&tx)?;}
+            if (13..15).contains(&version){crate::agent_store::create_deletion_schema(&tx)?;}
+            if version<16{tx.execute_batch("ALTER TABLE todos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1));").map_err(db_error)?;}
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
+        db.prepare("SELECT deleted FROM todos LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
         crate::projects::validate_deletion_schema(&db)?;
@@ -324,6 +329,7 @@ impl Store {
         crate::news_reset::validate_schema(&db)?;
         crate::news_reset::validate_history_schema(&db)?;
         crate::bookkeeping::validate_schema(&db)?;
+        crate::agent_store::validate_schema(&db)?;
         crate::news_reset::recover_files(&root,&db)?;
         crate::news_store::recover_runs(&db, &root)?;
         crate::news_editorial_store::recover(&db)?;
@@ -332,37 +338,19 @@ impl Store {
         Ok(Self { root, db, identity, _lock: lock })
     }
     pub fn todos(&self) -> Result<Vec<Todo>, StorageError> {
-        let mut query = self.db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos ORDER BY completed, due_date IS NULL, due_date,created_at,id").map_err(db_error)?;
+        let mut query = self.db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE deleted=0 ORDER BY completed, due_date IS NULL, due_date,created_at,id").map_err(db_error)?;
         query.query_map([], todo_row).map_err(db_error)?.collect::<Result<Vec<_>, _>>().map_err(db_error)
     }
     fn todo(&self, id: &str) -> Result<Option<Todo>, StorageError> {
         self.db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?1", [id], todo_row).optional().map_err(db_error)
     }
-    pub fn create_todo(&mut self, input: CreateTodo) -> Result<Todo, StorageError> {
-        let title = input.title.trim();
-        if title.is_empty() || title.chars().count() > 500 { return Err(StorageError::new("invalid_title", "请填写 1–500 字的待办标题。")); }
-        validate_id(&input.id)?;
-        if let Some(date) = &input.due_date { if !valid_date(date) { return Err(StorageError::new("invalid_date", "日期需为有效的完整年月日（YYYY-MM-DD）；也可不填。")); } }
-        if let Some(project_id) = &input.project_id {
-            if validate_id(project_id).is_err() || !self.db.query_row("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?1)", [project_id], |row| row.get::<_, bool>(0)).map_err(db_error)? {
-                return Err(StorageError::new("invalid_project", "关联的公司项目不存在，请重新选择；不会创建虚构项目。"));
-            }
-        }
-        if let Some(existing) = self.todo(&input.id)? {
-            if existing.title == title && existing.due_date == input.due_date && existing.project_id == input.project_id { return Ok(existing); }
-            return Err(StorageError::new("request_conflict", "此保存请求已经用于另一条记录，请重新核对，不会重复创建或覆盖。"));
-        }
-        self.db.execute("INSERT INTO todos(id,title,due_date,project_id) VALUES (?1,?2,?3,?4)", params![input.id, title, input.due_date, input.project_id]).map_err(db_error)?;
-        self.todo(&input.id)?.ok_or_else(|| StorageError::new("save_uncertain", "保存结果尚未确认，请重试同一请求，不会重复建项。"))
-    }
+    pub fn create_todo(&mut self, input: CreateTodo) -> Result<Todo, StorageError> { create_todo_in(&self.db,input) }
     pub fn complete_todo(&mut self, id: &str, revision: i64, completed: bool) -> Result<Todo, StorageError> {
-        validate_id(id)?;
-        let changed = self.db.execute("UPDATE todos SET completed=?1,revision=revision+1 WHERE id=?2 AND revision=?3", params![completed, id, revision]).map_err(db_error)?;
-        if changed != 1 { return Err(StorageError::new("stale_record", "这条待办已改变，请刷新列表后再操作；没有覆盖新状态。")); }
-        self.todo(id)?.ok_or_else(|| StorageError::new("record_missing", "待办不存在，请刷新列表。"))
+        complete_todo_in(&self.db,id,revision,completed)
     }
+    pub fn set_todo_deleted(&mut self,id:&str,revision:i64,deleted:bool)->Result<serde_json::Value,StorageError>{let tx=self.db.transaction().map_err(db_error)?;let result=set_todo_deleted_in(&tx,id,revision,deleted)?;tx.commit().map_err(db_error)?;Ok(result)}
 }
-fn todo_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
+pub(crate) fn todo_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     Ok(Todo { id: row.get(0)?, title: row.get(1)?, due_date: row.get(2)?, project_id: row.get(3)?, completed: row.get(4)?, revision: row.get(5)?, created_at: row.get(6)? })
 }
 fn validate_id(id: &str) -> Result<(), StorageError> {
@@ -536,3 +524,43 @@ mod tests {
         let mut m=Manager::new(local,root.clone()).unwrap();assert_eq!(m.workspace().unwrap_err().code,"root_missing");assert!(!root.exists());
     }
 }
+
+
+pub(crate) fn complete_todo_in(db:&Connection,id:&str,revision:i64,completed:bool)->Result<Todo,StorageError>{
+        validate_id(id)?;
+        let changed = db.execute("UPDATE todos SET completed=?1,revision=revision+1 WHERE id=?2 AND revision=?3 AND deleted=0", params![completed, id, revision]).map_err(db_error)?;
+        if changed != 1 { return Err(StorageError::new("stale_record", "这条待办已改变，请刷新列表后再操作；没有覆盖新状态。")); }
+        db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?", [id], todo_row).optional().map_err(db_error)?.ok_or_else(|| StorageError::new("record_missing", "待办不存在，请刷新列表。"))
+}
+
+pub(crate) fn todo_in(db:&Connection,id:&str)->Result<Option<Todo>,StorageError>{db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?",[id],todo_row).optional().map_err(db_error)}
+pub(crate) fn create_todo_in(db:&Connection,input:CreateTodo)->Result<Todo,StorageError>{
+        validate_todo_creation(db,&input)?;let title=input.title.trim();
+        if let Some(existing) = todo_in(db,&input.id)? {
+            if db.query_row("SELECT deleted FROM todos WHERE id=?",[&input.id],|row|row.get::<_,bool>(0)).map_err(db_error)?{return Err(StorageError::new("record_deleted","这条待办已删除，未重复创建或恢复。"));}
+            if existing.title == title && existing.due_date == input.due_date && existing.project_id == input.project_id { return Ok(existing); }
+            return Err(StorageError::new("request_conflict", "此保存请求已经用于另一条记录，请重新核对，不会重复创建或覆盖。"));
+        }
+        db.execute("INSERT INTO todos(id,title,due_date,project_id) VALUES (?1,?2,?3,?4)", params![input.id, title, input.due_date, input.project_id]).map_err(db_error)?;
+        todo_in(db,&input.id)?.ok_or_else(|| StorageError::new("save_uncertain", "保存结果尚未确认，请重试同一请求，不会重复建项。"))
+}
+pub(crate) fn set_todo_deleted_in(tx:&Connection,id:&str,revision:i64,deleted:bool)->Result<serde_json::Value,StorageError>{
+        validate_id(id)?;
+        let (actual,state):(i64,bool)=tx.query_row("SELECT revision,deleted FROM todos WHERE id=?",[id],|row|Ok((row.get(0)?,row.get(1)?))).optional().map_err(db_error)?.ok_or_else(||StorageError::new("record_missing","待办不存在，请重新读取。"))?;
+        if actual!=revision&&!(revision.checked_add(1)==Some(actual)&&state==deleted){return Err(StorageError::new("record_conflict","待办已变化，未删除或恢复；请重新读取核对。"));}
+        if actual==revision&&state!=deleted{tx.execute("UPDATE todos SET deleted=?,revision=revision+1 WHERE id=? AND revision=?",params![deleted,id,revision]).map_err(db_error)?;}
+        let todo=tx.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?",[id],todo_row).map_err(db_error)?;
+        Ok(serde_json::json!({"todo":todo,"deleted":deleted}))
+}
+
+pub(crate) fn validate_todo_creation(db:&Connection,input:&CreateTodo)->Result<(),StorageError>{
+        let title = input.title.trim();
+        if title.is_empty() || title.chars().count() > 500 { return Err(StorageError::new("invalid_title", "请填写 1–500 字的待办标题。")); }
+        validate_id(&input.id)?;
+        if let Some(date) = &input.due_date { if !valid_date(date) { return Err(StorageError::new("invalid_date", "日期需为有效的完整年月日（YYYY-MM-DD）；也可不填。")); } }
+        if let Some(project_id) = &input.project_id {
+            if validate_id(project_id).is_err() || !db.query_row("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?1)", [project_id], |row| row.get::<_, bool>(0)).map_err(db_error)? {
+                return Err(StorageError::new("invalid_project", "关联的公司项目不存在，请重新选择；不会创建虚构项目。"));
+            }
+        }
+Ok(())}

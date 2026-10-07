@@ -5,8 +5,8 @@ import { parseDesktopReport, desktopError } from '../src/desktop-contract.ts';
 
 const validReport = { requestId: 17, appVersion: '0.0.0', sqliteVersion: 'test-only', storage: 'temporary', roundTrip: true, rollback: true };
 
-test('Given八个页面 When解析hash Then正常路由且无隐藏研究页', () => {
-  assert.equal(new Set(pages.map(page => page.id)).size, 8);
+test('Given已注册页面 When解析hash Then正常路由且无隐藏研究页', () => {
+  assert.deepEqual(pages.map(page=>page.id),['today','projects','news','models','ideas','bookkeeping','agent','jobs','resources','settings']);
   for (const page of pages) {
     assert.equal(resolveRoute(`#${page.id}`), page.id);
     assert.equal(pageTitle(page.id), page.id === 'settings' ? '常用设置' : page.title);

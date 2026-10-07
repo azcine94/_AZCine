@@ -17,7 +17,7 @@ pub struct SaveIdea { pub request_id: String, pub expected_revision: Option<i64>
 fn db_error(_: rusqlite::Error) -> StorageError { StorageError::new("ideas_database", "灵感操作失败，输入和原记录已保留。请核对后重试。") }
 fn invalid(message: &str) -> StorageError { StorageError::new("invalid_idea", message) }
 fn uuid(id: &str) -> bool { id.len() == 36 && id.bytes().enumerate().all(|(i,c)| if [8,13,18,23].contains(&i) { c == b'-' } else { c.is_ascii_hexdigit() }) }
-fn validate(input: &SaveIdea) -> Result<(), StorageError> {
+pub(crate) fn validate(input: &SaveIdea) -> Result<(), StorageError> {
     if !uuid(&input.request_id) || !uuid(&input.content.id) { return Err(invalid("灵感请求编号无效。")); }
     if input.expected_revision.is_some_and(|r| r < 1 || r >= 9_007_199_254_740_991) { return Err(invalid("灵感版本无效。")); }
     let c = &input.content;
@@ -49,7 +49,7 @@ fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Idea> {
     Ok(Idea { id:r.get(0)?, title:r.get(1)?, body:r.get(2)?, tags, project_id:r.get(4)?, revision:r.get(5)?, created_at:r.get(6)?, updated_at:r.get(7)?, deleted:r.get(8)?, todo_id:r.get(9)? })
 }
 const COLUMNS: &str = "id,title,body,tags,project_id,revision,created_at,updated_at,deleted,todo_id";
-fn get(db: &Connection, id: &str) -> Result<Option<Idea>, StorageError> {
+pub(crate) fn get(db: &Connection, id: &str) -> Result<Option<Idea>, StorageError> {
     db.query_row(&format!("SELECT {COLUMNS} FROM ideas WHERE id=?1"), [id], row).optional().map_err(db_error)
 }
 fn conflict() -> StorageError { StorageError::new("stale_idea", "这张灵感已改变，请重新读取核对。未覆盖新的记录，编辑草稿保留。") }
@@ -64,9 +64,24 @@ impl Store {
             .map_err(db_error)?.query_map([], row).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
     }
     pub fn save_idea(&mut self, input: SaveIdea) -> Result<Idea, StorageError> {
+        let tx = self.db.transaction().map_err(db_error)?;
+        let result = save_idea_in(&tx, input)?;
+        tx.commit().map_err(db_error)?;
+        Ok(result)
+    }
+    pub fn set_idea_deleted(&mut self,id:&str,revision:i64,deleted:bool)->Result<Idea,StorageError>{let tx=self.db.transaction().map_err(db_error)?;let result=set_idea_deleted_in(&tx,id,revision,deleted)?;tx.commit().map_err(db_error)?;Ok(result)}
+    pub fn convert_idea(&mut self,id:&str,revision:i64)->Result<Idea,StorageError>{let tx=self.db.transaction().map_err(db_error)?;let result=convert_idea_in(&tx,id,revision)?;tx.commit().map_err(db_error)?;Ok(result)}
+
+}
+
+#[cfg(test)]
+#[path = "ideas-tests.rs"] mod tests;
+
+
+pub(crate) fn save_idea_in(tx: &rusqlite::Transaction<'_>, input: SaveIdea) -> Result<Idea, StorageError> {
         validate(&input)?;
         let encoded = serde_json::to_string(&input).map_err(|_| invalid("无法保存灵感输入。"))?;
-        let tx = self.db.transaction().map_err(db_error)?;
+
         let prior: Option<(String,String)> = tx.query_row("SELECT input,result FROM idea_requests WHERE id=?1", [&input.request_id], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(db_error)?;
         if let Some((old, result)) = prior {
             if old != encoded { return Err(StorageError::new("request_conflict", "此请求编号已有其他输入，未覆盖。")); }
@@ -80,32 +95,33 @@ impl Store {
         let tags = serde_json::to_string(&c.tags).map_err(|_| invalid("无法保存标签。"))?;
         match input.expected_revision {
             None => {
-                if get(&tx, &c.id)?.is_some() { return Err(conflict()); }
+                if get(tx, &c.id)?.is_some() { return Err(conflict()); }
                 tx.execute("INSERT INTO ideas(id,title,body,tags,project_id) VALUES (?1,?2,?3,?4,?5)", params![c.id,c.title.trim(),c.body.trim(),tags,c.project_id]).map_err(db_error)?;
             },
             Some(revision) => {
                 if tx.execute("UPDATE ideas SET title=?1,body=?2,tags=?3,project_id=?4,revision=revision+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?5 AND revision=?6 AND deleted=0", params![c.title.trim(),c.body.trim(),tags,c.project_id,c.id,revision]).map_err(db_error)? != 1 { return Err(conflict()); }
             }
         }
-        let saved = get(&tx, &c.id)?.ok_or_else(conflict)?;
+        let saved = get(tx, &c.id)?.ok_or_else(conflict)?;
         let result = serde_json::to_string(&saved).map_err(|_| invalid("无法生成保存回执。"))?;
         tx.execute("INSERT INTO idea_requests(id,input,result) VALUES (?1,?2,?3)", params![input.request_id,encoded,result]).map_err(db_error)?;
-        tx.commit().map_err(db_error)?;
+
         Ok(saved)
-    }
-    pub fn set_idea_deleted(&mut self, id: &str, revision: i64, deleted: bool) -> Result<Idea, StorageError> {
+
+}
+
+pub(crate) fn set_idea_deleted_in(tx:&rusqlite::Transaction<'_>,id:&str,revision:i64,deleted:bool)->Result<Idea,StorageError>{
         if !uuid(id) || !(1..9_007_199_254_740_991).contains(&revision) { return Err(invalid("灵感编号或版本无效。")); }
-        let tx = self.db.transaction().map_err(db_error)?;
         let prior = get(&tx,id)?.ok_or_else(conflict)?;
         if prior.deleted == deleted && prior.revision == revision + 1 { return Ok(prior); }
         if prior.revision != revision || prior.deleted == deleted { return Err(conflict()); }
         if tx.execute("UPDATE ideas SET deleted=?1,revision=revision+1 WHERE id=?2 AND revision=?3", params![deleted,id,revision]).map_err(db_error)? != 1 { return Err(conflict()); }
         let saved = get(&tx,id)?.ok_or_else(conflict)?;
-        tx.commit().map_err(db_error)?; Ok(saved)
-    }
-    pub fn convert_idea(&mut self, id: &str, revision: i64) -> Result<Idea, StorageError> {
+        Ok(saved)
+}
+
+pub(crate) fn convert_idea_in(tx:&rusqlite::Transaction<'_>,id:&str,revision:i64)->Result<Idea,StorageError>{
         if !uuid(id) || !(1..9_007_199_254_740_991).contains(&revision) { return Err(invalid("灵感编号或版本无效。")); }
-        let tx = self.db.transaction().map_err(db_error)?;
         let idea = get(&tx,id)?.ok_or_else(conflict)?;
         if idea.deleted { return Err(conflict()); }
         if idea.todo_id.is_some() { return Ok(idea); }
@@ -115,9 +131,5 @@ impl Store {
         tx.execute("INSERT INTO todos(id,title,project_id) VALUES (?1,?2,?3)", params![todo_id,title,idea.project_id]).map_err(db_error)?;
         tx.execute("UPDATE ideas SET todo_id=?1,revision=revision+1 WHERE id=?2 AND revision=?3", params![todo_id,id,revision]).map_err(db_error)?;
         let saved = get(&tx,id)?.ok_or_else(conflict)?;
-        tx.commit().map_err(db_error)?; Ok(saved)
-    }
+        Ok(saved)
 }
-
-#[cfg(test)]
-#[path = "ideas-tests.rs"] mod tests;

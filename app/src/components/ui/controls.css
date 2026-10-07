@@ -16,6 +16,11 @@
 .ui-status-badge[data-tone="success"] { color:var(--ok); }
 .ui-status-badge[data-tone="error"] { color:var(--bad); }
 .ui-status-badge[data-tone="warning"] { color:var(--warn); }
+.ui-status-dot { display:inline-block; flex:none; width:8px; height:8px; border-radius:var(--r-pill); background:var(--muted-foreground); }
+.ui-status-dot[data-tone="success"] { background:var(--ok); }
+.ui-status-dot[data-tone="warning"] { background:var(--warn); }
+.ui-status-dot[data-tone="error"] { background:var(--bad); }
+.ui-status-dot[data-tone="active"] { background:var(--foreground); }
 /* 按钮：实底一屏一个；描边是常规；危险红字描边；文字动作不当按钮。三个高度 32 / 28 / 24，字 14 / 13 / 12 */
 .pill { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); height: var(--h-2); padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--line-2); background: transparent; color: var(--t2); font: 500 var(--fs-s)/1 var(--font); white-space: nowrap; cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .pill:is(:hover, .is-hover) { background: var(--island-2); color: var(--text); }

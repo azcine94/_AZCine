@@ -6,7 +6,7 @@ use tauri::Manager as _;
 
 #[derive(Default)]
 pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
-pub struct AiWorker { rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>>, pub usage:Mutex<Value> }
+pub struct AiWorker { _slot:crate::agent_jobs::BackgroundLease, rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>>, pub usage:Mutex<Value> }
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
 fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError>{
     let value=rpc.request(command,fields,Duration::from_secs(30)).map_err(|e|error(e.code,e.message))?;
@@ -15,10 +15,13 @@ fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError
 }
 impl AiWorker {
     pub fn connect(app:&tauri::AppHandle,root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>,observer:crate::news_processing::Observer)->Result<Self,StorageError>{
+        observer(crate::news_processing::ProgressEvent::Phase("queued"));
+        let slot_key=format!("news-{}",chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
+        let slot=app.state::<crate::agent_jobs::BackgroundSlots>().acquire(&slot_key,&cancelled,Instant::now()+Duration::from_secs(3600))?;
         observer(crate::news_processing::ProgressEvent::Phase("connecting"));
         let map=|e:crate::pi_model_config::ConfigError|error(e.code,e.message);
         let runtime=crate::pi_runtime::resolve(resources).map_err(map)?;let mut paths=PiPaths::prepare(root).map_err(map)?;
-        let docs=app.state::<crate::pi_manager::PiManager>().news_documents(&paths.root).map_err(|e|error(e.code,&e.message))?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
+        let docs=crate::agent_jobs::configuration(app,&paths.root,resources,&cancelled,Instant::now()+Duration::from_secs(30))?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
         // Application-owned private task configuration: never change interactive Pi settings.
         paths.agent=paths.pi_root.join("news-private-agent");crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
         std::fs::create_dir_all(&paths.agent).map_err(|_|error("news_ai_config","无法准备资讯专用配置。"))?;
@@ -33,6 +36,7 @@ impl AiWorker {
         let env=paths.environment(&runtime,&windows,&program_files).map_err(map)?;
         let mut args=paths.arguments(&runtime,None).map_err(map)?;
         for argument in ["--no-session","--no-tools","--no-extensions","--no-skills","--no-prompt-templates","--no-themes"]{args.push(argument.into());}
+        args.push("--append-system-prompt".into());args.push("\n".into());
         let cwd=root.join("pi/workspaces/news");crate::pi_launch_plan::no_link(&cwd).map_err(map)?;
         std::fs::create_dir_all(&cwd).map_err(|_|error("news_ai_workspace","无法创建本应用资讯任务目录。"))?;
         let settled=Arc::new(AtomicBool::new(false));let flag=settled.clone();let output=Arc::new(Mutex::new(String::new()));let streamed=output.clone();let public=observer.clone();let mask=Redactor::from_documents(&docs[0],&docs[1]);
@@ -52,7 +56,7 @@ impl AiWorker {
         let Some(model)=choice.filter(|m|models.contains(m)) else {let _=rpc.shutdown(Duration::from_secs(1));return Err(error("news_model_unavailable","本应用原版Pi没有可用的资讯模型。请在设置中配置模型；材料、旧事件与旧刊保留，没有使用假回复。"));};
         request(&rpc,"set_model",json!({"provider":model.provider,"modelId":model.id}))?;
         observer(crate::news_processing::ProgressEvent::Model(model.clone()));
-        Ok(Self{rpc,settled,cancelled,redactor,model,observer,output,usage:Mutex::new(Value::Null)})
+        Ok(Self{_slot:slot,rpc,settled,cancelled,redactor,model,observer,output,usage:Mutex::new(Value::Null)})
     }
     fn available(rpc:&RpcProcess)->Result<Vec<ModelChoice>,StorageError>{
         let data=request(rpc,"get_available_models",json!({}))?;

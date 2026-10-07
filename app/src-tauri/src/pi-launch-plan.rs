@@ -71,6 +71,7 @@ impl PiPaths {
         let pi_root = owned_dir(&root, "pi")?;
         let agent = owned_dir(&pi_root, "agent")?; let sessions = owned_dir(&pi_root, "sessions")?;
         owned_dir(&agent, "skills")?; owned_dir(&agent, "extensions")?;
+        crate::pi_session_title::provision(&pi_root,&agent)?;
         let home = owned_dir(&pi_root, "home")?; let appdata = owned_dir(&pi_root, "appdata")?; let localappdata = owned_dir(&pi_root, "localappdata")?; let temp = owned_dir(&pi_root, "temp")?;
         let workspaces = owned_dir(&pi_root, "workspaces")?; let default_cwd = owned_dir(&workspaces, "default")?;
         Ok(Self { root, pi_root, agent, sessions, home, appdata, localappdata, temp, default_cwd })
@@ -83,7 +84,7 @@ impl PiPaths {
             return Err(error("pi_cwd_private", "不能把 Pi 认证、会话或私有配置目录作为工作目录。"));
         }
         let project = cwd.join(".pi"); no_link(&project)?;
-        // 0.99.1 runs migrations before trust. Metadata-only preflight; never
+        // Upstream Pi runs migrations before trust. Metadata-only preflight; never
         // read foreign settings/auth and never rename the external directory.
         for name in ["commands", "hooks", "tools"] {
             if project.join(name).try_exists().map_err(io_error)? {

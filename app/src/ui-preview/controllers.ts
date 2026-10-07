@@ -1,3 +1,5 @@
+import {useAgentJobs} from '../use-agent-jobs.ts';
+import {useAgentData} from '../use-agent-data.ts';
 import { notifyOperation, useOperationNotice } from '../components/ui/operation-toast.tsx';
 import { isHistoryReset } from '../use-news-reset.ts';
 import type { NewsResetMode } from '../use-news-reset.ts';
@@ -23,6 +25,7 @@ import type { ProviderDraft } from '../use-pi-providers.ts';
 import * as data from './data.ts';
 import { usePreviewResources } from './pi-resources-fixture.ts';
 import { usePreviewBookkeeping } from './bookkeeping-fixture.ts';
+import { reviewFixture } from './agent-review-fixture.ts';
 
 function useFixture<T extends object>(baseline: T, initial: Partial<T>) {
   const [patch, setPatch] = useState(initial);
@@ -30,7 +33,11 @@ function useFixture<T extends object>(baseline: T, initial: Partial<T>) {
 }
 const message = 'UI 示例：操作只在本页展示，不抓取、不调用模型、不写入业务数据。';
 const failure = '示例失败：连接暂时不可用，已保留输入和现有内容。';
-export function usePreviewControllers(state: string) {
+export function usePreviewControllers(requestedState: string) {
+  const sidebarState=requestedState.startsWith('agent-sidebar');
+  const state=sidebarState?'normal':requestedState;
+  const piState=sidebarState?(requestedState==='agent-sidebar'?'normal':requestedState.slice('agent-sidebar-'.length)==='extension'?'agent-extension':requestedState.slice('agent-sidebar-'.length)):state;
+  const piLong=piState==='long',piFailed=piState==='error';
   const bookkeeping = usePreviewBookkeeping(state);
   const empty = state === 'empty', error = state === 'error', loading = state === 'loading';
   const long = state === 'long', pending = state === 'pending', conflict = state === 'conflict' || state === 'conflict-details';
@@ -97,27 +104,75 @@ export function usePreviewControllers(state: string) {
   });
   const [ideas, patchIdeas] = useFixture(useIdeas(null), {ideas:empty?[]:[sampleIdea],drafts:{new:ideaDraft({...sampleIdea,title:'',body:'',tags:[],projectId:null}),[sampleIdea.id]:sampleIdeaDraft},editing:ideaEditing?{[sampleIdea.id]:true}:{},loading,loadError:error?failure:'',pending:pending?{[sampleIdea.id]:{requestId:data.uuid(56),expectedRevision:1,content:sampleIdea}}:{},deleted:state==='removed',undo:state==='undo'?sampleIdea:null});
   const samplePi = structuredClone(data.piSnapshot);
-  if(state==='agent-models'||state==='provider-multiple'){samplePi.models=Array.from({length:5},(_,index)=>({...data.piSnapshot.models[0],id:`example-model-${index+1}`,name:`示例模型 ${index+1} · ${index%2?'图像与文本':'推理'}`}));samplePi.state={...samplePi.state!,model:samplePi.models[0]};}
+  if(piState==='agent-models'||state==='provider-multiple'){samplePi.models=Array.from({length:5},(_,index)=>({...data.piSnapshot.models[0],id:`example-model-${index+1}`,name:`示例模型 ${index+1} · ${index%2?'图像与文本':'推理'}`}));samplePi.state={...samplePi.state!,model:samplePi.models[0]};}
+  if(sidebarState&&piLong){samplePi.models=samplePi.models.map(model=>({...model,name:'用于检查侧栏中长模型名称的示例推理模型'.repeat(4)}));samplePi.state={...samplePi.state!,sessionName:'用于检查很长会话标题的分镜与交付规格核对'.repeat(8),model:samplePi.models[0]};}
   samplePi.projection.messages=empty?[]:[
     {role:'user',content:[{type:'text',text:'帮我核对分镜与镜头清单，把需要我确认的差异列出来。'}]},
     {role:'assistant',content:[{type:'thinking',thinking:'先核对说明与镜头内容，再检查交付信息。'},{type:'toolCall',id:'ui-read',name:'read',arguments:{path:'ui-example.md'}}],stopReason:'toolUse'},
-    {role:'toolResult',toolCallId:'ui-read',toolName:'read',isError:error,content:[{type:'text',text:error?failure:'示例资料中有两项交付信息尚未确认。'}]},
-    {role:'assistant',content:[{type:'text',text:long?'这是一段用来检查长回复排版的示例内容。'.repeat(100):'有两项需要你确认：\n\n1. 最终交付日期。\n2. 短版是否需要竖屏输出。\n\n以上是虚构资料中的示例，不更新项目记录。'}],stopReason:error?'error':state==='interrupted'?'aborted':'stop',...(error?{errorMessage:failure}:{})},
+    {role:'toolResult',toolCallId:'ui-read',toolName:'read',isError:piFailed,content:[{type:'text',text:piFailed?failure:'示例资料中有两项交付信息尚未确认。'}]},
+    {role:'assistant',content:[{type:'text',text:piLong?'这是一段用来检查长回复排版的示例内容。'.repeat(100):'有两项需要你确认：\n\n1. 最终交付日期。\n2. 短版是否需要竖屏输出。\n\n以上是虚构资料中的示例，不更新项目记录。'}],stopReason:piFailed?'error':piState==='interrupted'?'aborted':'stop',...(piFailed?{errorMessage:failure}:{})},
   ];
-  samplePi.projection.outcome=state==='interrupted'?'interrupted':error?'error':'success';
+  if(state==='agent-process'){
+    samplePi.projection.messages.splice(1,1,{role:'assistant',content:[
+      {type:'thinking',thinking:'先核对说明与镜头内容，再检查交付信息。'},
+      {type:'text',text:'我先读取现有资料，随后继续核对交付字段。（虚构过程说明）'},
+      {type:'toolCall',id:'ui-read',name:'read',arguments:{path:'ui-example.md'}},
+    ],stopReason:'toolUse'});
+    samplePi.projection.messages.splice(3,0,
+      {role:'assistant',content:[
+        {type:'thinking',thinking:'继续核对交期与输出规格，这仍是同一轮任务。'},
+        {type:'text',text:'资料已读取，继续检查两项交付信息。（虚构过程说明）'},
+        {type:'toolCall',id:'ui-check-date',name:'read',arguments:{path:'ui-delivery.md'}},
+        {type:'toolCall',id:'ui-check-format',name:'read',arguments:{path:'ui-output.md'}},
+      ],stopReason:'toolUse'},
+      {role:'toolResult',toolCallId:'ui-check-date',toolName:'read',isError:false,content:[{type:'text',text:'虚构核对：最终交付日期仍需本人确认。'}]},
+      {role:'toolResult',toolCallId:'ui-check-format',toolName:'read',isError:false,content:[{type:'text',text:'虚构核对：短版竖屏规格仍需本人确认。'}]},
+    );
+  }
+  if(state==='agent-process-retry')samplePi.projection.messages=[
+    {role:'user',content:[{type:'text',text:'把镜头表整理成草案（虚构请求）。'}]},
+    {role:'assistant',stopReason:'toolUse',content:[{type:'text',text:'先读取项目动作契约（虚构执行说明）。'},{type:'toolCall',id:'ui-contract',name:'codemode',arguments:{code:'虚构代码，不执行'}}]},
+    {role:'toolResult',toolCallId:'ui-contract',toolName:'codemode',isError:false,calls:[{name:'azcine.describe_action',status:'error'}],content:[{type:'text',text:'虚构子调用失败：缺少模块参数。'}]},
+    {role:'assistant',stopReason:'toolUse',content:[{type:'text',text:'补充模块参数后继续读取（虚构执行说明）。'},{type:'toolCall',id:'ui-contract-retry',name:'codemode',arguments:{code:'虚构重试代码，不执行'}}]},
+    {role:'toolResult',toolCallId:'ui-contract-retry',toolName:'codemode',isError:false,calls:[{name:'azcine.describe_action',status:'ok'}],content:[{type:'text',text:'虚构契约读取完成。'}]},
+    {role:'assistant',stopReason:'stop',content:[{type:'text',text:'示例整理完成，等待核对。以下是同一条最终回复中的另一段。'},{type:'text',text:'此处没有调用模型，也没有保存业务记录。'}]},
+  ];
+  if(state==='agent-answer-table')samplePi.projection.messages=[
+    {role:'user',content:[{type:'text',text:'整理表格（虚构请求）。'}]},
+    {role:'assistant',stopReason:'stop',content:[{type:'text',text:'以下是虚构镜头表：\n\n| 镜头 | 制作 | 版本记录 |\n| --- | --- | --- |\n| SH_001 | 示例人员 | BCOPY / FINAL |\n| SH_002 | 待确认 | `原文|保留` |\n\n这份回复不写入项目。'}]},
+  ];
+  samplePi.projection.outcome=piState==='interrupted'?'interrupted':piFailed?'error':'success';
+  if(state==='agent-waiting'){samplePi.projection.messages=samplePi.projection.messages.slice(0,1);samplePi.projection.partial=null;samplePi.projection.activity='starting';samplePi.projection.outcome='none';}
   if (state==='resource-waiting') samplePi.busy=true;
   if (state==='windows-paths') {
     samplePi.cwd=String.raw`\\?\C:\AZCine-UI-Example\workspaces\default`;
     samplePi.runtime={...samplePi.runtime!,root:String.raw`\\?\C:\AZCine-UI-Example\runtime`};
     samplePi.paths={agent:String.raw`\\?\C:\AZCine-UI-Example\pi\agent`,sessions:String.raw`\\?\UNC\ui-example\azcine\sessions`,defaultCwd:samplePi.cwd};
   }
-  if (state==='running'||state==='compacting') {samplePi.projection.messages.pop();samplePi.projection.partial={role:'assistant',content:[{type:'thinking',thinking:'正在核对示例资料中的镜头信息。'}],stopReason:'pending'};samplePi.projection.activity=state==='running'?'running':'compacting';samplePi.state={...samplePi.state!,isStreaming:state==='running',isCompacting:state==='compacting'};}
+  if (piState==='running'||piState==='compacting') {samplePi.projection.outcome='none';samplePi.projection.messages.pop();samplePi.projection.partial={role:'assistant',content:[{type:'thinking',thinking:'正在核对示例资料中的镜头信息。'}],stopReason:'pending'};samplePi.projection.activity=piState==='running'?'running':'compacting';samplePi.state={...samplePi.state!,isStreaming:piState==='running',isCompacting:piState==='compacting'};}
   if (state==='queued') {samplePi.projection.steering=['优先核对交付规格（示例）'];samplePi.projection.followUp=['再整理需要确认的镜头（示例）'];samplePi.state={...samplePi.state!,pendingMessageCount:2};}
   if (long) samplePi.paths={agent:'UI fixture / '+ '非常长的资源目录/'.repeat(15),sessions:'UI fixture / 示例会话目录',defaultCwd:data.root};
-  const [pi, patchPi] = useFixture(usePi(null), {connected:true,root:data.root,snapshot:state==='disconnected'?null:{...samplePi,connection:state==='connecting'?'connecting':error?'error':'ready',error:error?{code:'ui-fixture',message:failure}:null},error:error?failure:null,
-    sessions:empty?[]:Array.from({length:state==='agent-sessions'?8:1},(_,index)=>({id:data.uuid(42+index),path:`UI fixture / session-${index}`,name:long?'用于检查很长会话名称的示例标题'.repeat(10):`分镜与交付核对 ${index+1}（示例）`,cwd:data.root,updatedAt:data.at,messageCount:4+index})),displayRunStart:0,sessionName:'示例会话名称',
-    ...(state==='attachments'?{draft:{text:'这是带附件的示例消息',images:[{id:data.uuid(60),name:'ui-example.png',mimeType:'image/png',data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZmcAAAAASUVORK5CYII='}]}}:{}),
+  const [agentJobsPreview]=useFixture(useAgentJobs(null),{snapshot:{slots:{limit:2,active:[],queued:[]},jobs:empty?[]:[{id:'ui-fixture-job',template:'summarize-text',input:long?'这是一段检查任务原始输入的虚构资料。'.repeat(40):'整理本周交付需求（虚构输入）',parentId:null,status:error?'failed':'completed',output:error?null:'整理结果：交付时间与版本仍需本人核对。此处是虚构总览，不调用模型。',error:error?'虚构任务失败，输入保留。':null,createdAt:data.at,timeoutMs:600000}],logs:[{jobId:'ui-fixture-job',at:data.at,message:'虚构日志：任务与输入已保存'}]},error:error?'虚构任务读取错误，已有记录保留。':''});
+  const [agentDataPreview,patchAgentDataPreview]=useFixture(useAgentData(null),{drafts:['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-conflict'].includes(state)?[reviewFixture(state)]:['agent-draft-review','agent-draft-decisions'].includes(state)?[{id:'ui-fixture-draft',conversationKey:'default',inputId:'ui-fixture-input',messageKey:'mcp:ui-preview:ui-fixture-input:demo',payload:{version:1,operations:[],decisions:state==='agent-draft-decisions'?['截图日期尚未确认，保留原交付日期（虚构事项）']:[]},context:{messageCount:0,objects:[]},validation:{error:null,items:[{title:'示例项目 · 交付标题',objectId:'ui-fixture-object',action:'update',actionLabel:'更新标题',before:{title:'分镜初版'},proposed:{title:'分镜核对版（虚构建议）'}}]},status:'review',receipt:null,revision:1,createdAt:data.at}]:[]});
+  const [pi, patchPi] = useFixture(usePi(null), {connected:true,root:data.root,snapshot:state==='disconnected'?null:{...samplePi,extensions:piState==='agent-extension'?{requests:[{id:'ui-fixture-question',method:'select',title:'资料已读取，下一步怎么处理？',message:'这是总览内的虚构问题。',options:['先核对来源','保留输入，暂不处理'],placeholder:'',prefill:'',status:'pending',expiresAt:null}],notifications:[{id:'ui-fixture-notice',message:'正在等待本人选择',tone:'info'}],statuses:{task:'资料完整，等待回答'},widgets:{},title:'示例扩展',editor:null}:undefined,connection:piState==='connecting'?'connecting':piFailed?'error':'ready',error:piFailed?{code:'ui-fixture',message:failure}:null},error:piFailed?failure:null,
+    sessions:empty?[]:Array.from({length:['agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed'].includes(state)?8:1},(_,index)=>({id:data.uuid(42+index),path:`UI fixture / session-${index}`,name:long?'用于检查很长会话名称的示例标题'.repeat(10):`分镜与交付核对 ${index+1}（示例）`,cwd:data.root,updatedAt:data.at,messageCount:4+index})),displayRunStart:0,sessionName:'示例会话名称',
+    sessionPins:['agent-session-pinned','agent-session-manage','agent-sessions-collapsed'].includes(state)?[data.uuid(46),data.uuid(49)]:[],
+    ...(['agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action'].includes(state)?{conversationKey:'ui-status-0',runtimeSummary:{replyLimit:3,revision:1,active:1,conversations:[
+      {name:'交付核对（空闲示例）',connection:'ready',active:false,waiting:false},
+      {name:'正在整理镜头表（运行示例）',connection:'ready',active:true,waiting:false},
+      {name:'需要本人确认（待回答示例）',connection:'ready',active:false,waiting:true},
+      {name:'读取会话中（连接示例）',connection:'connecting',active:false,waiting:false},
+      {name:'连接失败（异常示例）',connection:'error',active:false,waiting:false},
+      {name:'已保留的会话（未连接示例）',connection:'disconnected',active:false,waiting:false},
+    ].map((row,index)=>({...row,conversationKey:`ui-status-${index}`,generation:1,seq:1,sessionId:data.uuid(42+index),sessionFile:`UI fixture / session-${index}`,outcome:'none',cwd:data.root}))}}:{}),
+    ...(state==='attachments'?{
+      draft:{text:'这是带附件的示例消息',images:[{id:data.uuid(60),name:'ui-example.png',mimeType:'image/png',data:data.attachmentImageData}]},
+      files:[{id:data.uuid(61),name:'镜头表.xlsx',relativePath:'attachments/ui-example.xlsx',hash:'0'.repeat(64),mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',bytes:2048},{id:data.uuid(62),name:'交付说明.pdf',relativePath:'attachments/ui-example.pdf',hash:'0'.repeat(64),mimeType:'application/pdf',bytes:4096}],
+    }:{}),
   });
+  const [agentObjectsOpen,setAgentObjectsOpen]=useState(state==='agent-objects'),[agentObjectQuery,setAgentObjectQuery]=useState(''),[agentSelected,setAgentSelected]=useState<import('../pi-client.ts').AgentSource[]>([]);
+  const previewObjects=[{source:{module:'projects',page:'projects/'+data.project.id,objectId:data.project.id},title:'示例公司 · 交付安排（虚构记录）'}];
+  const agentObjects={...pi.objects,open:agentObjectsOpen,setOpen:setAgentObjectsOpen,query:agentObjectQuery,setQuery:setAgentObjectQuery,catalog:{modules:[{id:'projects',label:'公司项目',objects:previewObjects.filter(object=>object.title.includes(agentObjectQuery)),total:1}]},loading:false,error:'',objects:agentSelected,show:()=>setAgentObjectsOpen(true),toggle:(source:import('../pi-client.ts').AgentSource)=>setAgentSelected(previous=>previous.some(item=>item.objectId===source.objectId)?previous.filter(item=>item.objectId!==source.objectId):[...previous,source])};
   const providerItems:ProviderDraft[]=Array.from({length:state==='provider-multiple'?4:1},(_,index):ProviderDraft=>({...structuredClone(data.provider),uid:data.uuid(80+index),provider:`ui-example-${index+1}`,dirty,tab:state==='models'||state==='provider-interface'||state==='provider-multiple'?'models':state==='advanced'?'advanced':'connection',fetching:state==='provider-fetching',models:state==='provider-multiple'?Array.from({length:4},(_,modelIndex)=>({...data.provider.models[0],uid:data.uuid(100+index*10+modelIndex),id:`example-${index}-${modelIndex}`,name:`示例模型 ${modelIndex+1}`})):data.provider.models,remote:state==='remote'?{models:[{id:'example-new-model',name:'远程示例模型',contextWindow:64000,maxTokens:4096,supportsImages:true}],truncated:false}:null,error:error?failure:null}));
   const [providers, patchProviders] = useFixture(usePiProviders(null,false,pi), {ready:true,providers:empty?[]:providerItems,active:undefined,saving:state==='provider-saving'?providerItems[0].uid:null,loading,loadError:error?failure:null});
   const [rankings] = useFixture(useModelRanking(null,false), {connected:true,boards:{agent:empty?{...data.board('agent'),snapshot:null}:data.board('agent'),'text-to-image':empty?{...data.board('text-to-image'),snapshot:null}:data.board('text-to-image')},loading,loadError:error?failure:'',busy:state==='busy'?{board:'agent',action:'正在刷新示例榜单'}:null});
@@ -162,7 +217,7 @@ export function usePreviewControllers(state: string) {
   }
   return {
     bookkeeping, notice, clearNotice:()=>setNotice(''),
-    workspace:{...workspace,setFilter:(value)=>patchWorkspace(before=>({filter:typeof value==='function'?value(before.filter):value})),changeRoot:(value:string)=>patchWorkspace({rootDraft:value}),changeDraft:(field,value)=>patchWorkspace(before=>({draft:{...before.draft,[field]:value}})),refresh:action,pickRoot:action,selectRoot:action,openRoot:action,saveTodo:action,reconcileCreate:action,changeCompletion:async(todo,completed)=>patchWorkspace(before=>({workspace:before.workspace?{...before.workspace,todos:before.workspace.todos.map(item=>item.id===todo.id?{...item,completed}:item)}:null}))},
+    workspace:{...workspace,changeDeletion:async(todo,deleted)=>{patchWorkspace(before=>({deletedTodo:deleted?{...todo,revision:todo.revision+1}:null,workspace:before.workspace?{...before.workspace,todos:deleted?before.workspace.todos.filter(row=>row.id!==todo.id):[...before.workspace.todos,{...todo,revision:todo.revision+1}]}:null}));announce();return true;},setFilter:(value)=>patchWorkspace(before=>({filter:typeof value==='function'?value(before.filter):value})),changeRoot:(value:string)=>patchWorkspace({rootDraft:value}),changeDraft:(field,value)=>patchWorkspace(before=>({draft:{...before.draft,[field]:value}})),refresh:action,pickRoot:action,selectRoot:action,openRoot:action,saveTodo:action,reconcileCreate:action,changeCompletion:async(todo,completed)=>patchWorkspace(before=>({workspace:before.workspace?{...before.workspace,todos:before.workspace.todos.map(item=>item.id===todo.id?{...item,completed}:item)}:null}))},
     projects:{...projects,setDeleted:previewProjectDeletion,reconcileDeletion:async(id)=>{
       const request=projects.deletionPending[id],project=[...projects.projects,...projects.removedProjects].find(item=>item.id===id);
       if(request&&project) await previewProjectDeletion(project,request.deleted);
@@ -171,8 +226,9 @@ export function usePreviewControllers(state: string) {
     editorial:{...editorial,refresh:action,save:action,reconcile:action,setTab:(value)=>patchEditorial(before=>({tab:typeof value==='function'?value(before.tab):value})),setDomain:(value)=>patchEditorial(before=>({domain:typeof value==='function'?value(before.domain):value})),changeConfig:(value)=>patchEditorial(before=>({draft:before.draft?{...before.draft,config:value}:null})),rebase:announce,organize:action,cancel:action,analyze:action,copy:action,exportPdf:action,readEditionText:async()=>`AZCine 示例日报 · 2026-10-04\n\n${sampleEvent.draft.title}\n\n${sampleEvent.draft.summary}\n\n来源：${data.materials[0].url}\n\n全部为 UI 虚构资料，不代表真实资讯。`},
     processing:{...processing,setScope:value=>patchProcessing(before=>({scope:typeof value==='function'?value(before.scope):value})),setBatchSize:value=>patchProcessing(before=>({batchSize:typeof value==='function'?value(before.batchSize):value})),setQuery:value=>patchProcessing(before=>({query:typeof value==='function'?value(before.query):value})),setSource:value=>patchProcessing(before=>({source:typeof value==='function'?value(before.source):value})),setEventQuery:value=>patchProcessing(before=>({eventQuery:typeof value==='function'?value(before.eventQuery):value})),select:(value)=>patchProcessing({selected:typeof value==='function'?value(processing.selected):value}),refresh:action,readProgress:action,inspect:async(id,batch=1)=>patchProcessing({detailTarget:{id,batch},detail:{runId:id,batch,batches:1,batchSize:1,configRevision:1,rules:fixtureConfig,input:[allMaterials[0]],outputs:[{name:'模型返回',text:progress.response,truncated:false}],result:sampleEvent.draft,progress}})},
     ideas:{...ideas,refresh:action,save:action,reconcile:action,remove:action,convert:action,continueOnCurrent:action,setDeleted:(value)=>patchIdeas(before=>({deleted:typeof value==='function'?value(before.deleted):value})),changeDraft:(key,field,value)=>patchIdeas(before=>({drafts:{...before.drafts,[key]:{...before.drafts[key],[field]:value}}})),edit:(item)=>patchIdeas(before=>({editing:{...before.editing,[item.id]:true}})),closeEdit:(id)=>patchIdeas(before=>({editing:{...before.editing,[id]:false}}))},
-    pi:{...pi,resources:resourcePreview,setSessionName:value=>patchPi(before=>({sessionName:typeof value==='function'?value(before.sessionName):value})),setText:(text)=>patchPi(before=>({draft:{...before.draft,text}})),setImages:(images)=>patchPi(before=>({draft:{...before.draft,images}})),refresh:action,reloadSessions:action,connect:action,disconnect:action,send:action,stop:action,sessionAction:action,saveModel:async()=>{announce();return false;},saveConfiguration:async()=>{announce();return null;}},
+    agentJobsPreview:{...agentJobsPreview,submit:action,cancel:action,refresh:action},agentDataPreview:{...agentDataPreview,revalidate:async(draft)=>{patchAgentDataPreview(before=>({drafts:before.drafts.map(d=>d.id===draft.id?{...d,status:"review",revision:d.revision+1,validation:{...d.validation,error:null}}:d)}));},apply:async(draft)=>{patchAgentDataPreview(before=>({drafts:before.drafts.map(d=>d.id===draft.id?{...d,status:"applied",receipt:{fixture:true,items:[]}}:d)}));announce();return true;},discard:async(draft)=>{patchAgentDataPreview(before=>({drafts:before.drafts.filter(d=>d.id!==draft.id)}));announce();},refresh:action},
+    pi:{...pi,setSessionPinned:(sessionId,pinned)=>patchPi(previous=>({sessionPins:pinned?previous.sessionPins.includes(sessionId)?previous.sessionPins:[...previous.sessionPins,sessionId]:previous.sessionPins.filter(id=>id!==sessionId)})),deleteConversations:async(targets)=>{const protectedId=pi.snapshot?.projection.activity!=="idle"?pi.snapshot?.state?.sessionId:null;const removed=targets.filter(t=>t.sessionId!==protectedId);patchPi(before=>({sessions:before.sessions.filter(session=>!removed.some(t=>t.sessionId===session.id)),sessionPins:before.sessionPins.filter(id=>!removed.some(t=>t.sessionId===id)),runtimeSummary:before.runtimeSummary?{...before.runtimeSummary,conversations:before.runtimeSummary.conversations.filter(row=>!removed.some(t=>t.sessionId===row.sessionId))}:null}));announce();return{deleted:removed.map(t=>t.sessionId),errors:targets.filter(t=>t.sessionId===protectedId).map(t=>({sessionId:t.sessionId,error:"运行中的示例会话不能删除。"}))};},newConversation:action,selectConversation:action,deleteConversation:async(target)=>{if(pi.snapshot?.projection.activity!=="idle"&&target.sessionId===pi.snapshot?.state?.sessionId)return {deleted:false,error:"运行中的示例会话不能删除。"};patchPi(before=>({sessions:before.sessions.filter(session=>session.path!==target.sessionPath),sessionPins:before.sessionPins.filter(id=>id!==target.sessionId),runtimeSummary:before.runtimeSummary?{...before.runtimeSummary,conversations:before.runtimeSummary.conversations.filter(row=>row.sessionId!==target.sessionId)}:null}));announce();return {deleted:true};},attachFile:async()=>{announce();},removeFile:()=>announce(),objects:agentObjects,resources:resourcePreview,openSource:async()=>{},respondUi:async(id)=>patchPi(before=>({snapshot:before.snapshot?{...before.snapshot,extensions:before.snapshot.extensions?{...before.snapshot.extensions,requests:before.snapshot.extensions.requests.map(r=>r.id===id?{...r,status:'answered'}:r)}:undefined}:null})),setSessionName:value=>patchPi(before=>({sessionName:typeof value==='function'?value(before.sessionName):value})),setText:(text)=>patchPi(before=>({draft:{...before.draft,text}})),setImages:(images)=>patchPi(before=>({draft:{...before.draft,images}})),refresh:action,reloadSessions:action,connect:action,disconnect:action,send:action,stop:action,sessionAction:async(command,args)=>{if(command==='pi_thinking'){patchPi(before=>({snapshot:before.snapshot?{...before.snapshot,state:before.snapshot.state?{...before.snapshot.state,thinkingLevel:String(args?.level??'medium')}:null}:null}));}else await action();},saveModel:async()=>{announce();return false;},saveConfiguration:async()=>{announce();return null;}},
     providers:{...providers,active,reload:action,select:(uid)=>patchProviders({active:providers.providers.find(item=>item.uid===uid)}),addProvider:()=>{const item={...data.provider,uid:crypto.randomUUID(),provider:`provider-${providers.providers.length+1}`,persisted:false,dirty:true,models:[]};patchProviders(before=>({providers:[...before.providers,item],active:item}));},ui:(uid,patch)=>changeProvider(uid,item=>({...item,...patch})),edit:(uid,patch)=>changeProvider(uid,item=>({...item,...patch,dirty:true})),editModel:(uid,modelUid,patch)=>changeProvider(uid,item=>({...item,dirty:true,models:item.models.map(m=>m.uid===modelUid?{...m,...patch}:m)})),addManual:(uid)=>changeProvider(uid,item=>({...item,models:[...item.models,{...data.provider.models[0],uid:crypto.randomUUID(),id:'',name:'',persisted:false}],tab:'models',dirty:true})),removeNew:(uid,modelUid)=>changeProvider(uid,item=>({...item,models:item.models.filter(m=>m.uid!==modelUid)})),addSelected:(uid)=>changeProvider(uid,item=>({...item,models:[...item.models,...(item.remote?.models.filter(m=>item.selectedIds.includes(m.id)).map(m=>({...data.provider.models[0],uid:crypto.randomUUID(),id:m.id,name:m.name,persisted:false}))??[])],dirty:true,selectedIds:[]})),fetchModels:async(uid)=>changeProvider(uid,item=>({...item,remote:{models:[{id:'example-new-model',name:'远程示例模型',contextWindow:64000,maxTokens:4096,supportsImages:true}],truncated:false}})),save:action},
     rankings:{...rankings,refresh:action,update:action,cancel:announce,openSource:action},desktop:{...desktop,check:async()=>patchDesktop({state:{status:'error',message:'UI 总览不执行数据库检查；成功样式请切换到成功状态。'}})},
-  } satisfies {bookkeeping:typeof bookkeeping;notice:string;clearNotice:()=>void;workspace:typeof workspace;projects:typeof projects;news:typeof news;editorial:typeof editorial;processing:typeof processing;ideas:typeof ideas;pi:typeof pi;providers:typeof providers;rankings:typeof rankings;desktop:typeof desktop};
+  } satisfies {agentDataPreview:typeof agentDataPreview;agentJobsPreview:typeof agentJobsPreview;bookkeeping:typeof bookkeeping;notice:string;clearNotice:()=>void;workspace:typeof workspace;projects:typeof projects;news:typeof news;editorial:typeof editorial;processing:typeof processing;ideas:typeof ideas;pi:typeof pi;providers:typeof providers;rankings:typeof rankings;desktop:typeof desktop};
 }

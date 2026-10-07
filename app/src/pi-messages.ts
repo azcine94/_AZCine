@@ -5,6 +5,7 @@ export interface MessagePart {
   text: string;
   title?: string;
   callId?: string;
+  imageUrl?: string;
 }
 
 export interface MessageView {
@@ -102,15 +103,24 @@ function imageProjection(block: Record<string, unknown>): Projection {
     };
   }
 
-  // 不读取 data；该字段可能已经在 Rust 侧被移除或脱敏。
+  const imageUrl=imagePreviewUrl(mimeType,block.data);
   return {
     parts: [{
       kind: 'image',
       title: '图片',
-      text: `图片（${mimeType}；未展示图片数据）`,
+      text: imageUrl ? '图片' : `图片（${mimeType}；未展示图片数据）`,
+      ...(imageUrl ? {imageUrl} : {}),
     }],
     valid: true,
   };
+}
+
+export function imagePreviewUrl(mime:string,data:unknown):string|undefined{
+  if(!['image/png','image/jpeg','image/webp','image/gif'].includes(mime)||typeof data!=='string'||!data.length||data.length>Math.ceil(50*1024*1024/3)*4||data.length%4||!/^[A-Za-z0-9+/]+={0,2}$/.test(data))return;
+  try{const head=atob(data.slice(0,24)),starts=(bytes:number[])=>bytes.every((v,i)=>head.charCodeAt(i)===v);
+    const valid=mime==='image/png'?starts([137,80,78,71,13,10,26,10]):mime==='image/jpeg'?starts([255,216,255]):mime==='image/gif'?head.startsWith('GIF87a')||head.startsWith('GIF89a'):head.startsWith('RIFF')&&head.slice(8,12)==='WEBP';
+    if(valid)return `data:${mime};base64,${data}`;
+  }catch{/* A malformed payload stays a non-executable attachment placeholder. */}
 }
 
 function toolCallProjection(block: Record<string, unknown>): Projection {

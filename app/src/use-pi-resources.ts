@@ -1,6 +1,6 @@
 import { useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { callPi, desktopPi, piError } from './pi-client.ts';
+import { callPi as invokePi, desktopPi, piError } from './pi-client.ts';
 
 export interface PiResource {
   id:string; kind:'official'|'rule'|'skill'|'extension'; name:string; path:string; description:string;
@@ -17,7 +17,9 @@ function parseIndex(value:unknown):PiResourceIndex {
   for(const item of index.entries)if(!item||!['official','rule','skill','extension'].includes(item.kind)||typeof item.id!=='string'||typeof item.name!=='string'||typeof item.path!=='string'||typeof item.description!=='string'||typeof item.content!=='string'||typeof item.editable!=='boolean'||typeof item.enabled!=='boolean'||typeof item.loaded!=='boolean'||typeof item.toggleable!=='boolean'||!Array.isArray(item.commands)||item.commands.some(cmd=>typeof cmd!=='string')||item.hash!==null&&typeof item.hash!=='string'||item.error!==null&&typeof item.error!=='string')throw new Error('资源条目格式不完整，已有内容保留。');
   return index;
 }
-export function usePiResources(root:string|null){
+export function usePiResources(root:string|null,conversationKey="default"){
+  const scope=useRef(conversationKey);scope.current=conversationKey;
+  function callPi<T=unknown>(command:string,args:Record<string,unknown>={}){return invokePi<T>(command,{...args,conversationKey:scope.current});}
   const [index,setIndex]=useState<PiResourceIndex|null>(null),[selected,setSelected]=useState('official:system');
   const [drafts,setDrafts]=useState<Record<string,ResourceDraft>>({}),[editing,setEditing]=useState<Record<string,boolean>>({});
   const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useOperationNotice('');
@@ -63,6 +65,7 @@ export function usePiResources(root:string|null){
   function edit(item:PiResource){setDrafts(before=>({...before,[item.id]:before[item.id]??{content:item.content,hash:item.hash}}));setEditing(before=>({...before,[item.id]:true}));}
   function change(item:PiResource,content:string){setDrafts(before=>({...before,[item.id]:{content,hash:before[item.id]?before[item.id].hash:item.hash}}));}
   function cancel(item:PiResource){setEditing(before=>({...before,[item.id]:false}));setDrafts(before=>{const next={...before};delete next[item.id];return next;});}
+  useEffect(()=>{if(root&&mounted.current)void refresh();},[conversationKey,root,refresh]);
   async function save(item:PiResource,enabled?:boolean){
     if(!index||savingRef.current)return;const target=rootRef.current,original=drafts[item.id];
     if(enabled===undefined&&!original)return;savingRef.current=true;setSaving(true);setError('');setNotice('');

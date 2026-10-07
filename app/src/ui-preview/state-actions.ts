@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
-export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'collapse'|'create';text?:string;skipWhenDialogOpen?:boolean;optional?:boolean}
+export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'focus'|'collapse'|'create'|'menu'|'context';text?:string;skipWhenDialogOpen?:boolean;optional?:boolean}
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
-const more:StateAction={selector:'.pi-chat-options',action:'open'};
+const more:StateAction={selector:'[data-agent-more]'};
 export const stateActions:Record<string,StateAction[]>={
   'operation-toast':[{selector:'[data-toast-demo]'}],
   'history-delete':[{selector:'[data-history-delete]'}],
@@ -18,6 +18,7 @@ export const stateActions:Record<string,StateAction[]>={
   'project-restore-confirm':[{selector:'[data-project-trash]',optional:true},{selector:'[data-project-restore]'}],
   'project-create':[{selector:'[data-create="project"]'}],
   'todo-create':[{selector:'[data-create="todo"]'}],
+  'todo-delete':[{selector:'[data-todo-id]',action:'context'},{selector:'[data-slot=context-menu-content] [role=menuitem]',text:'删除待办'}],
   'idea-create':[{selector:'[data-create="idea"]'}],
   'source-create':[{selector:'[data-create="source"]'}],
   'bookkeeping-fx':[{selector:'[data-create="bookkeeping"]',action:'create'}],
@@ -26,9 +27,29 @@ export const stateActions:Record<string,StateAction[]>={
   'bookkeeping-saving':[{selector:'[data-create="bookkeeping"]',action:'create'}],
   'month-open':[{selector:'.month-input-trigger'}],
   'shell-collapsed':[{selector:'.sidebar-trigger',action:'collapse'}],
-  'agent-more':[more], 'agent-runtime':[more,{selector:'.pi-options-panel .pi-runtime',action:'open'}],
-  'agent-models':[{selector:'.pi-model-trigger'}], 'agent-sessions':[{selector:'.pi-sessions',action:'open'}],
+  'agent-sidebar':[{selector:'[data-agent-entry]'}],
+  'agent-sidebar-sessions':[{selector:'[data-agent-entry]'},{selector:'[data-agent-sessions]'}],
+  'agent-sidebar-long':[{selector:'[data-agent-entry]'}],
+  'agent-sidebar-running':[{selector:'[data-agent-entry]'}],
+  'agent-sidebar-extension':[{selector:'[data-agent-entry]'}],
+  'agent-sidebar-error':[{selector:'[data-agent-entry]'}],
+  'agent-more':[more], 'agent-runtime':[more,{selector:'[data-slot=popover-content] button',text:'会话设置'},{selector:'.pi-session-settings .pi-runtime',action:'open'}],
+  'agent-models':[{selector:'.pi-model-trigger'}], 'agent-sessions':[{selector:'[data-agent-sessions]',optional:true}],
+  'agent-draft-review':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-decisions':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-create':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-update':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-long':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-conflict':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
+  'agent-draft-confirm':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'},{selector:'.agent-review-dialog .ui-form-dialog-footer button',text:'核对后应用'}],
+  'agent-process-retry':[{selector:'.pi-process-toggle'}],
+  'agent-bulk-delete':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-bulk]'},{selector:'.pi-session-management button',text:'全选筛选结果'},{selector:'.pi-session-management button',text:'删除'}],
+  'agent-session-pinned':[{selector:'[data-agent-sessions]',optional:true}],
+  'agent-session-manage':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-bulk]',action:'focus'}],
+  'agent-session-pin-action':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-pin]',action:'focus'}],
+  'agent-sessions-collapsed':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-group=pinned]',action:'collapse'},{selector:'[data-session-group=recent]',action:'collapse'}],
   'agent-process':[{selector:'.pi-process-toggle'}],
+  'agent-delete':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-menu]',action:'menu'},{selector:'[data-slot=dropdown-menu-item]',text:'删除会话'}],
   'provider-interface':[{selector:'.provider-models details',action:'open'}],
   'stage-select':[stage], 'stage-create':[stage,{selector:'.project-stage-picker__actions button',text:'新增标签'}],
   'stage-manage':[stage,{selector:'.project-stage-picker__actions button',text:'管理标签'}],
@@ -82,6 +103,9 @@ export function useStateActions(state:string) {
         if(step.action==='open'&&node instanceof HTMLDetailsElement) {
           if(!node.open)node.querySelector<HTMLElement>('summary')?.click();
         } else if(step.action==='collapse') { if(node.getAttribute('aria-expanded')==='true')node.click(); }
+        else if(step.action==='focus')node.focus();
+        else if(step.action==='menu'){node.focus();node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));}
+        else if(step.action==='context'){const box=node.getBoundingClientRect();node.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:box.left+20,clientY:box.top+10}));}
         else if(step.action!=='reveal')node.click();
         await new Promise<void>(resolve=>setTimeout(resolve,60));
       }

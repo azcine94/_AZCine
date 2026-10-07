@@ -1,7 +1,7 @@
 //! In-memory display redaction sourced only from AZCine's own configuration.
 //! Never resolves native !commands or environment references. Not a sandbox.
 use serde_json::{Map, Value};
-#[derive(Default)]
+#[derive(Default,Clone)]
 pub struct Redactor { values: Vec<String> }
 impl Redactor {
     pub fn from_documents(models:&Value,auth:&Value)->Self {

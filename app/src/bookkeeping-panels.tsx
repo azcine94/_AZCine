@@ -1,3 +1,4 @@
+import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Download, MoreHorizontal, Paperclip, Plus, RefreshCw } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
@@ -121,11 +122,11 @@ export function BookkeepingPanel({ model, create = false, editId = null }: { mod
         <Table className="bookkeeping-table"><TableHeader><TableRow>
           <TableHead className="bookkeeping-check"><Checkbox aria-label="选择本页全部开销" checked={selectedOnPage === visible.length ? true : selectedOnPage > 0 ? 'indeterminate' : false} disabled={blocked} onCheckedChange={value => selectPage(value === true)} /></TableHead>
           <TableHead>日期</TableHead><TableHead>用途</TableHead><TableHead className="bookkeeping-amount">金额</TableHead><TableHead>报销状态</TableHead><TableHead>票据</TableHead><TableHead><span className="sr-only">操作</span></TableHead>
-        </TableRow></TableHeader><TableBody>{visible.map(row => <TableRow key={row.id} data-state={model.selected.includes(row.id) ? 'selected' : undefined}>
+        </TableRow></TableHeader><TableBody>{visible.map(row => <RecordContextMenu key={row.id} copyText={[row.date,row.purpose,money(row.amountFen),expenseStatuses[row.status],row.note].filter(Boolean).join('\t')} actions={[{label:'编辑开销',disabled:blocked,run:origin=>openEditor(row.id,origin??undefined)},{label:'删除开销',destructive:true,disabled:blocked,run:()=>model.confirm({kind:'delete',target:target(row),purpose:row.purpose,deleted:true})}]}><TableRow data-state={model.selected.includes(row.id) ? 'selected' : undefined}>
           <TableCell><Checkbox aria-label={`选择${row.purpose}`} checked={model.selected.includes(row.id)} disabled={blocked} onCheckedChange={value => model.select(value === true ? [...new Set([...model.selected, row.id])] : model.selected.filter(id => id !== row.id))} /></TableCell>
           <TableCell><time dateTime={row.date}>{row.date}</time></TableCell><TableCell className="bookkeeping-purpose"><Button variant="link" className="h-auto justify-start whitespace-normal p-0 text-left" data-edit="bookkeeping" onClick={event => openEditor(row.id, event.currentTarget)}>{row.purpose}</Button>{row.note && <p className="subtle" title={row.note}>{row.note}</p>}</TableCell>
           <TableCell className="bookkeeping-amount">{money(row.amountFen)}{row.exchange && <small className="bookkeeping-original" title={`1 ${row.exchange.quote.currency} = ${row.exchange.quote.rate} CNY · 汇率日期 ${row.exchange.quote.rateDate}`}>{amountText(row.exchange.originalMinor)} {row.exchange.quote.currency}</small>}</TableCell><TableCell><StatusBadge status={row.status} /></TableCell><TableCell><ReceiptMenu row={row} model={model} /></TableCell><TableCell><RowMenu row={row} model={model} onEdit={openEditor} /></TableCell>
-        </TableRow>)}</TableBody></Table>
+        </TableRow></RecordContextMenu>)}</TableBody></Table>
         {chosen.length > 0 && <div className="bookkeeping-selection"><span>已选 {chosen.length} 笔　合计 <strong>{money(expenseTotals(chosen).expense)}</strong></span><div className="bookkeeping-actions">
           <Button variant="outline" disabled={blocked} onClick={() => void model.exportRows(chosen)}><Download size={16} />导出所选明细</Button>
           {allPending && <Button disabled={blocked || chosen.length > 200} onClick={() => model.confirm({ kind: 'status', status: 'submitted', targets: chosen.map(target) })}>标记已提交</Button>}
