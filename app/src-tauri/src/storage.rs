@@ -9,6 +9,8 @@ use std::time::Duration;
 const APPLICATION_ID: i64 = 0x415A4349;
 pub(crate) const SCHEMA_VERSION: i64 = 16;
 const DATABASE: &str = "db/azcine.sqlite3";
+#[path = "storage-branch-schema.rs"]
+mod branch_schema;
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
 // an arbitrary database found at the final DATABASE path.
@@ -68,6 +70,7 @@ pub struct Store {
     pub root: PathBuf,
     pub db: Connection,
     identity: String,
+    pub(crate) task_workspace: Option<PathBuf>,
     _lock: File,
 }
 pub struct Manager {
@@ -176,6 +179,9 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
     crate::news_reset::create_schema(&tx)?;
     crate::bookkeeping::create_schema(&tx)?;
     crate::agent_store::create_schema(&tx)?;
+    crate::task_panel_store::create_schema(&tx)?;
+    crate::task_panel_projects::create_schema(&tx)?;
+    tx.execute("INSERT INTO app_meta(key,value) VALUES('task_panel_schema','14')", []).map_err(db_error)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
@@ -200,7 +206,7 @@ fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), S
         1 | 2 => !ideas && !news && !editorial,
         3 => ideas != news && !editorial,
         4 => !ideas && news && editorial,
-        5..=SCHEMA_VERSION => ideas && news && editorial,
+        5..=branch_schema::AGENT_SCHEMA_VERSION => ideas && news && editorial,
         _ => false,
     };
     if !recognized { return Err(incompatible()); }
@@ -221,6 +227,9 @@ fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), S
 }
 
 impl Store {
+    pub(crate) fn from_task_workspace(root:PathBuf,db:Connection,identity:String,lock:File,workspace:PathBuf)->Self {
+        Self { root, db, identity, task_workspace:Some(workspace), _lock:lock }
+    }
     pub fn open(root: &Path, allow_create: bool) -> Result<Self, StorageError> {
         Self::open_with_initializer(root, allow_create, initialize_schema)
     }
@@ -276,7 +285,10 @@ impl Store {
         db.busy_timeout(Duration::from_secs(5)).map_err(db_error)?;
         let id: i64 = db.pragma_query_value(None, "application_id", |r| r.get(0)).map_err(db_error)?;
         let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db_error)?;
-        if id != APPLICATION_ID || !(1..=SCHEMA_VERSION).contains(&version) { return Err(StorageError::new("incompatible_database", "所选数据库不是受支持的 AZCine 数据版本，未迁移或覆盖。")); }
+        if id != APPLICATION_ID { return Err(StorageError::new("incompatible_database", "所选数据库不是 AZCine 数据库，未迁移或覆盖。")); }
+        if !branch_schema::supports(version) {
+            return Err(StorageError::new("incompatible_database", &format!("数据库版本为 {version}，当前程序支持已识别的业务 1–16 版及任务面板旧分支结构。请使用兼容版本打开；未迁移或覆盖。")));
+        }
         let integrity: String = db.query_row("PRAGMA quick_check", [], |r| r.get(0)).map_err(db_error)?;
         if integrity != "ok" { return Err(StorageError::new("damaged_database", "数据库完整性检查失败，请保留原目录并使用有效备份恢复。")); }
         let identity: String = db.query_row("SELECT value FROM app_meta WHERE key='identity'", [], |r| r.get(0)).map_err(db_error)?;
@@ -286,11 +298,12 @@ impl Store {
         // Validate required schema before a first selection can persist its locator.
         db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos LIMIT 0").map_err(db_error)?;
         let (has_ideas, has_news, has_editorial) = legacy_modules(&db, version)?;
+        let branch = branch_schema::inspect(&db, version)?;
         // Retain the journal file instead of deleting test artifacts after each commit.
         // S13 exports a consistent snapshot, not a copy of an active journal.
         configure_journal(&db)?;
         db.pragma_update(None, "foreign_keys", true).map_err(db_error)?;
-        if version < SCHEMA_VERSION {
+        if version < SCHEMA_VERSION || branch.task_panel_version < branch_schema::TASK_PANEL_SCHEMA_VERSION || branch.needs_marker {
             // All additions and the version advance commit together. Existing
             // identity, records, request receipts and ranking snapshots stay intact.
             let tx = db.transaction().map_err(db_error)?;
@@ -311,10 +324,15 @@ impl Store {
             if version==9{tx.execute_batch("ALTER TABLE bookkeeping_expenses ADD COLUMN exchange TEXT;").map_err(db_error)?;}
             if version<11{crate::projects::create_deletion_schema(&tx)?;}
             if version<12{crate::news_reset::create_history_schema(&tx)?;}
-            if version<13{crate::agent_store::create_schema(&tx)?;}else if version<14{crate::agent_store::upgrade_schema13(&tx)?;}
-            if (13..15).contains(&version){crate::agent_store::create_deletion_schema(&tx)?;}
-            if version<16{tx.execute_batch("ALTER TABLE todos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1));").map_err(db_error)?;}
+            if branch.agent_version<13{crate::agent_store::create_schema(&tx)?;}else if branch.agent_version<14{crate::agent_store::upgrade_schema13(&tx)?;}
+            if (13..15).contains(&branch.agent_version){crate::agent_store::create_deletion_schema(&tx)?;}
+            if branch.agent_version<16{tx.execute_batch("ALTER TABLE todos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1));").map_err(db_error)?;}
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
+            if branch.task_panel_version<13{crate::task_panel_store::create_schema(&tx)?;}
+            if branch.task_panel_version<14{crate::task_panel_projects::create_schema(&tx)?;}
+            crate::task_panel_store::validate_schema(&tx)?;
+            crate::task_panel_projects::validate_schema(&tx)?;
+            tx.execute("INSERT INTO app_meta(key,value) VALUES('task_panel_schema','14') ON CONFLICT(key) DO UPDATE SET value=excluded.value", []).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
         db.prepare("SELECT deleted FROM todos LIMIT 0").map_err(db_error)?;
@@ -330,12 +348,14 @@ impl Store {
         crate::news_reset::validate_history_schema(&db)?;
         crate::bookkeeping::validate_schema(&db)?;
         crate::agent_store::validate_schema(&db)?;
+        crate::task_panel_store::validate_schema(&db)?;
+        crate::task_panel_projects::validate_schema(&db)?;
         crate::news_reset::recover_files(&root,&db)?;
         crate::news_store::recover_runs(&db, &root)?;
         crate::news_editorial_store::recover(&db)?;
         crate::news_reader_store::recover(&db)?;
         for dir in ["attachments", "snapshots", "pi/agent", "pi/sessions", "config", "logs", "backups"] { fs::create_dir_all(root.join(dir)).map_err(io_error)?; }
-        Ok(Self { root, db, identity, _lock: lock })
+        Ok(Self { root, db, identity, task_workspace: None, _lock: lock })
     }
     pub fn todos(&self) -> Result<Vec<Todo>, StorageError> {
         let mut query = self.db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE deleted=0 ORDER BY completed, due_date IS NULL, due_date,created_at,id").map_err(db_error)?;

@@ -16,6 +16,9 @@ export const extraStateLabels:Record<string,string>={
   'agent-process-nested':'Agent · 子调用归入同一已工作','agent-process-nested-running':'Agent · 子调用执行中','agent-process-nested-error':'Agent · 父调用完成但子调用失败',
   'agent-draft-create':'Agent · 新建项目表格预览','agent-draft-update':'Agent · 行与单元格差异','agent-draft-long':'Agent · 长草案与表格分页','agent-draft-confirm':'Agent · 固定底栏确认应用','agent-draft-conflict':'Agent · 草案过期保留内容','agent-process-retry':'Agent · 单轮重试与子调用状态','agent-answer-table':'Agent · 回答中的表格',
   'agent-sidebar':'Agent侧栏 · 正常聊天','agent-sidebar-sessions':'Agent侧栏 · 会话列表与关闭','agent-sidebar-long':'Agent侧栏 · 长标题和正文','agent-sidebar-running':'Agent侧栏 · 正在回复','agent-sidebar-extension':'Agent侧栏 · 等待回答','agent-sidebar-error':'Agent侧栏 · 失败保输入',
+  'task-panel-branches':'任务面板 · 总仓库与任务分支',
+  'task-panel-code-graph':'任务面板 · 代码结构图','task-panel-graph-long':'任务面板 · 关系图长名称',
+  'task-panel-project':'任务面板 · 项目归属','task-panel-multiple-projects':'任务面板 · 多项目','task-panel-context':'任务面板 · 上下文预览','task-panel-memory-reference':'任务面板 · Agent 参考','task-panel-memory-pending':'任务面板 · 待确认决定',
   'form-dialog-open':'创建表单弹窗展开','form-dialog-error':'创建弹窗 · 失败保留输入','form-dialog-pending':'创建弹窗 · 回执待核对','form-dialog-loading':'创建弹窗 · 保存中','form-dialog-long':'创建弹窗 · 长输入','operation-toast':'右上角操作提示','history-delete':'删除单条处理记录','history-clear':'清空已结束记录','bookkeeping-validation':'记账 · 字段校验不重复','bookkeeping-create':'记一笔弹窗','bookkeeping-edit':'编辑开销弹窗','bookkeeping-save-feedback':'记账 · 保存反馈稳定','bookkeeping-refresh':'记账 · 刷新保留旧内容','bookkeeping-refresh-fast':'记账 · 短刷新不闪提示','project-create':'新建项目弹窗','todo-create':'新增待办弹窗','idea-create':'新灵感弹窗','source-create':'新增信源弹窗',
   'project-delete-confirm':'项目 · 整项目删除确认','project-removed':'项目 · 已删除与撤销','project-restore-confirm':'项目 · 恢复确认','project-delete-pending':'项目 · 删除回执待核对','project-delete-error':'项目 · 删除失败保留内容',
   'month-open':'月份 · 中文选择展开','bookkeeping-fx':'记账 · 外币折算','bookkeeping-fx-loading':'记账 · 汇率读取中','bookkeeping-fx-error':'记账 · 汇率失败保留输入',
@@ -36,6 +39,7 @@ export const extraStateLabels:Record<string,string>={
 };
 export const stateLabels: Record<string,string> = {'root-error':'数据目录读取失败',removed:'已移除的灵感',converted:'已转为待办',undo:'可撤销状态',normal:'正常内容',empty:'空内容',loading:'读取中',error:'失败 / 保留内容',long:'长文本',dirty:'未保存草稿',pending:'保存回执待核对',editing:'编辑中','no-root':'未选择数据目录',paused:'暂停信源',preview:'信源预览',proxy:'手动代理配置',remote:'获取到远程模型',models:'服务商模型列表',advanced:'服务商高级设置',busy:'刷新中',disconnected:'未连接 Pi',review:'需要核对',incomplete:'日报覆盖不完整',detail:'批次详情',success:'成功样式（虚构）',all:'全部动态',featured:'精选',hot:'热点',daily:'固定日报',filtered:'领域筛选后无结果',attachments:'消息附件',compacting:'整理上下文',...statusLabels,...processingPhases};
 const files: Record<string,string[]> = {
+  'task-panel':['task-panel-panels.tsx','task-panel-graph.tsx','task-panel-workflow.tsx','task-panel-project-view.tsx'],
   bookkeeping:['bookkeeping-panels.tsx'],
   today:['workspace-panels.tsx','projects-panels.tsx','today-news-panel.tsx'],
   projects:['projects-panels.tsx'],
@@ -50,6 +54,7 @@ const files: Record<string,string[]> = {
   'settings/news/ai':['news-preferences-panel.tsx'],'settings/news/automation':['news-preferences-panel.tsx'],
 };
 function states(route:string) {
+  if (route==='task-panel') return [...base,'task-panel-branches','dirty','pending','conflict','task-panel-editor','task-panel-intake','task-panel-intake-launch','task-panel-graph','task-panel-code-graph','task-panel-graph-long','task-panel-memory','task-panel-sessions','task-panel-goal','task-panel-dispatch','task-panel-import','task-panel-delivery','task-panel-recovery','task-panel-project','task-panel-multiple-projects','task-panel-context','task-panel-memory-reference','task-panel-memory-pending','task-panel-start-failed','task-panel-paused','task-panel-cancelled','task-panel-stopping','task-panel-stop-confirm'];
   if (route==='bookkeeping'||route.startsWith('bookkeeping/')) return [...base,'dirty','pending','filtered','conflict','undo','bookkeeping-selected','bookkeeping-confirm','bookkeeping-delete','bookkeeping-saving',...(route==='bookkeeping'?['month-open','bookkeeping-validation','bookkeeping-create','bookkeeping-edit','bookkeeping-save-feedback','bookkeeping-refresh','bookkeeping-refresh-fast']:[]),'bookkeeping-fx','bookkeeping-fx-loading','bookkeeping-fx-error'];
   if (route==='jobs'||route==='settings/news/processing') return [...base,'detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
   if (route==='settings/news') return [...base,'source-create','paused',...Object.keys(statusLabels),'folds-open'];

@@ -14,6 +14,7 @@
 @import './news.css' layer(components);
 @import './ideas.css' layer(components);
 @import './bookkeeping.css' layer(components);
+@import './task-panel.css' layer(components);
 @import './settings.css' layer(components);
 @import './pi-resources.css' layer(components);
 @import './news-processing.css' layer(components);

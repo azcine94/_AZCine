@@ -14,7 +14,9 @@ npm run dev
 
 2026-10-06 `polish/dev-2@d7ae820` 已快进合入本地main：导航新增“记账”，支持开销、人民币合计、外币报价快照、报销状态、票据副本及CSV导出；创建/开销编辑使用共享弹窗，操作短提示统一自动消失，项目可删除恢复，已结束资讯处理记录可移出历史。当前提交未运行测试、类型检查、构建、启动或UI验证。
 
-2026-10-07 `feat/agent-dev@62c93dc` 三个提交已快进合入本地main：应用MCP/业务草案、限定后台任务、会话与附件、生命周期、今日资讯及嵌套工具归组已接。**当前源码锁要求Pi 1.0.4，但main自有runtime仍只有0.99.1，本轮未部署新版资源；正常启动前需按另行授权准备匹配资源。** Git不包含runtime二进制，不能因合并成功就直接认为主环境可运行。`scripts/prepare-pi-runtime.py` 生成官方资源候选与proposed lock，不自动部署main；现有Agent分支自有1.0.4资源和旧main资源均保留。未运行测试或启动。
+2026-10-07 `feat/agent-dev@62c93dc` 三个提交已快进合入本地main：应用MCP/业务草案、限定后台任务、会话与附件、生命周期、今日资讯及嵌套工具归组已接。**main自有runtime已按用户要求替换为Pi1.0.4 / Node24.21.0，旧0.99.1运行目录已删除。** 复用本仓库Agent分支的匹配安装资源，核对官方归档1248文件、入口与安装锁哈希及全部复制文件，未修改Pi核心或默认提示。配置/认证/会话与业务数据未改，未启动应用或运行测试；已有进程仍需正常退出后从main根重新 `npm run dev` 才使用新版本。Git不包含runtime二进制；新环境的安装工具 `scripts/prepare-pi-runtime.py` 生成候选与proposed lock，不自动部署main。
+
+2026-10-07 `feat/kanban-dev@83342ac` 已合入本地main，工具区新增“任务面板”：选择一个总仓库管理任务/项目/架构/记忆，任务分支只作为执行位置，不另开项目或切换看板。状态与交接产物在所选总仓库 `.azcine/task-panel/`，权威任务库为 `state.sqlite3`；开发分支位于该总仓库 `.azcine/worktrees/`。可保存与手工核对任务；自动建窗格/启动/派发需本机已有Herdr CLI及对应PowerShell中的 `codex` 或 `opi`，Archify默认路径 `E:/skills-manager/archify`，缺工具明确提示。这里的Codex/OpenPI执行与应用自有Pi聊天runtime是不同入口，不更新其宿主配置或安装环境。本轮未打开任务库、归并用户记录、操作窗格或运行验证。
 
 独立Worktree也在各自根目录使用同一条 `npm run dev`，打开所在目录的版本，不要求指定模块。流程仍为独立分支开发、交接后合main；后续从最新main开始打磨，业务数据库共用原应用定位配置，Windows位置为 `%LOCALAPPDATA%/com.azcine.workbench/data-root.json`。本机当前原数据根是 `C:/Users/A/Documents/AZCineData`，业务库是其 `db/azcine.sqlite3`；源码不写死该机器路径。缺原定位配置或数据被另一窗口占用时明确报错，不回退新空库。当前只能一个桌面窗口持有库锁，先关闭另一窗口再打开分支。
 
@@ -42,7 +44,7 @@ Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立�
 2. 执行 `pwsh -NoProfile -File scripts/setup-rust.ps1`；脚本核对官方 SHA 后安装到本项目 `.tooling/`。
 3. 执行 `npm --prefix app ci`，按锁文件安装应用依赖。
 
-应用 Pi 的源码锁要求 `app/resources/runtime/pi-1.0.4-node-24.21.0/` 内独立 Node 24.21.0 / 上游 Pi 1.0.4，不使用系统开发 Node 或 PATH 中其他 Pi。main的1.0.4资源尚未部署，版本不匹配应明确失败，不能改用旧Pi。新环境是否满足全部桌面能力仍需实际验证。
+应用 Pi 的源码锁要求 `app/resources/runtime/pi-1.0.4-node-24.21.0/` 内独立 Node 24.21.0 / 上游 Pi 1.0.4，不使用系统开发 Node 或 PATH 中其他 Pi。main的1.0.4资源已准备并核对安装完整性；其他新环境仍须部署匹配资源，版本不匹配明确失败，不能改用旧Pi。新环境是否满足全部桌面能力仍需实际验证。
 
 ### 同机Worktree复用开发环境
 

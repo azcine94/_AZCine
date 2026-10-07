@@ -215,7 +215,7 @@ SQLite单业务写入者、根锁；当前统一schema 16；v6文章/原文/步�
 
 ### 原版runtime、环境与进程
 
-- 当前源码锁为独立Node24.21.0 / 上游Pi1.0.4；main本机仍只有0.99.1资源，新资源未部署。官方包来源/hash以runtime-lock为准，历史字节校验不覆盖新版本；不patch核心或改默认系统提示。用户明确授权的auto-session-title扩展由pi-session-title.rs一次安装到本应用根，用户修改/移除优先；不是Pi核心补丁。资源路径显式，不执行PATH中的其他Pi。
+- 当前源码锁为独立Node24.21.0 / 上游Pi1.0.4；main自有资源已替换为1.0.4，旧0.99.1运行目录按用户要求删除。官方包来源/hash以runtime-lock为准，本轮核对归档文件与部署复制哈希，仅属安装完整性；不patch核心或改默认系统提示。用户明确授权的auto-session-title扩展由pi-session-title.rs一次安装到本应用根，用户修改/移除优先；不是Pi核心补丁。资源路径显式，不执行PATH中的其他Pi。
 - 启动环境显式构造自有HOME/USERPROFILE/APPDATA/LOCALAPPDATA/TEMP、Node路径和agent/session配置；不继承宿主认证、配置指针、Key环境、模块注入。资源发现排除外部来源需实证，不称OS沙箱。
 - 外部cwd先核上游启动迁移/资源发现，可能存在旧 `.pi/commands` 的路径不能默认启动或读取/修改外部资料；受控workspace优先，任意外部cwd能力未保证。
 - Windows使用 `CreateProcessW` 的原子 `PROC_THREAD_ATTRIBUTE_JOB_LIST` / `HANDLE_LIST` 与overlapped父管道，Job `KILL_ON_JOB_CLOSE` 控制自有子树；不依靠普通Command启动后再Assign的竞态窗口，不按名称kill。兼容项目Rust1.99。
@@ -261,13 +261,21 @@ accepted/handled只代表接受，不是业务完成；终态结合settled状态
 
 React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器：切模块仅更新下一次来源，历史只读/首次发送才连接；根/会话/epoch/generation/seq保护迟到回执。Pi空闲600秒释放、resident配额为回复上限+2，活动/等待受保护；投影缓存目标8个/约128MiB也保护当前/忙碌输入，非整体内存硬上限。正文/元数据合并，资源仅其页面按需加载并缓存30秒。父ID与nestedCalls在pi-projection.rs白名单投影，pi-process-view.ts按父链去重归组；异常/孤立事件保留。
 
-`scripts/launcher-lock.mjs` 核对PID/创建时间处理失效锁，无法确认则保留，不按名称结束进程；隔离验证启动状态/target/cache与正常开发分开。以上结构已合入62c93dc，runtime部署、MCP/任务/迁移/生命周期真实运行均未验证。
+`scripts/launcher-lock.mjs` 核对PID/创建时间处理失效锁，无法确认则保留，不按名称结束进程；隔离验证启动状态/target/cache与正常开发分开。以上结构已合入62c93dc，runtime已部署并核对安装完整性，MCP/任务/迁移/生命周期真实运行未验证。
 
 工具 `resources`由 `PiResourcesPanel`与长寿命 `usePi`中的 `use-pi-resources`状态承接。有限IPC经PiManager操作锁进入 `pi-resources.rs`，自有Node辅助进程执行应用侧inspector，导入已安装上游SDK的SettingsManager/DefaultPackageManager/loadSkills/buildSystemPrompt；不创建Agent、不执行扩展工厂、不调用模型、不安装缺包。官方默认提示词是只读预览，命令注册仅代表可确认范围。
 
 `use-pi-resources.ts` 复用进行中的读取Promise，对短暂pi_busy/pi_cancelled有限退避，写入不自动重试；保存锁和失效回执检查保草稿。`lib/display-path.ts` 只在显示层隐藏Windows扩展路径前缀并处理UNC，IPC与文件操作使用原生路径。
 
 规则/Skill写入限制在agent/受控workspace、单文件128KB、拒绝链接/越界、对hash核对并临时文件发布；扩展源码只读，启停通过原版FileSettingsStorage原生锁内hash核对更新extensions并保其他配置。保存不自动重连。SDK辅助进程实际运行、Windows路径、并发锁、真实保存均未验证；`--no-context-files`仍限制AGENTS自动注入，完整TUI留待，基础select/confirm/input/editor响应已接但未验证。
+
+### 仓库任务面板（2026-10-07合入kanban-dev）
+
+前端由 `use-task-panel.ts` / `use-task-panel-workflow.ts`、`task-panel-*.tsx` 与 `styles/task-panel.css` 承接，App/route/同库globals和UI预览已与Agent接入合并。Rust的 `task-panel-workspace.rs` / locations / consolidation / legacy定位Git common-dir总仓库和实际执行Worktree，权威任务库为总仓库 `.azcine/task-panel/state.sqlite3`（application_id `0x415A5450`、独立版本1），执行目录映射到 `.azcine/worktrees/`，交接物料在task-panel/tasks/<id>/runs。旧库归并有备份/保原库/保ID/编号冲突事件；不是源码合并就执行数据归并。
+
+`task-panel-store.rs` / types / projects / context / snapshots / evidence / recovery持久化修订/依赖/来源/请求、快照哈希、执行/技术检查/本人验收与确认记忆。`herdr-adapter.rs` / execution / launch / monitor通过本机已有Herdr CLI观察、精确绑定和操作已批准的执行窗格，PowerShell分别启动codex/opi；未知/过期不推断完成。Agent access/intake、应用 `resources/task-panel-cli.mjs` 与graph contract提供任务范围的查询/候选回填，显式词法索引并非完整Tree-sitter或独立Codex App Server；调用关系为候选，执行图与代码图分层关联来源。退出同时保留Pi清理和task-panel接入关闭。
+
+兼容共同业务库的 `storage-branch-schema.rs` 按表/列结构区分任务旧13/14与Agent13～16，合并后全局保持16，任务表另记app_meta.task_panel_schema=14；初始化/迁移同事务创建缺少模块并验证。旧任务13/14不能跳过Agent建表/待办软删除，Agent16不能重跑13/14迁移；不降级/重建库，独立仓库任务库不混用这套版本。相关旧fixture和版本断言已随合并调整但未运行，真实库/任务归并/窗格/模型本轮未操作。
 
 ## 5. 文档与路径维护
 
