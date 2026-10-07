@@ -9,10 +9,11 @@ import { project, event, source, idea, uuid } from './data.ts';
 
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
-const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-conflict','agent-process-retry','agent-answer-table'];
+const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table'];
 export const extraStateLabels:Record<string,string>={
   'today-news-many':'今天 · 最多10条资讯与内部滚动','today-news-long':'今天 · 资讯长标题换行','today-news-empty':'今天 · 日报无条目','today-news-loading':'今天 · 资讯读取中','today-news-error':'今天 · 资讯失败保留内容',
   'agent-cold-history':'Agent · 查看历史无需启动进程','agent-lazy-start':'Agent · 首次发送按需连接','agent-connect-error':'Agent · 连接失败保留文字与附件',
+  'agent-process-nested':'Agent · 子调用归入同一已工作','agent-process-nested-running':'Agent · 子调用执行中','agent-process-nested-error':'Agent · 父调用完成但子调用失败',
   'agent-draft-create':'Agent · 新建项目表格预览','agent-draft-update':'Agent · 行与单元格差异','agent-draft-long':'Agent · 长草案与表格分页','agent-draft-confirm':'Agent · 固定底栏确认应用','agent-draft-conflict':'Agent · 草案过期保留内容','agent-process-retry':'Agent · 单轮重试与子调用状态','agent-answer-table':'Agent · 回答中的表格',
   'agent-sidebar':'Agent侧栏 · 正常聊天','agent-sidebar-sessions':'Agent侧栏 · 会话列表与关闭','agent-sidebar-long':'Agent侧栏 · 长标题和正文','agent-sidebar-running':'Agent侧栏 · 正在回复','agent-sidebar-extension':'Agent侧栏 · 等待回答','agent-sidebar-error':'Agent侧栏 · 失败保输入',
   'form-dialog-open':'创建表单弹窗展开','form-dialog-error':'创建弹窗 · 失败保留输入','form-dialog-pending':'创建弹窗 · 回执待核对','form-dialog-loading':'创建弹窗 · 保存中','form-dialog-long':'创建弹窗 · 长输入','operation-toast':'右上角操作提示','history-delete':'删除单条处理记录','history-clear':'清空已结束记录','bookkeeping-validation':'记账 · 字段校验不重复','bookkeeping-create':'记一笔弹窗','bookkeeping-edit':'编辑开销弹窗','bookkeeping-save-feedback':'记账 · 保存反馈稳定','bookkeeping-refresh':'记账 · 刷新保留旧内容','bookkeeping-refresh-fast':'记账 · 短刷新不闪提示','project-create':'新建项目弹窗','todo-create':'新增待办弹窗','idea-create':'新灵感弹窗','source-create':'新增信源弹窗',

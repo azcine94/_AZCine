@@ -142,6 +142,23 @@ export function usePreviewControllers(requestedState: string) {
     {role:'assistant',stopReason:'stop',content:[{type:'text',text:'以下是虚构镜头表：\n\n| 镜头 | 制作 | 版本记录 |\n| --- | --- | --- |\n| SH_001 | 示例人员 | BCOPY / FINAL |\n| SH_002 | 待确认 | `原文|保留` |\n\n这份回复不写入项目。'}]},
   ];
   samplePi.projection.outcome=piState==='interrupted'?'interrupted':piFailed?'error':'success';
+  if(['agent-process-nested','agent-process-nested-running','agent-process-nested-error'].includes(state)){
+    const running=state==='agent-process-nested-running',failed=state==='agent-process-nested-error';
+    const parent='ui-codemode',children=[
+      {id:`${parent}/1`,name:'azcine.list_items',status:'ok'},
+      {id:`${parent}/2`,name:'azcine.read_item',status:'ok'},
+      {id:`${parent}/1/1`,name:'azcine.read_item',status:running?'unfinished':failed?'error':'ok'},
+    ];
+    samplePi.projection.messages=[
+      {role:'user',content:[{type:'text',text:'合计示例开销（UI虚构请求）。'}]},
+      {role:'assistant',stopReason:'toolUse',content:[{type:'text',text:'先读取示例记录，再核对金额。'},{type:'toolCall',id:parent,name:'codemode',arguments:{code:'UI虚构代码，不执行'}}]},
+      ...(running?[]:[{role:'toolResult',toolCallId:parent,toolName:'codemode',isError:false,calls:children,content:[{type:'text',text:'UI虚构工具结果。'}]},
+        {role:'assistant',stopReason:'stop',content:[{type:'text',text:failed?'示例核对中有一项失败，请展开同一过程查看。':'示例合计完成；一条已工作包含父调用和三个子调用。'}]}]),
+    ];
+    samplePi.projection.tools=[{id:parent,name:'codemode',status:running?'running':'finished'},...children.map((child,index)=>({id:child.id,name:child.name,parentToolCallId:index===2?children[0].id:parent,status:child.status==='unfinished'?'running':child.status==='ok'?'finished':child.status}))];
+    samplePi.projection.activity=running?'running':'idle';samplePi.projection.outcome=running?'none':'success';
+    samplePi.state={...samplePi.state!,isStreaming:running,messageCount:samplePi.projection.messages.length};
+  }
   if(state==='agent-waiting'){samplePi.projection.messages=samplePi.projection.messages.slice(0,1);samplePi.projection.partial=null;samplePi.projection.activity='starting';samplePi.projection.outcome='none';}
   if (state==='resource-waiting') samplePi.busy=true;
   if (state==='windows-paths') {

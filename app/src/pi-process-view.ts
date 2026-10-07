@@ -1,11 +1,13 @@
 import { messageView, toolResultText } from './pi-messages.ts';
 import type { MessagePart, MessageView } from './pi-messages.ts';
-import type { PiProjection } from './pi-client.ts';
+import type { PiProjection, PiTool } from './pi-client.ts';
+
+interface NestedCallView { id?:string; name:string; status:string }
 
 export interface ToolView {
   kind: 'tool'; key: string; id: string; name: string; status: string;
   input: string; output: string; path: string | null; notice: string | null;
-  children: {name:string;status:string}[];
+  children: NestedCallView[];
 }
 export interface ThinkingView { kind: 'thinking'; key: string; text: string; title: string }
 export interface CommentaryView { kind:'commentary'; key:string; text:string }
@@ -25,10 +27,10 @@ export const processHasIssue = (view: ProcessView) => view.errors.length > 0
   || exceptional.has(view.terminal??'')
   || view.entries.some(entry => entry.kind === 'tool' && exceptional.has(entry.status));
 export const processFinished = (view:ProcessView)=>!view.live&&view.terminal==='success';
-function nestedCalls(raw:unknown):{name:string;status:string}[] {
+function nestedCalls(raw:unknown):NestedCallView[] {
   if(typeof raw!=='object'||raw===null||!('calls' in raw)||!Array.isArray(raw.calls))return [];
   return raw.calls.flatMap(call=>typeof call==='object'&&call!==null&&typeof call.name==='string'&&typeof call.status==='string'
-    ?[{name:call.name,status:({ok:'success',aborted:'interrupted',cancelled:'interrupted'} as Record<string,string>)[call.status]??call.status}]:[]);
+    ?[{...(typeof call.id==='string'?{id:call.id}:{}),name:call.name,status:({ok:'success',aborted:'interrupted',cancelled:'interrupted'} as Record<string,string>)[call.status]??call.status}]:[]);
 }
 function toolStatus(status:string,children:{status:string}[]) {
   if(children.some(c=>c.status==='error'))return 'error';
@@ -66,6 +68,29 @@ export function conversationView(projection: PiProjection, context: string, runS
   }
   const liveTools = new Map(projection.tools.map(tool => [tool.id, tool]));
   const used = new Set<string>();
+  const nestedTools = new Map<string,PiTool[]>();
+  for(const tool of projection.tools){
+    let parent=tool.parentToolCallId;
+    const visited=new Set([tool.id]);
+    while(parent&&!visited.has(parent)){
+      visited.add(parent);
+      if(callCounts.get(parent)===1){nestedTools.set(parent,[...(nestedTools.get(parent)??[]),tool]);break;}
+      parent=liveTools.get(parent)?.parentToolCallId;
+    }
+  }
+  function childrenFor(id:string,raw:unknown):NestedCallView[]{
+    const recorded=nestedCalls(raw),children=[...recorded];
+    const recordedIds=new Set(recorded.flatMap(child=>child.id?[child.id]:[]));
+    for(const child of recorded)if(child.id)used.add(child.id);
+    for(const tool of nestedTools.get(id)??[]){
+      used.add(tool.id);
+      // Persisted records win over transient events. Older records without IDs
+      // remain the summary; do not duplicate them or match calls by their name.
+      if(recordedIds.has(tool.id)||recorded.length>0&&recordedIds.size===0)continue;
+      children.push({id:tool.id,name:tool.name,status:tool.status});
+    }
+    return children;
+  }
   let current: ProcessView | null = null;
   let turnStart=0;
   function process(index: number): ProcessView {
@@ -99,7 +124,7 @@ export function conversationView(projection: PiProjection, context: string, runS
         const duplicate = callCounts.get(id)! > 1;
         const live = duplicate ? undefined : liveTools.get(id);
         const linked = duplicate ? undefined : results.get(id),result=linked?.view;
-        const children=nestedCalls(linked?.raw??live?.result);
+        const children=duplicate?[]:childrenFor(id,linked?.raw??live?.result);
         const status = toolStatus(result ? result.status : live?.status ?? (partial ? 'waiting' : 'incomplete'),children);
         const input = part.text;
         group.entries.push({kind:'tool',key:partKey,id,name:part.title ?? '未知工具',status,input,
@@ -124,7 +149,8 @@ export function conversationView(projection: PiProjection, context: string, runS
       current=null;turnStart=index+1;
     }
   });
-  // Event-only tools have no reliable position in the message stream. Preserve them with an explicit notice.
+  // Child events are already inside their identified parent's tool row. Only
+  // genuinely unlinked events need the fallback with an explicit notice.
   for (const tool of projection.tools) {
     if (used.has(tool.id)) continue;
     const group = process(projection.messages.length), input = argsText(tool.args);

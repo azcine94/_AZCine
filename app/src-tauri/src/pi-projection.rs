@@ -53,10 +53,11 @@ fn content(value:Option<&Value>)->Value {
 // Application display metadata only. Preserve the native sub-call outcome
 // without exposing arbitrary details, arguments, results or credentials.
 fn nested_calls(value:&Value)->Option<Value> {
-    let calls=value.get("details")?.get("calls")?.as_array()?;
+    let calls=value.get("nestedCalls").and_then(|nested|nested.get("calls")).and_then(Value::as_array)
+        .or_else(||value.get("details").and_then(|details|details.get("calls")).and_then(Value::as_array))?;
     if calls.len()>MAX_BLOCKS{return Some(json!([{"name":"子调用记录过多，未展开","status":"incomplete"}]));}
     Some(Value::Array(calls.iter().map(|call|{
-        json!({"name":key(call,"name").unwrap_or("未记录子调用名称"),"status":key(call,"status").unwrap_or("incomplete")})
+        json!({"id":key(call,"id"),"name":key(call,"name").unwrap_or("未记录子调用名称"),"status":key(call,"status").unwrap_or("incomplete")})
     }).collect()))
 }
 fn tool_output(value:&Value)->Value {
@@ -166,6 +167,7 @@ impl Projection {
                 let Some(id)=key(event,"toolCallId") else{return false;};let pos=self.tools.iter().position(|t|key(t,"id")==Some(id));
                 let pos=match pos{Some(p)=>p,None=>{if self.tools.len()>=MAX_TOOLS{return self.limit();}self.tools.push(json!({"id":id,"name":key(event,"toolName").unwrap_or("未知工具"),"status":"running"}));self.tools.len()-1}};
                 let t=&mut self.tools[pos];
+                if let Some(parent)=key(event,"parentToolCallId"){t["parentToolCallId"]=json!(parent);}
                 match key(event,"type") {
                     Some("tool_execution_end")=>{t["status"]=json!(match event.get("isError").and_then(Value::as_bool){Some(true)=>"error",Some(false)=>"finished",None=>"incomplete"});t["result"]=tool_output(&event["result"]);},
                     _=>{t["args"]=scrub(&event["args"],0);if let Some(r)=event.get("partialResult"){t["result"]=tool_output(r);}},
