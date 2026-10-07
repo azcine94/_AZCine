@@ -23,6 +23,7 @@ import type { ProviderDraft } from '../use-pi-providers.ts';
 import * as data from './data.ts';
 import { usePreviewResources } from './pi-resources-fixture.ts';
 import { usePreviewBookkeeping } from './bookkeeping-fixture.ts';
+import { usePreviewTaskPanel } from './task-panel-fixture.ts';
 
 function useFixture<T extends object>(baseline: T, initial: Partial<T>) {
   const [patch, setPatch] = useState(initial);
@@ -31,6 +32,7 @@ function useFixture<T extends object>(baseline: T, initial: Partial<T>) {
 const message = 'UI 示例：操作只在本页展示，不抓取、不调用模型、不写入业务数据。';
 const failure = '示例失败：连接暂时不可用，已保留输入和现有内容。';
 export function usePreviewControllers(state: string) {
+  const taskPanelPreview = usePreviewTaskPanel(state);
   const bookkeeping = usePreviewBookkeeping(state);
   const empty = state === 'empty', error = state === 'error', loading = state === 'loading';
   const long = state === 'long', pending = state === 'pending', conflict = state === 'conflict' || state === 'conflict-details';
@@ -161,7 +163,7 @@ export function usePreviewControllers(state: string) {
     return true;
   }
   return {
-    bookkeeping, notice, clearNotice:()=>setNotice(''),
+    bookkeeping, taskPanelPreview, notice, clearNotice:()=>setNotice(''),
     workspace:{...workspace,setFilter:(value)=>patchWorkspace(before=>({filter:typeof value==='function'?value(before.filter):value})),changeRoot:(value:string)=>patchWorkspace({rootDraft:value}),changeDraft:(field,value)=>patchWorkspace(before=>({draft:{...before.draft,[field]:value}})),refresh:action,pickRoot:action,selectRoot:action,openRoot:action,saveTodo:action,reconcileCreate:action,changeCompletion:async(todo,completed)=>patchWorkspace(before=>({workspace:before.workspace?{...before.workspace,todos:before.workspace.todos.map(item=>item.id===todo.id?{...item,completed}:item)}:null}))},
     projects:{...projects,setDeleted:previewProjectDeletion,reconcileDeletion:async(id)=>{
       const request=projects.deletionPending[id],project=[...projects.projects,...projects.removedProjects].find(item=>item.id===id);
@@ -174,5 +176,5 @@ export function usePreviewControllers(state: string) {
     pi:{...pi,resources:resourcePreview,setSessionName:value=>patchPi(before=>({sessionName:typeof value==='function'?value(before.sessionName):value})),setText:(text)=>patchPi(before=>({draft:{...before.draft,text}})),setImages:(images)=>patchPi(before=>({draft:{...before.draft,images}})),refresh:action,reloadSessions:action,connect:action,disconnect:action,send:action,stop:action,sessionAction:action,saveModel:async()=>{announce();return false;},saveConfiguration:async()=>{announce();return null;}},
     providers:{...providers,active,reload:action,select:(uid)=>patchProviders({active:providers.providers.find(item=>item.uid===uid)}),addProvider:()=>{const item={...data.provider,uid:crypto.randomUUID(),provider:`provider-${providers.providers.length+1}`,persisted:false,dirty:true,models:[]};patchProviders(before=>({providers:[...before.providers,item],active:item}));},ui:(uid,patch)=>changeProvider(uid,item=>({...item,...patch})),edit:(uid,patch)=>changeProvider(uid,item=>({...item,...patch,dirty:true})),editModel:(uid,modelUid,patch)=>changeProvider(uid,item=>({...item,dirty:true,models:item.models.map(m=>m.uid===modelUid?{...m,...patch}:m)})),addManual:(uid)=>changeProvider(uid,item=>({...item,models:[...item.models,{...data.provider.models[0],uid:crypto.randomUUID(),id:'',name:'',persisted:false}],tab:'models',dirty:true})),removeNew:(uid,modelUid)=>changeProvider(uid,item=>({...item,models:item.models.filter(m=>m.uid!==modelUid)})),addSelected:(uid)=>changeProvider(uid,item=>({...item,models:[...item.models,...(item.remote?.models.filter(m=>item.selectedIds.includes(m.id)).map(m=>({...data.provider.models[0],uid:crypto.randomUUID(),id:m.id,name:m.name,persisted:false}))??[])],dirty:true,selectedIds:[]})),fetchModels:async(uid)=>changeProvider(uid,item=>({...item,remote:{models:[{id:'example-new-model',name:'远程示例模型',contextWindow:64000,maxTokens:4096,supportsImages:true}],truncated:false}})),save:action},
     rankings:{...rankings,refresh:action,update:action,cancel:announce,openSource:action},desktop:{...desktop,check:async()=>patchDesktop({state:{status:'error',message:'UI 总览不执行数据库检查；成功样式请切换到成功状态。'}})},
-  } satisfies {bookkeeping:typeof bookkeeping;notice:string;clearNotice:()=>void;workspace:typeof workspace;projects:typeof projects;news:typeof news;editorial:typeof editorial;processing:typeof processing;ideas:typeof ideas;pi:typeof pi;providers:typeof providers;rankings:typeof rankings;desktop:typeof desktop};
+  } satisfies {taskPanelPreview: import('../use-task-panel.ts').TaskPanelController; bookkeeping:typeof bookkeeping;notice:string;clearNotice:()=>void;workspace:typeof workspace;projects:typeof projects;news:typeof news;editorial:typeof editorial;processing:typeof processing;ideas:typeof ideas;pi:typeof pi;providers:typeof providers;rankings:typeof rankings;desktop:typeof desktop};
 }

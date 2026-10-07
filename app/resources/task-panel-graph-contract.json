@@ -1,0 +1,291 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "run_id",
+    "context_id",
+    "repository_ref",
+    "revision",
+    "workspace_snapshot_id",
+    "scope",
+    "exclusions",
+    "coverage",
+    "unknowns",
+    "artifacts",
+    "nodes",
+    "relations",
+    "sources",
+    "proposals",
+    "base_graph_revision",
+    "changes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "context_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repository_ref": {
+      "type": "string"
+    },
+    "revision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Actual Git HEAD SHA, NOT task revision; must match meta.repository.revision in candidate.json and sources[].revision."
+    },
+    "workspace_snapshot_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "coverage": {},
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate",
+        "architecture",
+        "render_status",
+        "validation_status"
+      ],
+      "properties": {
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        },
+        "architecture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string"
+            }
+          }
+        },
+        "render_status": {
+          "type": "string"
+        },
+        "validation_status": {
+          "type": "string"
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "path",
+          "symbol",
+          "archify_component_id",
+          "sources"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "module",
+              "component",
+              "file",
+              "function",
+              "command",
+              "database",
+              "design"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "archify_component_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to",
+          "kind",
+          "sources",
+          "inference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "imports",
+              "calls",
+              "registers",
+              "reads",
+              "writes",
+              "contains",
+              "may_affect"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "inference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "line_start",
+          "line_end",
+          "revision",
+          "sha256",
+          "statement"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statement": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "proposals": {
+      "type": "array",
+      "items": {}
+    },
+    "base_graph_revision": {
+      "type": "integer"
+    },
+    "changes": {
+      "type": "array",
+      "items": {}
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "AZCine graph-facts v1. Extra evidence belongs in coverage, not additional fields. File refs are relative to graph-facts.json. Keep run/context/snapshot identity from dispatch packet. Imported code semantics remain claims."
+}

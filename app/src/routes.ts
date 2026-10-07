@@ -9,6 +9,7 @@ export const pages = [
   { id: 'ideas', title: '灵感', icon: 'ideas' },
   { id: 'bookkeeping', title: '记账', icon: 'bookkeeping' },
   { id: 'agent', title: 'Agent', icon: 'agent' },
+  { id: 'task-panel', title: '任务面板', icon: 'task-panel' },
   { id: 'jobs', title: '后台任务', icon: 'jobs' },
   { id: 'resources', title: '规则与资源', icon: 'resources' },
   { id: 'settings', title: '设置', icon: 'settings' },

@@ -2,6 +2,35 @@ mod diagnostics;
 mod storage;
 mod native_paths;
 mod projects;
+#[path = "task-panel-worktree.rs"] mod task_panel_worktree;
+#[path = "task-panel-locations.rs"] mod task_panel_locations;
+#[path = "task-panel-consolidation.rs"] mod task_panel_consolidation;
+use task_panel_worktree::task_panel_worktree;
+#[path = "task-panel-monitor.rs"] mod task_panel_monitor;
+#[path = "task-panel-types.rs"] mod task_panel_types;
+#[path = "task-panel-projects.rs"] mod task_panel_projects;
+#[path = "task-panel-agent.rs"] mod task_panel_agent;
+#[path = "task-panel-store.rs"] mod task_panel_store;
+#[path = "task-panel-graph.rs"] mod task_panel_graph;
+#[path = "task-panel-paths.rs"] mod task_panel_paths;
+#[path = "task-panel-snapshots.rs"] mod task_panel_snapshots;
+#[path = "task-panel-context.rs"] mod task_panel_context;
+#[path = "task-panel-graph-import.rs"] mod task_panel_graph_import;
+#[path = "herdr-adapter.rs"] mod herdr_adapter;
+#[path = "task-panel-execution.rs"] mod task_panel_execution;
+#[path = "task-panel-evidence.rs"] mod task_panel_evidence;
+#[path = "task-panel-index.rs"] mod task_panel_index;
+#[path = "task-panel-recovery.rs"] mod task_panel_recovery;
+#[path = "task-panel-intake.rs"] mod task_panel_intake;
+#[path = "task-panel-commands.rs"] mod task_panel_commands;
+#[cfg(test)] #[path = "task-panel-tests.rs"] mod task_panel_tests;
+use task_panel_commands::*;
+#[path = "task-panel-launch.rs"]
+mod task_panel_launch;
+use task_panel_launch::task_panel_launch;
+#[path = "task-panel-workspace.rs"] mod task_panel_workspace;
+#[path = "task-panel-legacy.rs"] mod task_panel_legacy;
+use task_panel_workspace::{task_panel_workspace_forget,task_panel_workspace_open,task_panel_workspaces};
 #[path = "model-ranking.rs"] mod model_ranking;
 #[path = "model-ranking-commands.rs"] mod model_ranking_commands;
 use model_ranking_commands::*;
@@ -228,13 +257,22 @@ async fn check_desktop(request_id: u32) -> Result<diagnostics::DesktopReport, di
 pub fn run() {
     tauri::Builder::default()
         .manage(StorageState::default())
+        .manage(task_panel_agent::AgentAccessState::default())
+        .manage(task_panel_workspace::TaskWorkspaceState::default())
         .manage(news_commands::NewsState::default())
         .manage(news_ai::AiControl::default())
         .manage(pi_manager::PiManager::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
-        .setup(|app| { news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
+        .invoke_handler(tauri::generate_handler![task_panel_launch,
+            task_panel_worktree, task_panel_workspace_forget, task_panel_workspace_open, task_panel_workspaces, task_panel_agent_access, task_panel_agent_accesses, task_panel_agent_revoke, task_panel_validation_identity, task_panel_list, task_panel_mutate, task_panel_graph, task_panel_changes, task_panel_context, task_panel_context_get, task_panel_imports, task_panel_import_preview, task_panel_import_apply, task_panel_herdr_config, task_panel_herdr_config_save, task_panel_herdr_status, task_panel_herdr_sessions, task_panel_bind, task_panel_focus, task_panel_dispatch, task_panel_execution_action, task_panel_create_execution, task_panel_result, task_panel_check, task_panel_accept, task_panel_index, task_panel_recovery, task_panel_goal, task_panel_analysis, check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
+        .setup(|app| { task_panel_monitor::start(app.handle().clone()); news_editorial_commands::start_automation(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")
-        .run(pi_commands::on_run_event);
+        .run(|app,event| {
+            if matches!(&event,tauri::RunEvent::WindowEvent{label,event:tauri::WindowEvent::CloseRequested{..},..} if label=="main")
+                || matches!(&event,tauri::RunEvent::ExitRequested{..}|tauri::RunEvent::Exit) {
+                task_panel_agent::shutdown(app);
+            }
+            pi_commands::on_run_event(app,event);
+        });
 }

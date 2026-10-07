@@ -5,8 +5,10 @@ import { parseDesktopReport, desktopError } from '../src/desktop-contract.ts';
 
 const validReport = { requestId: 17, appVersion: '0.0.0', sqliteVersion: 'test-only', storage: 'temporary', roundTrip: true, rollback: true };
 
-test('Given八个页面 When解析hash Then正常路由且无隐藏研究页', () => {
-  assert.equal(new Set(pages.map(page => page.id)).size, 8);
+test('Given已开放的工作台页面 When解析hash Then任务面板可达且无重复或隐藏研究页', () => {
+  assert.equal(new Set(pages.map(page => page.id)).size, pages.length);
+  assert.equal(resolveRoute('#task-panel'), 'task-panel');
+  assert.equal(navigationPage('task-panel'), 'task-panel');
   for (const page of pages) {
     assert.equal(resolveRoute(`#${page.id}`), page.id);
     assert.equal(pageTitle(page.id), page.id === 'settings' ? '常用设置' : page.title);

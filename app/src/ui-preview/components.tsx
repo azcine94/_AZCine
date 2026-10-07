@@ -42,7 +42,7 @@ export function Components({state}:{state:string}) {
   const [month, setMonth] = useState('2026-10');
   const [,setNote]=useOperationNotice('');
   const [refreshing, setRefreshing] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const refreshTimer = useRef<number | null>(null);
   useEffect(() => () => { if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current); }, []);
   function showRefresh(duration: number) {
     if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
