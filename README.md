@@ -14,13 +14,15 @@ npm run dev
 
 2026-10-06 `polish/dev-2@d7ae820` 已快进合入本地main：导航新增“记账”，支持开销、人民币合计、外币报价快照、报销状态、票据副本及CSV导出；创建/开销编辑使用共享弹窗，操作短提示统一自动消失，项目可删除恢复，已结束资讯处理记录可移出历史。当前提交未运行测试、类型检查、构建、启动或UI验证。
 
+2026-10-07 `feat/agent-dev@62c93dc` 三个提交已快进合入本地main：应用MCP/业务草案、限定后台任务、会话与附件、生命周期、今日资讯及嵌套工具归组已接。**当前源码锁要求Pi 1.0.4，但main自有runtime仍只有0.99.1，本轮未部署新版资源；正常启动前需按另行授权准备匹配资源。** Git不包含runtime二进制，不能因合并成功就直接认为主环境可运行。`scripts/prepare-pi-runtime.py` 生成官方资源候选与proposed lock，不自动部署main；现有Agent分支自有1.0.4资源和旧main资源均保留。未运行测试或启动。
+
 独立Worktree也在各自根目录使用同一条 `npm run dev`，打开所在目录的版本，不要求指定模块。流程仍为独立分支开发、交接后合main；后续从最新main开始打磨，业务数据库共用原应用定位配置，Windows位置为 `%LOCALAPPDATA%/com.azcine.workbench/data-root.json`。本机当前原数据根是 `C:/Users/A/Documents/AZCineData`，业务库是其 `db/azcine.sqlite3`；源码不写死该机器路径。缺原定位配置或数据被另一窗口占用时明确报错，不回退新空库。当前只能一个桌面窗口持有库锁，先关闭另一窗口再打开分支。
 
-当前源码数据库版本为12，含记账、外币、项目删除与处理历史隐藏迁移；本轮合并未打开或迁移真实库。新版应用启动后若将共享库升级，旧schema8及更早程序将拒绝该库；切回旧源码不能降级数据。其他开发Worktree使用共享库前须按各自授权同步兼容源码，不复制、覆盖或自动重建原库。
+当前源码数据库版本为16，含记账/外币/项目删除/资讯历史隐藏及Agent记录/后台上下文/会话软删除/待办软删除迁移；本轮合并未打开或迁移真实库。新版应用启动后若将共享库升级，旧schema12及更早程序将拒绝该库；切回旧源码不能降级数据。其他开发Worktree使用共享库前须按各自授权同步兼容源码，不复制、覆盖或自动重建原库。
 
 正常开发的Pi配置、认证、会话、Skills和扩展共用本仓库main的 `.tooling/dev-instance/data/pi/`；启动器从Git common-dir自动定位main并传共享参数，不运行PATH中的其他Pi。Skills放 `agent/skills/<name>/SKILL.md`，用户扩展放 `agent/extensions/`，可在“工具 → 规则与资源”查看。既有进程需正常结束后在其Worktree根重新 `npm run dev` 才生效，缺共享参数明确报错。明确测试根和正式版不用开发共享覆盖，也不自动迁移旧Pi文件。各Worktree的WebView使用 `.tooling/dev-instance/webview/`，Vite缓存使用 `.tooling/vite-cache/`；明确测试根继续隔离。旧分支数据库和原Pi目录全部保留，本次不复制/合并/迁移数据。旧源码分支须带上最新main的数据入口改动才使用这套行为，不跨目录改其源码。启动器自动检测可用端口、同步Vite/Tauri devUrl与CSP，并有限重试端口竞争；配置/业务根/Pi根/端口/自有PID打印并保存于不入Git的 `.tooling/instance/run-state.json`，启动锁防同目录重复运行。远程调试默认关闭。旧独立库入口的验证记录不覆盖新共用库入口；polish整分支合并时未运行测试、构建或真实启动；本次缺依赖修复后的正常启动另列于本页末尾，范围见[开发计划](docs/development-plan.md)。
 
-Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立复核尚未完成；没有模型不会生成假回复。主窗关闭目前退出。资讯本地自动采集和北京时间日报调度已接，默认关闭、仅电脑及应用实际运行时执行；通用任务队列、托盘和登录自启仍留待。当前实际进度、留待和暂停点分别看[开发计划](docs/development-plan.md)与[当前工作](docs/current-work.md)，不把可运行等同全产品完成。
+Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立复核尚未完成；没有模型不会生成假回复。主窗关闭目前退出。资讯本地自动采集和北京时间日报调度已接，默认关闭、仅电脑及应用实际运行时执行；限定summarize-text/summarize-batch/draft-objects任务与日志/取消已接；任意任务、完整父子委派、托盘和登录自启仍留待。当前实际进度、留待和暂停点分别看[开发计划](docs/development-plan.md)与[当前工作](docs/current-work.md)，不把可运行等同全产品完成。
 
 | 命令 | 用途 |
 |---|---|
@@ -40,7 +42,7 @@ Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立�
 2. 执行 `pwsh -NoProfile -File scripts/setup-rust.ps1`；脚本核对官方 SHA 后安装到本项目 `.tooling/`。
 3. 执行 `npm --prefix app ci`，按锁文件安装应用依赖。
 
-应用 Pi 使用 `app/resources/runtime/` 内独立 Node 24.21.0 / 上游 Pi 0.99.1，不使用系统开发 Node 或 PATH 中其他 Pi。新环境是否满足全部桌面能力仍需实际验证。
+应用 Pi 的源码锁要求 `app/resources/runtime/pi-1.0.4-node-24.21.0/` 内独立 Node 24.21.0 / 上游 Pi 1.0.4，不使用系统开发 Node 或 PATH 中其他 Pi。main的1.0.4资源尚未部署，版本不匹配应明确失败，不能改用旧Pi。新环境是否满足全部桌面能力仍需实际验证。
 
 ### 同机Worktree复用开发环境
 

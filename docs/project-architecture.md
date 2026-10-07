@@ -1,6 +1,6 @@
 # AZCine 项目架构
 
-> 更新：2026-10-06。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
+> 更新：2026-10-07。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
 
 ## 1. 目录树
 
@@ -177,7 +177,7 @@ Agent `feat/agent-design` 的12a5c89＋06a2251已由29ef06e合入main。`App`仍
 
 ### 业务与编辑
 
-SQLite单业务写入者、根锁；当前统一schema 12；v6文章/原文/步骤回执与刊期、v7范围/待处理标记、v8清空请求回执、v9记账、v10外币字段、v11项目删除/请求、v12处理历史隐藏。`storage.rs` 按实际模块表组区分main v1/v2、灵感v3、资讯采集v3与编辑v4及后续版本，只校验对应旧版已有表，再在同一事务补齐缺失模块并推进版本；部分/歧义/未知结构拒绝，不降低版本或重建旧库。本轮未执行实际迁移，新版升级共享库后旧schema8及更早程序不能打开。稳定项目/块/行/阶段ID，公司修订与CAS整批事务。一个镜头一行，日期/阶段/交完互不自动联动，只有指定list派生。分页不裁持久数据，异步回执不覆盖后续草稿，撤销消耗一次、冲突有明确反馈。
+SQLite单业务写入者、根锁；当前统一schema 16；v6文章/原文/步骤回执与刊期、v7范围/待处理标记、v8清空请求回执、v9记账、v10外币字段、v11项目删除/请求、v12处理历史隐藏；v13～v16 Agent/任务/会话与待办软删除见下节。`storage.rs` 按实际模块表组区分main v1/v2、灵感v3、资讯采集v3与编辑v4及后续版本，只校验对应旧版已有表，再在同一事务补齐缺失模块并推进版本；部分/歧义/未知结构拒绝，不降低版本或重建旧库。本轮未执行实际迁移，新版升级共享库后旧schema12及更早程序不能打开。稳定项目/块/行/阶段ID，公司修订与CAS整批事务。一个镜头一行，日期/阶段/交完互不自动联动，只有指定list派生。分页不裁持久数据，异步回执不覆盖后续草稿，撤销消耗一次、冲突有明确反馈。
 
 `App.tsx` / `styles/app.css` 维护窗口高度内的固定外壳：标题栏、导航、模块标题不随正文滚动，普通模块使用 `workspace-scroll`。项目详情由 `projects-panels.tsx` / `styles/projects.css` 使用全宽 `project-document`，顶部操作固定，`project-checklists-scroll` 与 `project-document-scroll` 分别滚动；详情外层 `workspace-scroll--project-document` 不再滚正文，窄窗口清单可收起/容器内展开，不影响其他模块业务。
 
@@ -215,7 +215,7 @@ SQLite单业务写入者、根锁；当前统一schema 12；v6文章/原文/步�
 
 ### 原版runtime、环境与进程
 
-- 当前应用资源为独立Node24.21.0 / 上游Pi0.99.1，官方包与完整依赖锁/字节校验；不patch核心或改系统提示。资源路径显式，不执行PATH中的其他Pi。
+- 当前源码锁为独立Node24.21.0 / 上游Pi1.0.4；main本机仍只有0.99.1资源，新资源未部署。官方包来源/hash以runtime-lock为准，历史字节校验不覆盖新版本；不patch核心或改默认系统提示。用户明确授权的auto-session-title扩展由pi-session-title.rs一次安装到本应用根，用户修改/移除优先；不是Pi核心补丁。资源路径显式，不执行PATH中的其他Pi。
 - 启动环境显式构造自有HOME/USERPROFILE/APPDATA/LOCALAPPDATA/TEMP、Node路径和agent/session配置；不继承宿主认证、配置指针、Key环境、模块注入。资源发现排除外部来源需实证，不称OS沙箱。
 - 外部cwd先核上游启动迁移/资源发现，可能存在旧 `.pi/commands` 的路径不能默认启动或读取/修改外部资料；受控workspace优先，任意外部cwd能力未保证。
 - Windows使用 `CreateProcessW` 的原子 `PROC_THREAD_ATTRIBUTE_JOB_LIST` / `HANDLE_LIST` 与overlapped父管道，Job `KILL_ON_JOB_CLOSE` 控制自有子树；不依靠普通Command启动后再Assign的竞态窗口，不按名称kill。兼容项目Rust1.99。
@@ -223,13 +223,13 @@ SQLite单业务写入者、根锁；当前统一schema 12；v6文章/原文/步�
 
 ### RPC与状态投影
 
-官方LF-only JSONL，按字节缓冲拆行，保留分段UTF-8与合法U+2028/2029，不用通用splitlines误切；单帧有界（当前16MiB）。请求ID严格关联，错ID/EOF/超时/协议错误使受影响等待正确失败，不自动重发或盲恢复副作用。
+官方LF-only JSONL，按字节缓冲拆行，保留分段UTF-8与合法U+2028/2029，不用通用splitlines误切；单帧有界（当前图片扩容后的上限见 `pi-image-limits.rs`）。请求ID严格关联，错ID/EOF/超时/协议错误使受影响等待正确失败，不自动重发或盲恢复副作用。
 
 accepted/handled只代表接受，不是业务完成；终态结合settled状态与最后assistant消息，不能单凭 `agent_end` 或普通disposition报成功。会话/运行generation归属正确，工具/流/停止/错误按真实事件投影。
 
 ### 原生会话
 
-原生v3文件和active branch是恢复来源，不从SQL重建假会话；只扫描自有canonical根，拒绝外部路径，解析有界（当前文件64MiB、行16MiB、最多5000个候选文件、目录深度4）。超限/坏文件明确失败，不静默截断或扫描其他Pi。RPC/TUI交接必须同配置并移交所有权，一次一写入者，完整交接属S04。
+原生v3文件和active branch是恢复来源，不从SQL重建假会话；只扫描自有canonical根，拒绝外部路径，解析有界（文件/行上限由 `pi-image-limits.rs` 统一，最多5000个候选文件、目录深度4）。超限/坏文件明确失败，不静默截断或扫描其他Pi。RPC/TUI交接必须同配置并移交所有权，一次一写入者，完整交接属S04。
 
 ### 配置保存与脱敏
 
@@ -249,13 +249,25 @@ accepted/handled只代表接受，不是业务完成；终态结合settled状态
 
 `news-prompts.rs`读取打包规则/分类和上游来源标识，模板与分类参与prompt hash；`news-pipeline.rs`经原版Pi执行内容理解/结构/预筛/评分/归组/中文整理，`news-reader-store.rs`保存原文、文章、步骤回执和缓存、阅读标记，`news-reader-editions.rs`保存固定报告，`news-reader-export.rs`提供Markdown导出。React统一阅读路由为 `news/items` / `news/stories`，旧事件链接转统一详情；旧日报/PDF实现保留，不因旧技术结果证明新reader链通过。
 
-`news-scope.rs`维护范围及待处理排除标记，`news-reset.rs`只操作资讯表与自有快照，预览指纹/幂等请求/占用锁/事务及暂存恢复保护现有记录。新增history/history:<uuid>范围以 `news_hidden_runs` 移除历史可见性，保留结果、快照与去重信息；实际任务锁内拒绝移除运行中任务或重试已隐藏记录，前端news-history-changed事件清理对应详情。当前schema12迁移未运行，不读取或改真实库，本轮没有执行清空或采集。
+`news-scope.rs`维护范围及待处理排除标记，`news-reset.rs`只操作资讯表与自有快照，预览指纹/幂等请求/占用锁/事务及暂存恢复保护现有记录。新增history/history:<uuid>范围以 `news_hidden_runs` 移除历史可见性，保留结果、快照与去重信息；实际任务锁内拒绝移除运行中任务或重试已隐藏记录，前端news-history-changed事件清理对应详情。历史隐藏在v12；当前schema16新增迁移未运行，不读取或改真实库，本轮没有执行清空或采集。
+
+### Agent MCP、业务草案与限定后台（2026-10-07已合main）
+
+主要源码：Rust的 `agent-runtime.rs` / `agent-store.rs` / `agent-commands.rs` 保存输入绑定、草案/附件/任务与确认回执；`agent-modules.rs` 注册projects/today/ideas/bookkeeping/news/models的ModuleProvider目录/快照/版本/动作schema/校验/事务，新增模块需提供对应真实实现。`agent-mcp.rs` / `agent-mcp-tools.rs` 与 `resources/azcine-mcp-server.mjs` 提供19项工具；`agent-jobs.rs` 提供summarize-text/summarize-batch/draft-objects限定任务、日志/输出/取消。
+
+链路为页面捕获每次输入来源/对象/附件 → 官方Pi RPC与原生MCP客户端 → 应用自有Node stdio服务 → 127.0.0.1临时端口Rust服务 → provider/既有事务。grant绑定会话/任务、根与generation，失效连接拒绝；仅维护应用拥有的azcine配置条目并保用户其他设置。MCP检索/读取无需手选所有对象，prepare_changes只保存草案，界面核对原对象版本后整批事务应用；幂等requestKey与applied回执区分建议和正式保存。业务字段协议由MCP提供，pi-rules.rs仅按固定hash将旧应用模板保副本退出加载，用户改过的规则保留。
+
+数据库源码为16：v13 Agent持久记录，v14任务ordinal/context_objects，v15会话软删除/原生路径屏蔽，v16待办软删除；同事务推进版本。原生会话文件仍是历史来源，删除不删JSONL。原库本轮未打开/迁移，升级后schema12及更早程序拒绝读取，其他Worktree需按授权同步兼容代码。后台独立临时配置禁资源发现，草案任务才开放MCP；不等于任意任务/原版spawn或关机调度。
+
+React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器：切模块仅更新下一次来源，历史只读/首次发送才连接；根/会话/epoch/generation/seq保护迟到回执。Pi空闲600秒释放、resident配额为回复上限+2，活动/等待受保护；投影缓存目标8个/约128MiB也保护当前/忙碌输入，非整体内存硬上限。正文/元数据合并，资源仅其页面按需加载并缓存30秒。父ID与nestedCalls在pi-projection.rs白名单投影，pi-process-view.ts按父链去重归组；异常/孤立事件保留。
+
+`scripts/launcher-lock.mjs` 核对PID/创建时间处理失效锁，无法确认则保留，不按名称结束进程；隔离验证启动状态/target/cache与正常开发分开。以上结构已合入62c93dc，runtime部署、MCP/任务/迁移/生命周期真实运行均未验证。
 
 工具 `resources`由 `PiResourcesPanel`与长寿命 `usePi`中的 `use-pi-resources`状态承接。有限IPC经PiManager操作锁进入 `pi-resources.rs`，自有Node辅助进程执行应用侧inspector，导入已安装上游SDK的SettingsManager/DefaultPackageManager/loadSkills/buildSystemPrompt；不创建Agent、不执行扩展工厂、不调用模型、不安装缺包。官方默认提示词是只读预览，命令注册仅代表可确认范围。
 
 `use-pi-resources.ts` 复用进行中的读取Promise，对短暂pi_busy/pi_cancelled有限退避，写入不自动重试；保存锁和失效回执检查保草稿。`lib/display-path.ts` 只在显示层隐藏Windows扩展路径前缀并处理UNC，IPC与文件操作使用原生路径。
 
-规则/Skill写入限制在agent/受控workspace、单文件128KB、拒绝链接/越界、对hash核对并临时文件发布；扩展源码只读，启停通过原版FileSettingsStorage原生锁内hash核对更新extensions并保其他配置。保存不自动重连。SDK辅助进程实际运行、Windows路径、并发锁、真实保存均未验证；`--no-context-files`仍限制AGENTS自动注入，TUI/扩展请求响应留待。
+规则/Skill写入限制在agent/受控workspace、单文件128KB、拒绝链接/越界、对hash核对并临时文件发布；扩展源码只读，启停通过原版FileSettingsStorage原生锁内hash核对更新extensions并保其他配置。保存不自动重连。SDK辅助进程实际运行、Windows路径、并发锁、真实保存均未验证；`--no-context-files`仍限制AGENTS自动注入，完整TUI留待，基础select/confirm/input/editor响应已接但未验证。
 
 ## 5. 文档与路径维护
 
