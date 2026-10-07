@@ -122,7 +122,7 @@ impl PiManager{
         // redacted before each IPC snapshot, not after chunks have leaked.
         if let Some(partial)=projection.get_mut("partial"){*partial=c.redactor.value(partial.take(),true);}
         if let Some(tools)=projection.get_mut("tools"){*tools=c.redactor.value(tools.take(),true);}
-        Ok(c.redactor.value(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"busy":c.busy,"stopping":c.stopping,"sending":c.sending,"state":c.state,"models":c.models,"projection":projection,"extensions":c.extensions,"rules":c.rules,"recoveredQueue":c.state["sessionId"].as_str().and_then(|id|c.recovered.get(id)).cloned().unwrap_or_default(),"error":c.error,"notice":c.notice,"cwd":c.cwd,"runtime":c.runtime.as_ref().map(|r|json!({"piVersion":pi_runtime::versions()["piVersion"],"nodeVersion":pi_runtime::versions()["nodeVersion"],"root":r.root})),"paths":c.paths.as_ref().map(|p|json!({"agent":p.agent,"sessions":p.sessions,"defaultCwd":p.default_cwd}))}),false))
+        Ok(c.redactor.value(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"busy":c.busy,"stopping":c.stopping,"sending":c.sending,"state":c.state,"historyReleased":c.process.is_none()&&c.projection.messages.is_empty()&&c.state["messageCount"].as_u64().is_some_and(|count|count>0),"models":c.models,"projection":projection,"extensions":c.extensions,"rules":c.rules,"recoveredQueue":c.state["sessionId"].as_str().and_then(|id|c.recovered.get(id)).cloned().unwrap_or_default(),"error":c.error,"notice":c.notice,"cwd":c.cwd,"runtime":c.runtime.as_ref().map(|r|json!({"piVersion":pi_runtime::versions()["piVersion"],"nodeVersion":pi_runtime::versions()["nodeVersion"],"root":r.root})),"paths":c.paths.as_ref().map(|p|json!({"agent":p.agent,"sessions":p.sessions,"defaultCwd":p.default_cwd}))}),false))
     }
     fn finish_error(&self,generation:u64,error:PiError,notify:&Notify){if let Ok(mut c)=self.core.lock(){if c.generation==generation{c.error=Some(error);c.busy=false;c.sending=false;c.session_changing=false;c.connection="error".into();c.projection.interrupted("本次连接未完成；已有消息和输入保留。");update_state_flags(&mut c);c.seq+=1;}}notify();}
     pub fn connect(&self,root:&Path,resources:&Path,cwd:Option<&Path>,session:Option<&Path>,notify:Notify)->Result<Value,PiError>{
@@ -170,7 +170,7 @@ impl PiManager{
     pub fn suspend(&self,notify:Notify)->Result<Value,PiError>{
         let process={let mut c=locked(&self.core)?;if c.busy||c.stopping||is_running(&c){return Err(busy());}c.busy=true;c.stopping=true;c.generation+=1;c.process.take()};
         let result=process.as_ref().map(|p|p.shutdown(STOP_TIMEOUT).map(|_|()).map_err(PiError::from)).unwrap_or(Ok(()));
-        {let mut c=locked(&self.core)?;c.busy=false;c.stopping=false;if result.is_ok(){c.session_lease=None;c.connection="disconnected".into();}else{c.process=process;c.connection="error".into();}c.error=result.as_ref().err().cloned();c.seq+=1;}notify();result?;self.snapshot()
+        {let mut c=locked(&self.core)?;c.busy=false;c.stopping=false;if result.is_ok(){c.session_lease=None;c.connection="disconnected".into();if c.state["sessionFile"].as_str().is_some_and(|path|Path::new(path).is_file()){c.projection=Projection::default();c.models.clear();c.commands.clear();}}else{c.process=process;c.connection="error".into();}c.error=result.as_ref().err().cloned();c.seq+=1;}notify();result?;self.snapshot()
     }
     pub fn disconnect(&self,notify:Notify)->Result<Value,PiError>{
         let (generation,process)={let mut c=locked(&self.core)?;if c.stopping{return Err(busy());}c.stopping=true;c.busy=true;c.generation+=1;c.seq+=1;(c.generation,c.process.take())};notify();
@@ -297,6 +297,13 @@ impl PiManager{
     }
     pub fn active(&self)->Result<bool,PiError>{let c=locked(&self.core)?;Ok(c.busy||c.sending||c.stopping||is_running(&c))}
     pub fn resident(&self)->Result<bool,PiError>{Ok(locked(&self.core)?.process.as_ref().is_some_and(|p|p.is_connected()))}
+    pub fn remember_history_view(&self,generation:u64,seq:u64,state:Value,cwd:String)->Result<bool,PiError>{
+        let mut c=locked(&self.core)?;
+        if c.generation!=generation||c.seq!=seq||c.busy||c.sending||c.stopping||is_running(&c)||c.process.as_ref().is_some_and(|process|process.is_connected()){return Ok(false);}
+        // Keep identifiers for reconnect/delete without retaining cold message
+        // bodies or creating a native process. The frontend owns the view cache.
+        c.state=state;c.cwd=Some(PathBuf::from(cwd));c.seq+=1;Ok(true)
+    }
     pub fn summary(&self)->Result<Value,PiError>{let c=locked(&self.core)?;Ok(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"active":c.busy||c.sending||c.stopping||is_running(&c),"waiting":c.extensions.waiting(),"stopping":c.stopping,"sessionId":c.state["sessionId"],"sessionFile":c.state["sessionFile"],"name":c.state["sessionName"],"businessInputId":c.business_input.as_ref().map(|v|&v.0),"businessMessageIndex":c.business_input.as_ref().map(|v|v.1),"outcome":c.projection.outcome,"cwd":c.cwd}))}
     pub fn expire_ui(&self,notify:&Notify)->Result<(),PiError>{let mut c=locked(&self.core)?;if c.extensions.expire(){c.seq+=1;drop(c);notify();}Ok(())}
     pub fn respond_ui(&self,input:crate::pi_extension_ui::UiResponse,notify:Notify)->Result<Value,PiError>{

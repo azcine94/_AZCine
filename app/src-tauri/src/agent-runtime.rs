@@ -30,17 +30,18 @@ impl AgentRuntime{
         if pool.exiting{return Err(PiError::new("pi_app_exiting","应用正在退出，未接受新操作。"));}
         if pool.deleting.contains(conversation)||pool.retired.contains(conversation){return Err(PiError::new("agent_conversation_deleted","会话正在删除或已经删除，请开始新会话。"));}
         if !pool.slots.contains_key(conversation)&&pool.slots.len()>=256{return Err(PiError::new("pi_conversation_limit","本次运行的会话来源过多，请先退出并重开应用；原生历史保留。"));}
-        let slot=pool.slots.entry(conversation.into()).or_insert_with(||Slot{manager:Arc::new(PiManager::default()),used:Instant::now()});slot.used=Instant::now();Ok(slot.manager.clone())
+        let slot=pool.slots.entry(conversation.into()).or_insert_with(||Slot{manager:Arc::new(PiManager::default()),used:Instant::now()});Ok(slot.manager.clone())
     }
+    fn touch(&self,conversation:&str)->Result<(),PiError>{let mut pool=self.pool.lock().map_err(|_|interrupted())?;if let Some(slot)=pool.slots.get_mut(conversation){slot.used=Instant::now();}Ok(())}
     pub fn load(&self,root:&Path)->Result<(),PiError>{let path=config_path(root)?;let config=read_config(&path)?;let mut pool=self.pool.lock().map_err(|_|interrupted())?;pool.limit=config.reply_limit;pool.revision=config.revision;pool.loaded_root=Some(root.into());Ok(())}
     pub fn connect(&self,conversation:&str,root:&Path,resources:&Path,cwd:Option<&Path>,session:Option<&Path>,reconnect:bool,notify:Notify)->Result<Value,PiError>{
         let _operation=self.connect_operation.lock().map_err(|_|interrupted())?;
-        self.load(root)?;let manager=self.manager(conversation)?;
+        self.load(root)?;let manager=self.manager(conversation)?;self.touch(conversation)?;
         if manager.resident()?&&!reconnect{return manager.snapshot();}
         let victim={let mut pool=self.pool.lock().map_err(|_|interrupted())?;
             if pool.connecting.contains(conversation){return Err(PiError::new("pi_busy","会话正在连接，请等待；输入保留。"));}
             let residents=pool.slots.values().filter(|s|s.manager.resident().unwrap_or(true)).count()+pool.connecting.len();
-            let victim=if !manager.resident()?&&residents>=pool.limit+3{
+            let victim=if !manager.resident()?&&residents>=pool.limit+2{
                 let selected=pool.slots.iter().filter(|(k,s)|k.as_str()!=conversation&&!pool.sending.contains(*k)&&!pool.connecting.contains(*k)&&s.manager.resident().unwrap_or(false)&&!s.manager.active().unwrap_or(true)).min_by_key(|(_,s)|s.used).map(|(_,s)|s.manager.clone());
                 if selected.is_none(){return Err(PiError::new("pi_resident_limit","当前会话进程均在忙碌，无法释放空闲名额；输入保留。"));}selected
             }else{None};pool.connecting.insert(conversation.into());victim};
@@ -55,7 +56,7 @@ impl AgentRuntime{
     pub fn send(&self,conversation:&str,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,None)}
     pub fn send_business(&self,conversation:&str,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,Some(input_id))}
     fn send_inner(&self,conversation:&str,input:SendInput,notify:Notify,input_id:Option<String>)->Result<SendReceipt,PiError>{
-        let manager=self.manager(conversation)?;
+        let manager=self.manager(conversation)?;self.touch(conversation)?;
         {let mut pool=self.pool.lock().map_err(|_|interrupted())?;
             if pool.sending.contains(conversation)||pool.deleting.contains(conversation)||pool.retired.contains(conversation){return Err(PiError::new("pi_busy","此会话正在发送或删除，请等待；输入保留。"));}
             let running=pool.slots.iter().filter(|(k,s)|k.as_str()!=conversation&&(pool.sending.contains(*k)||s.manager.active().unwrap_or(true))).count();

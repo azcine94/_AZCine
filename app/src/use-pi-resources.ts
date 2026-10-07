@@ -17,7 +17,7 @@ function parseIndex(value:unknown):PiResourceIndex {
   for(const item of index.entries)if(!item||!['official','rule','skill','extension'].includes(item.kind)||typeof item.id!=='string'||typeof item.name!=='string'||typeof item.path!=='string'||typeof item.description!=='string'||typeof item.content!=='string'||typeof item.editable!=='boolean'||typeof item.enabled!=='boolean'||typeof item.loaded!=='boolean'||typeof item.toggleable!=='boolean'||!Array.isArray(item.commands)||item.commands.some(cmd=>typeof cmd!=='string')||item.hash!==null&&typeof item.hash!=='string'||item.error!==null&&typeof item.error!=='string')throw new Error('资源条目格式不完整，已有内容保留。');
   return index;
 }
-export function usePiResources(root:string|null,conversationKey="default"){
+export function usePiResources(root:string|null,conversationKey="default",enabled=true){
   const scope=useRef(conversationKey);scope.current=conversationKey;
   function callPi<T=unknown>(command:string,args:Record<string,unknown>={}){return invokePi<T>(command,{...args,conversationKey:scope.current});}
   const [index,setIndex]=useState<PiResourceIndex|null>(null),[selected,setSelected]=useState('official:system');
@@ -25,8 +25,9 @@ export function usePiResources(root:string|null,conversationKey="default"){
   const [loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useOperationNotice('');
   const rootRef=useRef(root);rootRef.current=root;const seq=useRef(0),savingRef=useRef(false),mounted=useRef(false);
   const reading=useRef<Promise<void>|null>(null),readAgain=useRef(false);
+  const loaded=useRef({root:null as string|null,scope:'',at:0}),visible=useRef(enabled);visible.current=enabled;
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;seq.current++;};},[]);
-  useEffect(()=>{seq.current++;setIndex(null);setDrafts({});setEditing({});setSelected('official:system');setError('');setNotice('');setLoading(false);},[root]);
+  useEffect(()=>{seq.current++;loaded.current={root:null,scope:'',at:0};setIndex(null);setDrafts({});setEditing({});setSelected('official:system');setError('');setNotice('');setLoading(false);},[root]);
   const refresh=useCallback(()=>{
     if(!rootRef.current||!desktopPi()||!mounted.current)return Promise.resolve();
     // StrictMode, page re-entry and connection changes may all request a read.
@@ -35,14 +36,14 @@ export function usePiResources(root:string|null,conversationKey="default"){
     const pending=(async()=>{
       do{
         readAgain.current=false;
-        const target=rootRef.current;if(!target||!mounted.current)return;
+        const target=rootRef.current,conversation=scope.current;if(!target||!mounted.current)return;
         const request=++seq.current;
-        const isCurrent=()=>mounted.current&&rootRef.current===target&&request===seq.current;
+        const isCurrent=()=>mounted.current&&rootRef.current===target&&scope.current===conversation&&request===seq.current;
         setLoading(true);setError('');
         for(let attempt=0;attempt<4&&isCurrent();attempt++){
           try{
-            const next=parseIndex(await callPi('pi_resources'));
-            if(isCurrent()){setIndex(next);setError('');}
+            const next=parseIndex(await invokePi('pi_resources',{conversationKey:conversation}));
+            if(isCurrent()){loaded.current={root:target,scope:conversation,at:Date.now()};setIndex(next);setError('');}
             break;
           }catch(e){
             if(!isCurrent())break;
@@ -65,9 +66,11 @@ export function usePiResources(root:string|null,conversationKey="default"){
   function edit(item:PiResource){setDrafts(before=>({...before,[item.id]:before[item.id]??{content:item.content,hash:item.hash}}));setEditing(before=>({...before,[item.id]:true}));}
   function change(item:PiResource,content:string){setDrafts(before=>({...before,[item.id]:{content,hash:before[item.id]?before[item.id].hash:item.hash}}));}
   function cancel(item:PiResource){setEditing(before=>({...before,[item.id]:false}));setDrafts(before=>{const next={...before};delete next[item.id];return next;});}
-  useEffect(()=>{if(root&&mounted.current)void refresh();},[conversationKey,root,refresh]);
+  useEffect(()=>{if(enabled&&root&&mounted.current&&(loaded.current.root!==root||loaded.current.scope!==conversationKey||Date.now()-loaded.current.at>30_000))void refresh();},[enabled,conversationKey,root,refresh]);
+  function invalidate(){loaded.current.at=0;if(visible.current)void refresh();}
   async function save(item:PiResource,enabled?:boolean){
     if(!index||savingRef.current)return;const target=rootRef.current,original=drafts[item.id];
+    if(loaded.current.root!==target||loaded.current.scope!==scope.current){setError('会话已变化，请刷新资源后保存；编辑内容仍保留。');return;}
     if(enabled===undefined&&!original)return;savingRef.current=true;setSaving(true);setError('');setNotice('');
     try{const result=await callPi<{saved:boolean;message:string}>('pi_save_resource',{input:{generation:index.generation,id:item.id,hash:enabled===undefined?original!.hash:index.settingsHash,content:enabled===undefined?original!.content:null,enabled:enabled??null}});
       if(result.saved!==true||typeof result.message!=='string')throw new Error('保存回执不完整，请核对原文件；草稿保留。');
@@ -75,6 +78,6 @@ export function usePiResources(root:string|null,conversationKey="default"){
     }catch(e){if(mounted.current&&rootRef.current===target)setError(piError(e));}
     finally{savingRef.current=false;if(mounted.current)setSaving(false);}
   }
-  return {index,selected,setSelected,drafts,editing,loading,saving,error,notice,refresh,edit,change,cancel,save};
+  return {index,selected,setSelected,drafts,editing,loading,saving,error,notice,refresh,invalidate,edit,change,cancel,save};
 }
 export type PiResourcesController=ReturnType<typeof usePiResources>;

@@ -69,11 +69,12 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
   useEffect(()=>{textarea.current?.focus({preventScroll:true});},[]);
   const following=useRef(true),anchor=useRef<{key:string;offset:number}|null>(null);
   const context=`${model.root}/${state?.sessionId??'unconnected'}/${s?.generation??0}`;
+  const scrollContext=`${model.root}/${state?.sessionId??model.conversationKey}`;
   const items=useMemo(()=>projection?conversationView(projection,context,model.displayRunStart):[],[projection,context,model.displayRunStart]);
   const connecting=s?.connection==='connecting',ready=s?.connection==='ready',busy=!!model.action||!!s?.busy||!!s?.stopping;
   const waiting=!!s?.extensions?.requests.some(r=>r.status==='pending');
   const running=!!projection&&(projection.activity!=='idle'||waiting);
-  const pendingResponse=(model.action==='发送'||s?.sending||running)&&!waiting&&!items.some(item=>item.kind==='process'&&item.live||item.kind==='message'&&item.role==='assistant'&&item.status==='streaming');
+  const pendingResponse=(model.viewing||model.action==='连接'||connecting||model.action==='发送'||s?.sending||running)&&!waiting&&!items.some(item=>item.kind==='process'&&item.live||item.kind==='message'&&item.role==='assistant'&&item.status==='streaming');
   const conversationDrafts=(agentData?.drafts??[]).filter(d=>d.status!=='discarded'&&(!d.context.sessionId||d.context.sessionId===state?.sessionId)&&(d.conversationKey===model.conversationKey||!!state?.sessionId&&(d.messageKey?.startsWith(state.sessionId+':')||d.messageKey?.startsWith('mcp:'+state.sessionId+':'))));
   const draftIndex=(key?:string)=>key?Number(key.split(':').at(-2)):NaN;
   const draftAnchors=new Map<string,string|undefined>(conversationDrafts.map((d):[string,string|undefined]=>{
@@ -85,10 +86,10 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
   }));
   const draftAfter=(item:Extract<(typeof items)[number],{kind:'message'}>)=>agentData?conversationDrafts.filter(d=>draftAnchors.get(d.id)===item.key).map(d=><AgentDraftsPanel key={d.id} model={agentData} pi={model} draft={d}/>):null;
   const available=!!currentModel&&!!s?.models.some(m=>m.provider===currentModel.provider&&m.id===currentModel.id);
-  const imageUnsupported=model.draft.images.length>0&&!currentModel?.input.includes('image');
-  const sendDisabled=preview||!ready||!available||busy||attaching||imageUnsupported||(!model.draft.text.trim()&&!model.draft.images.length&&!model.files.length&&!model.objects.objects.length);
+  const imageUnsupported=ready&&model.draft.images.length>0&&!currentModel?.input.includes('image');
+  const sendDisabled=preview||model.viewing||!model.root||!model.connected||ready&&!available||busy||attaching||imageUnsupported||(!model.draft.text.trim()&&!model.draft.images.length&&!model.files.length&&!model.objects.objects.length);
   const showStop=running||s?.connection==='connecting'||s?.busy||s?.sending||s?.stopping;
-  const connection=preview?'界面示例 · 未连接模型':s?.connection==='connecting'?'正在连接原版 Pi…':ready?available?'已连接':'原版已就绪 · 请先配置模型':s?.connection==='error'?'连接中断，可重新连接':'尚未连接原版 Pi';
+  const connection=preview?'界面示例 · 未连接模型':s?.connection==='connecting'?'正在连接原版 Pi…':ready?available?'已连接':'原版已就绪 · 请先配置模型':s?.connection==='error'?'连接中断，可重新连接':'发送时连接';
   const remember=useRef(model.rememberChatScroll);remember.current=model.rememberChatScroll;
   useEffect(()=>{
     const query=window.matchMedia('(min-width:1101px)'),resize=()=>{setNarrow(!query.matches);setSessionsOpen(false);};
@@ -96,10 +97,10 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
   },[]);
   useEffect(()=>{setMoreOpen(false);setDetailsOpen(false);setAddOpen(false);},[context]);
   useLayoutEffect(()=>{
-    const area=viewport.current;if(!area)return;const saved=model.readChatScroll(context);
+    const area=viewport.current;if(!area)return;const saved=model.readChatScroll(scrollContext);
     following.current=saved?.following??true;area.scrollTop=saved?.top??area.scrollHeight;setAtBottom(following.current);
-    return()=>remember.current(context,area.scrollTop,following.current);
-  },[context]);
+    return()=>remember.current(scrollContext,area.scrollTop,following.current);
+  },[scrollContext]);
   useLayoutEffect(()=>{
     const area=viewport.current;if(!area)return;
     if(anchor.current){const saved=anchor.current;anchor.current=null;
@@ -115,7 +116,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
     const node=Array.from(flow.current?.children??[]).find(child=>child.getBoundingClientRect().bottom>top);
     if(node){const el=node as HTMLElement;anchor.current={key:el.dataset.messageKey??el.dataset.processKey??'',offset:el.getBoundingClientRect().top-top};}}
   function scroll(){const area=viewport.current;if(!area)return;const bottom=area.scrollHeight-area.clientHeight-area.scrollTop<40;
-    following.current=bottom;setAtBottom(bottom);model.rememberChatScroll(context,area.scrollTop,bottom);}
+    following.current=bottom;setAtBottom(bottom);model.rememberChatScroll(scrollContext,area.scrollTop,bottom);}
   function latest(){following.current=true;setAtBottom(true);if(viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight;}
   async function importFiles(files:File[]){if(!files.length)return;if(preview){setAttachmentError('界面示例不导入本机文件。');return;}if(importInFlight.current){setAttachmentError('正在导入附件，请稍后再添加。');return;}importInFlight.current=true;setAttachmentError(null);setAttaching(true);
     const images=files.filter(file=>file.type.startsWith('image/')||/\.(png|jpe?g|webp|gif)$/i.test(file.name)),documents=files.filter(file=>!images.includes(file));
@@ -173,10 +174,10 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
         {!running&&projection?.outcome&&projection.outcome!=='none'&&projection.outcome!=='success'&&<p className="pi-outcome" data-outcome={projection.outcome}>{preview?'示例状态':'本轮'}：{({success:preview?'已完成（演示）':'实际回复已完成',error:'失败',interrupted:'已中断',incomplete:'未完整结束'} as Record<string,string>)[projection.outcome]??'状态待确认'}</p>}
       </div>
       <div className="pi-message-area"><div className="pi-chat-messages" ref={viewport} onScroll={scroll} tabIndex={0} role="region" aria-label="会话消息">
-        <div className="pi-chat-flow" data-empty={!items.length&&!s?.recoveredQueue.length&&!pendingResponse&&!conversationDrafts.length} ref={flow}>{!items.length&&!pendingResponse&&!conversationDrafts.length?<EmptyState as="div" className="pi-chat-empty"><h3>{connecting?'正在连接会话':available?'今天想一起做点什么？':'先连接你自己的模型'}</h3><p>{connecting?'输入仍保留，连接完成后可以继续。':available?'写下你的想法，我们一起往前推进。':'输入可以先写在下方，连接模型后再发送。'}</p>{!available&&!connecting&&<UILink variant="text" className="foundation-link" href="#settings/models">前往模型设置</UILink>}{available&&!connecting&&!model.draft.text&&<div className="pi-chat-suggestions">{[["理清交付安排","把需要确认的事列清楚","帮我整理今天的交付安排。"],["一起梳理想法","从一个想法开始讨论","帮我一起梳理这个项目的想法。"]].map(([title,description,text])=><Button key={title} type="button" variant="outline" size="app" className="pi-chat-suggestion items-start gap-1 rounded-[var(--r-panel)] shadow-none bg-background dark:bg-background hover:bg-muted dark:hover:bg-muted" onClick={()=>{model.setText(text);textarea.current?.focus();}}><strong>{title}</strong><span>{description}</span></Button>)}</div>}</EmptyState>
+        <div className="pi-chat-flow" data-empty={!items.length&&!s?.recoveredQueue.length&&!pendingResponse&&!conversationDrafts.length} ref={flow}>{!items.length&&!pendingResponse&&!conversationDrafts.length?<EmptyState as="div" className="pi-chat-empty"><h3>{connecting?'正在连接会话':!ready||available?'今天想一起做点什么？':'先连接你自己的模型'}</h3><p>{connecting?'输入仍保留，连接完成后可以继续。':!ready?'写下想做的事，发送时会自动连接。':available?'写下你的想法，我们一起往前推进。':'输入可以先写在下方，连接模型后再发送。'}</p>{ready&&!available&&!connecting&&<UILink variant="text" className="foundation-link" href="#settings/models">前往模型设置</UILink>}{available&&!connecting&&!model.draft.text&&<div className="pi-chat-suggestions">{[["理清交付安排","把需要确认的事列清楚","帮我整理今天的交付安排。"],["一起梳理想法","从一个想法开始讨论","帮我一起梳理这个项目的想法。"]].map(([title,description,text])=><Button key={title} type="button" variant="outline" size="app" className="pi-chat-suggestion items-start gap-1 rounded-[var(--r-panel)] shadow-none bg-background dark:bg-background hover:bg-muted dark:hover:bg-muted" onClick={()=>{model.setText(text);textarea.current?.focus();}}><strong>{title}</strong><span>{description}</span></Button>)}</div>}</EmptyState>
           :<Conversation items={items} choices={model.processChoices} onChoice={model.chooseProcess} onBeforeChange={beforeToggle} afterMessage={draftAfter}/>}
           {agentData&&conversationDrafts.filter(d=>!draftAnchors.get(d.id)).map(d=><AgentDraftsPanel key={d.id} model={agentData} pi={model} draft={d}/>)}
-          {pendingResponse&&<div className="pi-response-waiting" role="status" aria-live="polite"><ScaleLoader color="currentColor" height={16} width={2} margin={1}/><span>{s?.stopping?'正在停止…':model.action==='发送'&&!running?'正在发送…':'正在思考…'}</span></div>}
+          {pendingResponse&&<div className="pi-response-waiting" role="status" aria-live="polite"><ScaleLoader color="currentColor" height={16} width={2} margin={1}/><span>{s?.stopping?'正在停止…':model.viewing?'正在读取会话…':connecting||model.action==='连接'?'正在连接…':model.action==='发送'&&!running?'正在发送…':'正在思考…'}</span></div>}
           {!!s?.recoveredQueue.length&&<Disclosure variant="custom" className="pi-input-history" open><summary>停止时保留的排队文字</summary>{s.recoveredQueue.map((text,index)=><div className="pi-queue" key={index}><p>{text}</p><Button variant="app-quiet" className="pi-quiet" onClick={()=>model.recoverQueue(index)}>取回输入</Button></div>)}</Disclosure>}
         </div>
       </div>{!atBottom&&<Button variant="app-control" type="button" className="pi-latest" onClick={latest}>回到最新 ↓</Button>}</div>
@@ -187,7 +188,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
           {!!model.objects.objects.length&&<div className="pi-attachments">{model.objects.objects.map(source=><div className="pi-attachment" key={JSON.stringify(source)}><span>{model.objects.catalog?.modules.flatMap(module=>module.objects).find(item=>JSON.stringify(item.source)===JSON.stringify(source))?.title??'工作台对象'}</span><Button type="button" variant="app-quiet" onClick={()=>model.objects.remove(source)}>移除</Button></div>)}</div>}
           <div className="pi-composer-actions"><Input variant="inline" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden onChange={event=>void attach(event)}/>
             <Input ref={documentInput} type="file" accept=".pdf,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.png,.jpg,.jpeg,.webp,.gif" hidden multiple onChange={event=>void attach(event)}/><div className="pi-composer-context"><Popover open={addOpen} onOpenChange={setAddOpen}><PopoverTrigger asChild><Button variant="app-quiet" size="icon-sm" type="button" ref={addTrigger} aria-label="添加附件或对象" title="添加附件或对象" disabled={preview||attaching||busy}><PiIcon type={attaching?'activity':'plus'}/></Button></PopoverTrigger><PopoverContent className="pi-agent-layout pi-add-popover" side="top" align="start" collisionPadding={12} aria-label="添加附件"><ActionGroup direction="column"><Button variant="app-menu" onClick={()=>{setAddOpen(false);documentInput.current?.click();}}>添加文件</Button><Button variant="app-menu" onClick={()=>{setAddOpen(false);fileInput.current?.click();}}>添加图片</Button><Button variant="app-menu" onClick={()=>{setAddOpen(false);void model.objects.show();}}>选择工作台对象</Button></ActionGroup></PopoverContent></Popover></div>
-            <div className="pi-model-controls">{ready&&s.models.length>0?<ModelPicker models={s.models} current={currentModel} thinking={state?.thinkingLevel} context={context} disabled={busy||running} onSelect={value=>model.sessionAction('pi_select_model',{provider:value.provider,id:value.id})} onThinking={level=>model.sessionAction('pi_thinking',{level})}/>:<UILink variant="plain" className="pi-composer-model-link" href="#settings/models">配置模型<PiIcon type="chevron"/></UILink>}</div>
+            <div className="pi-model-controls">{ready&&s.models.length>0?<ModelPicker models={s.models} current={currentModel} thinking={state?.thinkingLevel} context={context} disabled={busy||running} onSelect={value=>model.sessionAction('pi_select_model',{provider:value.provider,id:value.id})} onThinking={level=>model.sessionAction('pi_thinking',{level})}/>:!ready?<Button type="button" variant="app-quiet" className="pi-composer-model-link" disabled={preview||model.viewing||busy||!model.root||!model.connected} onClick={()=>void model.connect()}>发送时连接<PiIcon type="chevron"/></Button>:<UILink variant="plain" className="pi-composer-model-link" href="#settings/models">配置模型<PiIcon type="chevron"/></UILink>}</div>
             <div className="pi-send-actions">{running&&<Button variant="app-quiet" className="pi-quiet" type="button" aria-label="插入当前任务" disabled={sendDisabled} onClick={()=>void model.send('steer')}>{compact?'插入':'插入当前任务'}</Button>}
               {showStop&&<Button variant="app-quiet" type="button" className="pi-quiet pi-stop" aria-label={s?.stopping?'正在停止…':'停止'} title={s?.stopping?'正在停止':'停止当前任务'} disabled={preview||!model.connected||!s||s.stopping||!ready&&s.connection!=='connecting'} onClick={()=>void model.stop()}><PiIcon type="stop"/></Button>}
               <Button variant="app-primary" className={`pi-primary pi-composer-send${running?' pi-composer-send--queued':''}`} type="submit" aria-label={running?'排在之后':'发送'} title={running?'排在之后':'发送消息'} disabled={sendDisabled}><PiIcon type="send"/>{running&&<span>{compact?'随后':'排在之后'}</span>}</Button>
@@ -195,7 +196,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
           </div>
         </div>
         {attachmentError&&<Feedback as="p" tone="error" className="form-error" role="alert">{attachmentError}</Feedback>}{imageUnsupported&&<Feedback as="p" tone="error" className="form-error" role="alert">当前模型不支持图片，附件仍保留；请换模型或移除图片后发送。</Feedback>}
-        <p className="pi-composer-help" id="pi-composer-help">{preview?'演示数据仅在页面内展示 · 不调用模型，不保存记录':<>Shift+Enter 换行{!available&&' · 连接模型后可发送'}</>}</p>
+        <p className="pi-composer-help" id="pi-composer-help">{preview?'演示数据仅在页面内展示 · 不调用模型，不保存记录':<>Shift+Enter 换行{ready&&!available&&' · 请先选择模型'}</>}</p>
       </form><PiExtensionPanel model={model} belowOnly/>
     </section>
   </div>;

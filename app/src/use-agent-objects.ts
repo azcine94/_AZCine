@@ -21,6 +21,7 @@ export function useAgentObjects(root:string|null,scope:string){
  function remove(source:AgentSource){const key=scopeRef.current;setSelections(before=>({...before,[key]:(before[key]??[]).filter(item=>identity(item)!==identity(source))}));}
  function clearSent(key:string,sent:AgentSource[]){setSelections(before=>({...before,[key]:(before[key]??[]).filter(item=>!sent.some(source=>identity(source)===identity(item)))}));}
  function restore(key:string,sent:AgentSource[]){setSelections(before=>({...before,[key]:[...sent]}));}
- return{open,setOpen,query,setQuery,catalog,error,loading,objects:selections[scope]??[],show,toggle,remove,clearSent,restore};
+ function move(from:string,to:string){setSelections(before=>{if(!before[from]?.length)return before;const next={...before,[to]:[...(before[to]??[]),...before[from].filter(item=>!(before[to]??[]).some(existing=>identity(existing)===identity(item)))]};delete next[from];return next;});}
+ return{open,setOpen,query,setQuery,catalog,error,loading,objects:selections[scope]??[],show,toggle,remove,clearSent,restore,move};
 }
 export type AgentObjectsController=ReturnType<typeof useAgentObjects>;

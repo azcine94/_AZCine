@@ -105,6 +105,7 @@
     "allow-agent-submit-job",
     "allow-agent-cancel-job",
     "allow-agent-conversation",
+    "allow-agent-view-conversation",
     "allow-agent-context-catalog"
   ]
 }

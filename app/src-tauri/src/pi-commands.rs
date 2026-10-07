@@ -9,15 +9,20 @@ fn allowed(app:&tauri::AppHandle,window:&tauri::WebviewWindow)->Result<(),PiErro
     crate::main_window(window).map_err(|e|PiError::new(e.code,&e.message))?;
     if app.state::<PiExit>().0.load(Ordering::Acquire)!=0{return Err(PiError::new("pi_app_exiting","应用正在退出，未接受新操作；输入保留。"));}Ok(())
 }
-pub(crate) fn notify_for(app:&tauri::AppHandle,key:&str)->Notify{let app=app.clone();let key=key.to_owned();Arc::new(move||{
-    let _=app.emit_to("main","azcine-pi-changed",json!({"conversationKey":key}));
-    if app.state::<PiExit>().0.load(Ordering::Acquire)!=0{return;}
+pub(crate) fn notify_for(app:&tauri::AppHandle,key:&str)->Notify{let app=app.clone();let key=key.to_owned();let previous=std::sync::Mutex::new(None::<Value>);Arc::new(move||{
+    if app.state::<PiExit>().0.load(Ordering::Acquire)!=0{let _=app.emit_to("main","azcine-pi-changed",json!({"conversationKey":key}));return;}
     let runtime=app.state::<crate::agent_runtime::AgentRuntime>();
+    let mut metadata=true;
     if let Ok(manager)=runtime.manager(&key){if let Ok(summary)=manager.summary(){
+        let signature=json!([summary["generation"],summary["sessionId"],summary["sessionFile"],summary["name"],summary["connection"],summary["active"],summary["waiting"],summary["outcome"]]);
+        if let Ok(mut before)=previous.lock(){metadata=before.as_ref()!=Some(&signature);*before=Some(signature);}
+        let _=app.emit_to("main","azcine-pi-changed",json!({"conversationKey":key,"metadata":metadata}));
         if summary["connection"]=="ready"&&summary["active"]==false&&matches!(summary["outcome"].as_str(),Some("success"|"none")){
             if let Ok(snapshot)=manager.snapshot(){crate::agent_commands::persist_settled(&app,&key,snapshot);}
         }
+        return;
     }}
+    let _=app.emit_to("main","azcine-pi-changed",json!({"conversationKey":key,"metadata":metadata}));
 })}
 fn notify(app:&tauri::AppHandle)->Notify{notify_for(app,"default")}
 async fn root(app:tauri::AppHandle)->Result<PathBuf,PiError>{crate::with_storage(app,|m|Ok(m.store()?.root.clone())).await.map_err(|e|PiError::new(e.code,&e.message))}

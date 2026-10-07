@@ -107,7 +107,12 @@ impl Store{
         tx.commit().map_err(db)?;Ok(json!({"deleted":true,"conversationKeys":removed,"sessionPath":path,"sessionId":session_id}))
     }
     pub fn agent_prepare_input(&mut self,key:&str,session:&str,generation:u64,message_count:usize,objects:&[Source],attachments:&[String],providers:&Providers)->Result<(String,Value),StorageError>{
-        let binding=self.agent_conversation(key)?;let source:Source=serde_json::from_value(binding["source"].clone()).map_err(|_|invalid("会话来源记录损坏。"))?;
+        self.agent_prepare_input_at(key,session,generation,message_count,objects,attachments,providers,None)
+    }
+    pub fn agent_prepare_input_at(&mut self,key:&str,session:&str,generation:u64,message_count:usize,objects:&[Source],attachments:&[String],providers:&Providers,current_source:Option<Source>)->Result<(String,Value),StorageError>{
+        let binding=self.agent_conversation(key)?;
+        let source:Source=match current_source{Some(source)=>source,None=>serde_json::from_value(binding["source"].clone()).map_err(|_|invalid("会话来源记录损坏。"))?};
+        source.validate()?;
         if objects.len()>16||attachments.len()>16{return Err(invalid("最多附加16个工作台对象或文件。"));}
         let attachment_root=self.root.clone();let input_id=id(self)?;let tx=self.db.transaction().map_err(db)?;
         let mut contexts=Vec::new();let mut seen=std::collections::HashSet::new();
