@@ -1,6 +1,6 @@
 # AZCine 项目架构
 
-> 更新：2026-10-07。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
+> 更新：2026-10-08。目录名英文、职责中文；只说明实际结构与技术边界，不代表功能已验收。结构变化局部更新，进度只见开发计划。
 
 ## 1. 目录树
 
@@ -276,6 +276,14 @@ React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器�
 `task-panel-store.rs` / types / projects / context / snapshots / evidence / recovery持久化修订/依赖/来源/请求、快照哈希、执行/技术检查/本人验收与确认记忆。`herdr-adapter.rs` / execution / launch / monitor通过本机已有Herdr CLI观察、精确绑定和操作已批准的执行窗格，PowerShell分别启动codex/opi；未知/过期不推断完成。Agent access/intake、应用 `resources/task-panel-cli.mjs` 与graph contract提供任务范围的查询/候选回填，显式词法索引并非完整Tree-sitter或独立Codex App Server；调用关系为候选，执行图与代码图分层关联来源。退出同时保留Pi清理和task-panel接入关闭。
 
 兼容共同业务库的 `storage-branch-schema.rs` 按表/列结构区分任务旧13/14与Agent13～16，合并后全局保持16，任务表另记app_meta.task_panel_schema=14；初始化/迁移同事务创建缺少模块并验证。旧任务13/14不能跳过Agent建表/待办软删除，Agent16不能重跑13/14迁移；不降级/重建库，独立仓库任务库不混用这套版本。相关旧fixture和版本断言已随合并调整但未运行，真实库/任务归并/窗格/模型本轮未操作。
+
+### 服务器和凭证
+
+`App.tsx` / `routes.ts` → `server-credentials-panel.tsx` → `use-server-credentials.ts` → Rust `server-credentials.rs`，契约/日期在 `server-credentials-contract.ts`，布局在 `styles/server-credentials.css`；`server-credentials-demo.ts` 仅供显式UI预览。共用分页在 `components/ui/record-pagination.tsx`，组件变体与总览沿用现有目录。
+
+Rust的load/save/receipt/add_file/open_folder五个 `server_credentials_*` 命令通过build/lib/capabilities注册，验证主窗口和当前根，复用Store写入锁。模块以 `app_meta.server_credentials_schema=1` 附加建表，不提高全局schema16或改任务模块标记；`server_credentials_state` 保存revision/JSON快照，requests保存幂等请求/指纹，files保存文件名/大小/哈希。读写均检查字段/日期/关联，修订条件更新和回执同事务；清红点仍写整份快照，尚未拆分接口。
+
+用户选择的文件复制到数据根 `attachments/credentials/<uuid>/key-<原文件名>`，1字节至1MB；打开目录按ID查库后核对路径、大小和哈希。删除记录/取消关联保副本和原件。密码及副本无本模块额外静态加密，不新增解锁流程。服务器/凭证各最多10000条、续费历史100000条、写入序列化上限32MiB；限额不代表真实大数据性能已验证。
 
 ## 5. 文档与路径维护
 
