@@ -9,4 +9,4 @@
 - **证据**：artifacts/validation/release-010-20261008-163212；before保留初始改动。深安装路径导致测试安装器失败，短隔离目录重跑升级通过；不建议深自定义安装路径。全部使用虚构库/假认证，无付费模型/云端OneDrive/第二台实体电脑/独立复核，不宣称全产品用户验收。
 - **远端**：azcine94/_AZCine公开仓库，账号ADMIN、Actions启用，远端main4c747a9，本地原基线4a0f07c领先38落后0。git单命令代理127.0.0.1:7890可连接，未改全局设置。待推release分支并以merge commit合并PR，不直接推main。
 - **签名**：本机私钥.tooling/release-signing/azcine-updater.key（ACL仅当前用户/SYSTEM），GitHub Secret TAURI_SIGNING_PRIVATE_KEY已配置；公钥在tauri.conf。不得打印私钥或generate.log；用户需自行妥善备份，后续更新沿用同一密钥。无Windows发布者证书。
-- **下一步**：提交main，建立release/v0.1.0独立Worktree；Windows工作流/发布资产生成器草稿在本run/release-drafts，须接入并验证。完成PR/CI/合并后运行发布工作流、下载公开包验证，最后同步本地main。尚未推送/PR/正式Release，不提前记发布。
+- **发版工作目录**：release/v0.1.0，C:/Users/A/.herdr/worktrees/_AZCine/release-v0-1-0，基线main4c1846f。Windows CI/手动发布工作流、资产生成器已接入，固定官方Actions提交；文档仍在main维护。下一步验证并推此分支PR，CI通过以merge commit合并，再运行发布工作流、下载公开包验证并同步本地main。尚未推送/PR/正式Release。

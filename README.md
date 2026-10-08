@@ -77,6 +77,7 @@ Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立�
 1. 从[官方固定地址](https://static.rust-lang.org/rustup/archive/1.29.1/x86_64-pc-windows-msvc/rustup-init.exe)下载到 `.tooling/downloads/rustup-init-1.29.1.exe`。
 2. 执行 `pwsh -NoProfile -File scripts/setup-rust.ps1`；脚本核对官方 SHA 后安装到本项目 `.tooling/`。
 3. 执行 `npm --prefix app ci`，按锁文件安装应用依赖。
+4. 执行 `node scripts/prepare-release-runtime.mjs`，下载并核对锁定的应用独立运行资源；已有匹配资源直接核对，不覆盖。
 
 应用 Pi 的源码锁要求 `app/resources/runtime/pi-1.0.4-node-24.21.0/` 内独立 Node 24.21.0 / 上游 Pi 1.0.4，不使用系统开发 Node 或 PATH 中其他 Pi。main的1.0.4资源已准备并核对安装完整性；其他新环境仍须部署匹配资源，版本不匹配明确失败，不能改用旧Pi。新环境是否满足全部桌面能力仍需实际验证。
 

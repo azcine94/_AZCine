@@ -325,3 +325,5 @@ Rust的load/save/receipt/add_file/open_folder五个 `server_credentials_*` 命�
 `app-update.rs`管理固定GitHub稳定版端点、检查/下载状态和签名安装，前端仅调用四个受限主窗IPC，不可指定更新URL或密钥；`use-app-update.ts`订阅原生状态，`app-update-panel.tsx`显示版本及确认操作。开发编译禁用安装，正式版使用Tauri updater公钥校验，安装先停止本应用拥有的后台/Pi进程，再由NSIS替换程序并重启。用户选择的数据根位于安装目录之外，更新不搬迁业务数据。
 
 `scripts/prepare-release-runtime.mjs`在干净Windows构建机按runtime-lock下载官方Node与Pi完整安装锁，校验入口哈希，不读取用户配置或宿主Pi；`scripts/build-desktop.mjs`使用仓库自有工具链构建。签名私钥只在本机忽略目录和GitHub Secret，公钥随配置发布。
+
+`.github/actions/prepare-windows`统一干净环境准备；`windows-ci.yml`在PR上检查前端、Rust和Windows release编译；`windows-release.yml`只在main手动运行，检查标签/版本/当前SHA后构建签名NSIS。`scripts/release-assets.mjs`拒绝测试身份/HTTP配置，生成Windows更新清单、SHA256SUMS和README版本说明；工作流先上传草稿完整资产，再公开为latest。
