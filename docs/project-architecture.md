@@ -291,6 +291,14 @@ Rust的load/save/receipt/add_file/open_folder五个 `server_credentials_*` 命�
 
 用户选择的文件复制到数据根 `attachments/credentials/<uuid>/key-<原文件名>`，1字节至1MB；打开目录按ID查库后核对路径、大小和哈希。删除记录/取消关联保副本和原件。密码及副本无本模块额外静态加密，不新增解锁流程。服务器/凭证各最多10000条、续费历史100000条、写入序列化上限32MiB；限额不代表真实大数据性能已验证。
 
+### 开发环境打包与部署
+
+工具路由 → `dev-environment-panel.tsx` / `use-dev-environment.ts` → `dev-environment-client.ts` → `src-tauri/src/dev-environment.rs` 的inspect/status/export/cancel/open五个 `dev_environment_*` IPC → 内嵌 `src-tauri/resources/dev-environment/` 的common/inspect/export/deploy/start-environment PowerShell脚本。EnvironmentState保存任务进度和自身子进程句柄，应用退出调用shutdown；不写业务库、不增加schema/依赖，不替换应用自有Pi/runtime。
+
+导出读取所选当前Herdr/OpenPI和运行依赖，排除已知认证/会话/项目/缓存，结构化配置处理凭据和已知路径；生成 `dev-environment.zip` / `skills-manager.zip` 及文件清单。环境包包含独立deploy.cmd，先校验再恢复到所选目录，冲突拒绝覆盖；恢复Shell入口和快捷方式，PATH仅作用于子进程，不改全局PATH或系统执行策略。Skills保隐藏项/空目录、链接由用户建立，Codex只附安装命令；取消/失败保未完成标记。
+
+该模块导出的是用户选定的外部开发环境，与AZCine自身原版Pi隔离规则分开；不修改源宿主配置或核心，也不宣称配置转换覆盖任意外部服务/自定义路径。`app/tests/dev-environment-integration.py` / boundaries.py保存隔离验证脚本；前端总览fixture不执行真实文件操作。
+
 ## 5. 文档与路径维护
 
 目录/职责/调用关系变更时只更新本图相关节点；功能细节或测试数字不反复改架构。新增模块区分实际/计划，不以图宣称已实现。

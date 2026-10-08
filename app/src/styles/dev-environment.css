@@ -1,0 +1,14 @@
+.dev-environment { display:flex; flex-direction:column; gap:var(--s-4); min-width:0; padding-bottom:var(--s-5); }
+.dev-environment-intro,.dev-environment-heading { display:flex; justify-content:space-between; align-items:center; gap:var(--s-4); flex-wrap:wrap; }
+.dev-environment-intro h2,.dev-environment h3 { margin:0; font-size:var(--fs-h); line-height:var(--lh-h); }
+.dev-environment-intro p,.dev-environment-source p,.dev-environment-note { color:var(--muted-foreground); font-size:var(--fs-s); line-height:var(--lh-s); margin:var(--s-2) 0; }
+.dev-environment-sources { display:flex; flex-direction:column; gap:var(--s-5); }
+.dev-environment-source { min-width:0; }
+.dev-environment-source-title { display:flex; align-items:center; gap:var(--s-2); flex-wrap:wrap; }
+.dev-environment-source-title>svg { width:var(--icon-size); height:var(--icon-size); }
+.dev-environment-path { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:var(--s-2); margin-top:var(--s-2); }
+.dev-environment-export,.dev-environment-progress,.dev-environment-result { display:flex; flex-direction:column; gap:var(--s-3); }
+.dev-environment-heading p { margin:0; overflow-wrap:anywhere; }
+.dev-environment-result-path { margin:0; overflow-wrap:anywhere; font-family:var(--mono); font-size:var(--fs-s); }
+.dev-environment ul { margin:0; padding-left:var(--s-5); overflow-wrap:anywhere; }
+.dev-environment [data-slot="feedback"] { overflow-wrap:anywhere; }

@@ -16,6 +16,7 @@
 @import './bookkeeping.css' layer(components);
 @import './server-credentials.css' layer(components);
 @import './task-panel.css' layer(components);
+@import './dev-environment.css' layer(components);
 @import './settings.css' layer(components);
 @import './pi-resources.css' layer(components);
 @import './news-processing.css' layer(components);
