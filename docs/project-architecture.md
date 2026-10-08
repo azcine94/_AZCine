@@ -259,7 +259,7 @@ accepted/handled只代表接受，不是业务完成；终态结合settled状态
 
 数据库源码为16：v13 Agent持久记录，v14任务ordinal/context_objects，v15会话软删除/原生路径屏蔽，v16待办软删除；同事务推进版本。原生会话文件仍是历史来源，删除不删JSONL。原库本轮未打开/迁移，升级后schema12及更早程序拒绝读取，其他Worktree需按授权同步兼容代码。后台独立临时配置禁资源发现，草案任务才开放MCP；不等于任意任务/原版spawn或关机调度。
 
-React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器：切模块仅更新下一次来源，历史只读/首次发送才连接；根/会话/epoch/generation/seq保护迟到回执。Pi空闲600秒释放、resident配额为回复上限+2，活动/等待受保护；投影缓存目标8个/约128MiB也保护当前/忙碌输入，非整体内存硬上限。正文/元数据合并，资源仅其页面按需加载并缓存30秒。父ID与nestedCalls在pi-projection.rs白名单投影，pi-process-view.ts按父链去重归组；异常/孤立事件保留。
+React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器：切模块仅更新下一次来源，按2026-10-08决定自动连接；根/会话/epoch/generation/seq保护迟到回执。Pi空闲600秒释放、resident配额为回复上限+2，活动/等待受保护；投影缓存目标8个/约128MiB也保护当前/忙碌输入，非整体内存硬上限。正文/元数据合并，资源仅其页面按需加载并缓存30秒。父ID与nestedCalls在pi-projection.rs白名单投影，pi-process-view.ts按父链去重归组；异常/孤立事件保留。
 
 `scripts/launcher-lock.mjs` 核对PID/创建时间处理失效锁，无法确认则保留，不按名称结束进程；隔离验证启动状态/target/cache与正常开发分开。以上结构已合入62c93dc，runtime已部署并核对安装完整性，MCP/任务/迁移/生命周期真实运行未验证。
 
@@ -298,6 +298,16 @@ Rust的load/save/receipt/add_file/open_folder五个 `server_credentials_*` 命�
 导出读取所选当前Herdr/OpenPI和运行依赖，排除已知认证/会话/项目/缓存，结构化配置处理凭据和已知路径；生成 `dev-environment.zip` / `skills-manager.zip` 及文件清单。环境包包含独立deploy.cmd，先校验再恢复到所选目录，冲突拒绝覆盖；恢复Shell入口和快捷方式，PATH仅作用于子进程，不改全局PATH或系统执行策略。Skills保隐藏项/空目录、链接由用户建立，Codex只附安装命令；取消/失败保未完成标记。
 
 该模块导出的是用户选定的外部开发环境，与AZCine自身原版Pi隔离规则分开；不修改源宿主配置或核心，也不宣称配置转换覆盖任意外部服务/自定义路径。`app/tests/dev-environment-integration.py` / boundaries.py保存隔离验证脚本；前端总览fixture不执行真实文件操作。
+
+### 项目图片、Agent与资讯后续修订（dd2785d）
+
+项目行payload增加可选images映射关联现有列；`project-images.rs` 的project_import_image/project_image_preview由Rust写 `attachments/projects` 副本，读取核对大小/类型/SHA256，无schema版本迁移。`project-cell-images.tsx` / imports / list-editor接选图/粘贴/拖入；ImageViewer/ExpandableTextCell复用到项目/附件/文章，原件不改。
+
+`agent-session-navigation.tsx` / `use-agent-data.ts` 保存会话重命名，agent-store将草案验证失败落blocked/conflict并保原因；新信源草案必须暂停。`use-pi.ts` 自动连接与状态保护，provider-advanced/pi-thinking及Rust provider-config保存完整推理映射/默认强度；不改变上游核心/默认提示，实际模型支持另验。
+
+`news-daily-panel.tsx` / daily及 `news/daily[/id]` 路由恢复日报、复制/Markdown导出和今天看点，保08:00固定窗口与同日版本，不自动处理所有材料。content/feed/http识别聚合链接/实体/媒体与摘要，`news-browser.rs` / extract.js在独立取文窗口读取公开DOM，无法取得全文保摘要/公开节选与原因；`run-desktop.mjs` 仅为主窗口设置dataDirectory，不再用进程级WebView目录覆盖取文窗口。
+
+`news-pipeline.rs` / news-ai在应用层按2/5/10秒最多追加3次临时错误重试，逐次记录步骤/额度，取消优先；Pi原生重试关闭，坏进程先释放再按原模型连接，写库/格式/认证/配置/额度错误不自动重试。材料不足保待补并继续，手动恢复复用回执及原配置。article-body/news-body-markdown只在展示层合并开头作者与邻接控件，历史存储/复制导出不改。BrandLogo与assets/brands保原色资源及许可清单。旧原库恢复/清空任务已取消，不调用其历史脚本。
 
 ## 5. 文档与路径维护
 
