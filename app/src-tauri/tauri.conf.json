@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AZCine",
-  "version": "0.0.0",
-  "identifier": "com.azcine.workbench",
+  "version": "0.1.0",
+  "identifier": "com.azcine.workbench.release",
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://127.0.0.1:1420",
@@ -10,22 +10,53 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{
-      "label": "main",
-      "title": "AZCine · 本地开发版",
-      "width": 1440,
-      "height": 900,
-      "minWidth": 1024,
-      "minHeight": 768,
-      "center": true,
-      "decorations": false,
-      "resizable": true,
-      "shadow": true,
-      "dragDropEnabled": false
-    }],
+    "windows": [
+      {
+        "label": "main",
+        "title": "AZCine",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 768,
+        "center": true,
+        "maximized": true,
+        "decorations": false,
+        "resizable": true,
+        "shadow": true,
+        "dragDropEnabled": false
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420 https://datasets-server.huggingface.co https://models.dev; object-src 'none'; base-uri 'self'; frame-src 'none'"
     }
   },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../resources/runtime/pi-1.0.4-node-24.21.0/": "runtime/pi-1.0.4-node-24.21.0/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/azcine94/_AZCine/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      },
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUxMzJCREEyMjVERTA4QjAKUldTd0NONGxvcjB5VWFOSDdPMWVVZjhmcEJsaU1oSkhyQlBWbTZXM3JRcVlZdEpDaWNqUDBGYVUK"
+    }
+  }
 }

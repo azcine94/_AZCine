@@ -112,6 +112,21 @@ pub fn start_reaper(app:tauri::AppHandle){let _=std::thread::Builder::new().name
 
 /// S03 closes the whole app, not a tray transition. S11 will add explicit tray
 /// ownership; the final exit must continue to call this same owned cleanup.
+pub fn stop_for_update(app:&tauri::AppHandle)->Result<(),PiError>{
+    app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);
+    app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
+    let active=app.state::<crate::news_ai::AiControl>().active.lock().ok().and_then(|v|v.clone());
+    if let Some(active)=active{active.shutdown(std::time::Duration::ZERO)?;}
+    crate::agent_jobs::shutdown(app).map_err(|e|PiError::new(e.code,&e.message))?;
+    app.state::<crate::agent_runtime::AgentRuntime>().shutdown(notify(app))?;
+    app.state::<crate::agent_mcp::BusinessMcp>().shutdown();
+    Ok(())
+}
+pub fn resume_after_update_failure(app:&tauri::AppHandle){
+    app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(false);
+    app.state::<crate::agent_jobs::BackgroundSlots>().set_exiting(false);
+    let _=app.emit_to("main","azcine-pi-changed",());
+}
 fn begin_exit(app:&tauri::AppHandle){
     if app.state::<PiExit>().0.compare_exchange(0,1,Ordering::AcqRel,Ordering::Acquire).is_err(){return;}
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);

@@ -11,6 +11,10 @@ export interface Scene {id:string;title:string;group:string;route:Route|null;sta
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
+  'update-current':'更新 · 已是最新','update-ready':'更新 · 可安装','update-downloading':'更新 · 下载进度','update-error':'更新 · 网络失败','update-development':'更新 · 开发版限制',
+  'data-migrate':'数据目录 · 迁移到空目录','data-switch':'数据目录 · 切换已有目录',
+  'data-change-pending':'数据目录 · 等待重启','data-change-failed':'数据目录 · 失败保留输入',
+  'data-path-prefixed':'数据目录 · Windows 路径前缀','data-path-long':'数据目录 · 超长路径换行',
   'manager-notice-warning':'服务器提醒 · 仅临近到期黄点','manager-notice-clear':'服务器提醒 · 无提醒不显示点',
   'manager-reminders-dismissed':'服务器提醒 · 清除红点后保留完整列表',
   'manager-credentials':'服务器和凭证 · 凭证列表', 'manager-reminders':'服务器和凭证 · 到期提醒',
@@ -95,6 +99,8 @@ function states(route:string) {
   if (route==='resources') return [...base,'editing','dirty','disconnected','connecting','resource-waiting','windows-paths'];
   if (route==='settings') return ['normal','disconnected','long'];
   if (route==='settings/diagnostics') return ['normal','loading','error','success'];
+  if (route==='settings/about') return ['normal','update-current','update-ready','update-downloading','update-error','update-development'];
+  if (route==='settings/data') return [...base,'no-root','data-migrate','data-switch','data-change-pending','data-change-failed','data-path-prefixed','data-path-long'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open','windows-paths'];
   if (route==='agent') return [...base,...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
   if(route==='news/daily'||route.startsWith('news/daily/'))return [...base,'daily-empty','daily-failed','daily-running','daily-waiting','daily-paused','daily-versions','daily-refreshing','daily-menu','incomplete'];

@@ -13,9 +13,9 @@ fn checksum(path:&Path)->Result<String,ConfigError>{let mut file=File::open(path
 pub fn resolve(resource_dir:&Path)->Result<RuntimePaths,ConfigError>{
     let lock:Value=serde_json::from_str(LOCK).map_err(|_|invalid())?;
     let directory=lock["directory"].as_str().ok_or_else(invalid)?;
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     let root=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../resources/runtime").join(directory);
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(any(debug_assertions, test)))]
     let root=resource_dir.join("runtime").join(directory);
     let _=resource_dir;
     no_link(&root)?;

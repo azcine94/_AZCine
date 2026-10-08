@@ -14,6 +14,9 @@ const rustupHome = path.join(root, '.tooling', 'rustup');
 const cargo = path.join(cargoHome, 'bin', process.platform === 'win32' ? 'cargo.exe' : 'cargo');
 const cli = path.join(app, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 const mode = process.argv[2] || 'dev';
+// Keep the existing locator, instance lock and repository catalog with dev.
+// The base Tauri configuration owns the separate installed-release identity.
+const developmentIdentifier = 'com.azcine.workbench';
 if (!['dev', 'test:rust'].includes(mode)) throw new Error(`Unsupported development command: ${mode}`);
 const mainRoot = prepareEnvironment(root);
 const isolatedValidation = mode==='dev' && Boolean(process.env.AZCINE_TEST_CONFIG_DIR);
@@ -82,11 +85,11 @@ if (mode === 'dev') {
     if (!ready) continue;
     const source = JSON.parse(readFileSync(path.join(app, 'src-tauri/tauri.conf.json'), 'utf8'));
     devConfig = path.join(stateDirectory, 'tauri-dev.json');
-    writeFileSync(devConfig, JSON.stringify({ build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { windows: source.app.windows.map(window => window.label === 'main' ? {...window, dataDirectory: webviewDataFolder} : window), security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
+    writeFileSync(devConfig, JSON.stringify({ identifier: developmentIdentifier, build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { windows: source.app.windows.map(window => window.label === 'main' ? {...window, title: 'AZCine · 本地开发版', dataDirectory: webviewDataFolder} : window), security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
     const isolated = !!(env.AZCINE_TEST_CONFIG_DIR || env.AZCINE_TEST_DEFAULT_ROOT);
     // Report the real locator target without opening the business database or
     // reading Pi credentials. Rust remains responsible for validating it.
-    const config = env.AZCINE_TEST_CONFIG_DIR || (isolated ? path.join(root, '.tooling', 'dev-instance', 'config') : path.join(env.LOCALAPPDATA, 'com.azcine.workbench'));
+    const config = env.AZCINE_TEST_CONFIG_DIR || (isolated ? path.join(root, '.tooling', 'dev-instance', 'config') : path.join(env.LOCALAPPDATA, developmentIdentifier));
     const locatorPath = path.join(config, 'data-root.json');
     let locatedRoot = null;
     if (existsSync(locatorPath)) {

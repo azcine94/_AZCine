@@ -4,6 +4,9 @@ export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'f
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'[data-agent-more]'};
 export const stateActions:Record<string,StateAction[]>={
+  'data-migrate':[{selector:'.data-panel button',text:'更改数据目录'}],
+  'data-switch':[{selector:'.data-panel button',text:'更改数据目录'}],
+  'data-change-failed':[{selector:'.data-panel button',text:'更改数据目录'}],
   'task-panel-feedback-pending':[{selector:'.tp-feedback-panel details',action:'open'}],
   'task-panel-feedback-response':[{selector:'.tp-feedback-panel details',action:'open'}],
   'task-panel-project-delete-confirm':[{selector:'[data-task-project-delete]'}],

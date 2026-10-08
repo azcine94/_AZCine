@@ -61,10 +61,15 @@ pub struct Workspace {
     pub root: Option<String>,
     pub default_root: String,
     pub todos: Vec<Todo>,
+    pub root_change_notice: Option<String>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Locator { version: u32, root: PathBuf, identity: String }
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RootChange { source: PathBuf, identity: String, destination: PathBuf, mode: String }
 
 pub struct Store {
     pub root: PathBuf,
@@ -79,6 +84,7 @@ pub struct Manager {
     store: Option<Store>,
     // Lock the locating config too: two application instances cannot select different roots.
     _instance_lock: File,
+    root_change_notice: Option<String>,
 }
 #[derive(Default)]
 pub struct StorageState(pub Mutex<Option<Manager>>);
@@ -106,7 +112,64 @@ impl Manager {
     pub fn new(config_dir: PathBuf, default_root: PathBuf) -> Result<Self, StorageError> {
         fs::create_dir_all(&config_dir).map_err(io_error)?;
         let lock = lock_file(&config_dir.join("instance.lock"))?;
-        Ok(Self { locator: config_dir.join("data-root.json"), default_root, store: None, _instance_lock: lock })
+        let mut manager = Self { locator: config_dir.join("data-root.json"), default_root, store: None, _instance_lock: lock, root_change_notice: None };
+        let pending = config_dir.join("pending-data-root.json");
+        if pending.is_file() {
+            let result = manager.apply_root_change(&pending);
+            manager.root_change_notice = Some(match &result {
+                Ok(()) => "数据目录已更改，旧目录仍保留。".into(),
+                Err(error) => format!("更改未完成，仍使用原目录：{}", error.message),
+            });
+            // Keep the request as a receipt; a failed copy is never retried onto
+            // its partial destination or silently promoted on a later start.
+            let receipt = config_dir.join(format!("data-root-change-{}-{}.json", if result.is_ok() { "done" } else { "failed" }, chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()));
+            fs::rename(&pending, receipt).map_err(io_error)?;
+        }
+        Ok(manager)
+    }
+    pub fn schedule_root_change(&mut self, destination: &Path, mode: &str) -> Result<(), StorageError> {
+        if !["migrate", "switch"].contains(&mode) { return Err(StorageError::new("root_change_mode", "请选择迁移或切换。")); }
+        let store = self.store()?;
+        let destination = crate::data_root_change::target(&store.root, destination, mode == "migrate")?;
+        let request = RootChange { source: store.root.clone(), identity: store.identity.clone(), destination, mode: mode.into() };
+        let file = self.locator.with_file_name("pending-data-root.json");
+        if file.exists() { return Err(StorageError::new("root_change_pending", "已有目录更改等待下次启动处理，请先正常退出并重新打开。")); }
+        let mut pending = tempfile::NamedTempFile::new_in(file.parent().unwrap()).map_err(io_error)?;
+        pending.disable_cleanup(true);
+        pending.write_all(&serde_json::to_vec(&request).map_err(|_| io_error(std::io::ErrorKind::InvalidData.into()))?).map_err(io_error)?;
+        pending.as_file().sync_all().map_err(io_error)?;
+        pending.persist_noclobber(file).map_err(|_| StorageError::new("root_change_pending", "目录更改计划未保存，原目录仍在使用。"))?;
+        self.root_change_notice = Some("已安排更改数据目录；请正常退出并重新打开，旧目录会保留。".into());
+        Ok(())
+    }
+    pub fn cancel_root_change(&mut self) -> Result<(), StorageError> {
+        let pending = self.locator.with_file_name("pending-data-root.json");
+        if pending.exists() {
+            fs::rename(&pending, pending.with_file_name(format!("data-root-change-cancelled-{}.json", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()))).map_err(io_error)?;
+        }
+        self.root_change_notice = None;
+        Ok(())
+    }
+    fn apply_root_change(&mut self, pending: &Path) -> Result<(), StorageError> {
+        let bytes = fs::read(pending).map_err(io_error)?;
+        if bytes.len() > 32768 { return Err(StorageError::new("root_change_invalid", "目录更改计划无效。")); }
+        let request: RootChange = serde_json::from_slice(&bytes).map_err(|_| StorageError::new("root_change_invalid", "目录更改计划无法读取，原定位保留。"))?;
+        if !["migrate", "switch"].contains(&request.mode.as_str()) { return Err(StorageError::new("root_change_invalid", "目录更改方式无效。")); }
+        let store = self.store()?;
+        if store.root != request.source || store.identity != request.identity { return Err(StorageError::new("root_changed", "原数据目录已变化，未执行旧的更改计划。")); }
+        let target = crate::data_root_change::target(&store.root, &request.destination, request.mode == "migrate")?;
+        if request.mode == "migrate" { crate::data_root_change::copy(&store.root, &target, &store.db)?; }
+        let next = Store::open(&target, false)?;
+        let locator = Locator { version: 1, root: next.root.clone(), identity: next.identity.clone() };
+        let mut backup = tempfile::Builder::new().prefix("data-root-before-").suffix(".json").tempfile_in(self.locator.parent().unwrap()).map_err(io_error)?;
+        backup.disable_cleanup(true); backup.write_all(&fs::read(&self.locator).map_err(io_error)?).map_err(io_error)?; backup.as_file().sync_all().map_err(io_error)?;
+        let mut replacement = tempfile::NamedTempFile::new_in(self.locator.parent().unwrap()).map_err(io_error)?;
+        replacement.disable_cleanup(true);
+        replacement.write_all(&serde_json::to_vec(&locator).map_err(|_| StorageError::new("locator_invalid", "数据目录定位无法保存。"))?).map_err(io_error)?;
+        replacement.as_file().sync_all().map_err(io_error)?;
+        replacement.persist(&self.locator).map_err(|_| StorageError::new("locator_save_failed", "新目录已核对，但定位保存失败，仍使用原目录。"))?;
+        self.store = Some(next);
+        Ok(())
     }
     pub fn workspace(&mut self) -> Result<Workspace, StorageError> {
         if self.store.is_none() && self.locator.try_exists().map_err(io_error)? {
@@ -125,11 +188,12 @@ impl Manager {
             root: self.store.as_ref().map(|s| s.root.to_string_lossy().into_owned()),
             default_root: self.default_root.to_string_lossy().into_owned(),
             todos: match &self.store { Some(s) => s.todos()?, None => vec![] },
+            root_change_notice: self.root_change_notice.clone(),
         })
     }
     pub fn select_root(&mut self, root: &Path) -> Result<Workspace, StorageError> {
         if self.store.is_some() || self.locator.try_exists().map_err(io_error)? {
-            return Err(StorageError::new("root_already_selected", "已有数据目录；完整迁移与切换将在数据保障阶段接入，不会直接改为新空库。"));
+            return Err(StorageError::new("root_already_selected", "已有数据目录，请在设置 → 数据目录 → 更改数据目录中迁移或切换。"));
         }
         let store = Store::open(root, true)?;
         let locator = Locator { version: 1, root: store.root.clone(), identity: store.identity.clone() };
@@ -350,6 +414,7 @@ impl Store {
         crate::agent_store::validate_schema(&db)?;
         crate::task_panel_store::validate_schema(&db)?;
         crate::task_panel_projects::validate_schema(&db)?;
+        crate::portable_data::prepare(&mut db, &root)?;
         crate::news_reset::recover_files(&root,&db)?;
         crate::news_store::recover_runs(&db, &root)?;
         crate::news_editorial_store::recover(&db)?;

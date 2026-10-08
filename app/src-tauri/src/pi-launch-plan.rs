@@ -5,12 +5,29 @@ use std::{ffi::OsString, fs, path::{Path, PathBuf}};
 
 fn error(code: &'static str, message: &'static str) -> ConfigError { ConfigError { code, message } }
 fn io_error(_: std::io::Error) -> ConfigError { error("pi_path_io", "Pi 自有目录不可读写，请检查路径、权限与空间；没有改用其他 Pi。") }
+pub(crate) fn linked_path(path: &Path, meta: &fs::Metadata) -> Result<bool, ConfigError> {
+    if meta.file_type().is_symlink() { return Ok(true); }
+    #[cfg(windows)] {
+        use std::os::windows::{fs::{MetadataExt, OpenOptionsExt}, io::AsRawHandle};
+        use windows::Win32::{Foundation::HANDLE, Storage::FileSystem::{GetFileInformationByHandleEx, FileAttributeTagInfo, FILE_ATTRIBUTE_TAG_INFO}};
+        if meta.file_attributes() & 0x400 != 0 {
+            let file = fs::OpenOptions::new().access_mode(0x80).share_mode(7)
+                .custom_flags(0x0220_0000).open(path).map_err(io_error)?;
+            let mut info = FILE_ATTRIBUTE_TAG_INFO::default();
+            unsafe { GetFileInformationByHandleEx(HANDLE(file.as_raw_handle()), FileAttributeTagInfo,
+                (&mut info as *mut FILE_ATTRIBUTE_TAG_INFO).cast(), std::mem::size_of_val(&info) as u32) }.map_err(|_| error("pi_path_io", "无法核对数据目录属性。"))?;
+            // Cloud Files tags represent in-place OneDrive files, not another
+            // pathname. Continue rejecting junctions, symlinks and unknown tags.
+            return Ok((info.ReparseTag & !0x0000_f000) != 0x9000_001a);
+        }
+    }
+    let _ = path;
+    Ok(false)
+}
 pub fn no_link(path: &Path) -> Result<(), ConfigError> {
     match fs::symlink_metadata(path) {
         Ok(meta) => {
-            #[cfg(windows)]
-            { use std::os::windows::fs::MetadataExt; if meta.file_attributes() & 0x400 != 0 { return Err(error("pi_path_link", "Pi 目录含链接或重解析路径，已停止以免读写其他环境。")); } }
-            if meta.file_type().is_symlink() { return Err(error("pi_path_link", "Pi 目录含链接，已停止以免读写其他环境。")); }
+            if linked_path(path, &meta)? { return Err(error("pi_path_link", "Pi 目录含链接或不支持的重解析路径，已停止以免读写其他环境。")); }
             Ok(())
         },
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

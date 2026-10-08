@@ -16,6 +16,9 @@ export function useWorkspace() {
   const [errorScope, setErrorScope] = useState<string | null>(null);
   const [notice, setNotice] = useOperationNotice('');
   const [rootDraft, setRootDraft] = useState('');
+  const [rootChangePath, setRootChangePath] = useState('');
+  const [rootChangeMode, setRootChangeMode] = useState<'migrate' | 'switch'>('migrate');
+  const [rootChangeScheduled, setRootChangeScheduled] = useState(false);
   const rootTouched = useRef(false);
   const [draft, setDraft] = useState({ title: '', dueDate: '', projectId: '' });
   const draftRef = useRef(draft);
@@ -93,6 +96,26 @@ export function useWorkspace() {
   const openRoot = () => action('open-root', async () => {
     await invoke('open_data_root'); setNotice('已请求 Windows 打开当前数据目录。');
   });
+  const pickRootChange = () => action('pick-root-change', async () => {
+    const chosen = await invoke<unknown>('pick_data_root');
+    if (chosen === null) return;
+    if (typeof chosen !== 'string' || !chosen) throw new Error('系统未返回有效目录。');
+    setRootChangePath(chosen);
+  });
+  async function scheduleRootChange() {
+    let saved = false;
+    await action('change-root', async () => {
+      if (!rootChangePath.trim()) throw new Error('请选择目标数据目录。');
+      await invoke('schedule_data_root_change', { path: rootChangePath.trim(), mode: rootChangeMode });
+      setRootChangeScheduled(true); saved = true;
+      setNotice('已安排更改，请正常退出并重新打开；旧目录会保留。');
+    });
+    return saved;
+  }
+  const cancelRootChange = () => action('change-root', async () => {
+    await invoke('cancel_data_root_change'); setRootChangeScheduled(false);
+    setNotice('已取消目录更改，继续使用当前目录。');
+  });
   function acceptTodo(todo: Todo) {
     setWorkspace(previous => previous && ({ ...previous, todos: [...previous.todos.filter(t => t.id !== todo.id), todo] }));
   }
@@ -147,6 +170,7 @@ export function useWorkspace() {
     success=true;
   });return success;}
   return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot, draft, changeDraft,deletedTodo,changeDeletion,
+    rootChangePath, setRootChangePath, rootChangeMode, setRootChangeMode, rootChangeScheduled, pickRootChange, scheduleRootChange, cancelRootChange,
     pendingCreate, filter, setFilter, today, undo, refresh, pickRoot, selectRoot, openRoot, saveTodo, reconcileCreate, changeCompletion };
 }
 export type WorkspaceController = ReturnType<typeof useWorkspace>;

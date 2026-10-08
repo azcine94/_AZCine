@@ -4,6 +4,8 @@ use dev_environment::{dev_environment_inspect,dev_environment_status,dev_environ
 #[path = "context-menu.rs"] mod context_menu;
 #[path = "pi-session-title.rs"] mod pi_session_title;
 mod storage;
+#[path = "portable-data.rs"] mod portable_data;
+#[path = "data-root-change.rs"] mod data_root_change;
 #[path = "server-credentials.rs"] mod server_credentials;
 use server_credentials::{server_credentials_load, server_credentials_save, server_credentials_receipt, server_credentials_add_file, server_credentials_open_folder};
 mod native_paths;
@@ -114,6 +116,8 @@ use agent_jobs::{agent_jobs,agent_submit_job,agent_cancel_job};
 use pi_commands::*;
 
 use tauri::Manager as _;
+#[path = "app-update.rs"] mod app_update;
+use app_update::{app_update_status,app_update_check,app_update_download,app_update_install};
 use storage::{CreateTodo, StorageError, StorageState, Todo, Workspace};
 
 fn main_window(window: &tauri::WebviewWindow) -> Result<(), StorageError> {
@@ -127,7 +131,10 @@ async fn with_storage<T: Send + 'static>(app: tauri::AppHandle, work: impl FnOnc
         let mut guard = state.0.lock().map_err(|_| StorageError::new("storage_interrupted", "数据操作意外中断，请重启应用后重试。"))?;
         if guard.is_none() {
             let mut config = app.path().app_local_data_dir().map_err(|_| StorageError::new("config_path", "无法定位本机应用配置目录。"))?;
-            let mut default_root = app.path().document_dir().map(|dir| dir.join("AZCineData")).unwrap_or_default();
+            // Existing data belongs to development. Suggest a different root
+            // for the first installed release, but leave selection to the user.
+            let default_name = if cfg!(debug_assertions) { "AZCineData" } else { "AZCineData-Release" };
+            let mut default_root = app.path().document_dir().map(|dir| dir.join(default_name)).unwrap_or_default();
             // Development and explicit validation roots only. Release never
             // accepts environment path overrides or initializes a default root.
             #[cfg(debug_assertions)]
@@ -180,6 +187,18 @@ async fn storage_workspace(app: tauri::AppHandle, window: tauri::WebviewWindow) 
 async fn select_data_root(app: tauri::AppHandle, window: tauri::WebviewWindow, path: String) -> Result<Workspace, StorageError> {
     main_window(&window)?;
     with_storage(app, move |manager| manager.select_root(std::path::Path::new(&path))).await
+}
+
+#[tauri::command]
+async fn schedule_data_root_change(app: tauri::AppHandle, window: tauri::WebviewWindow, path: String, mode: String) -> Result<(), StorageError> {
+    main_window(&window)?;
+    with_storage(app, move |manager| manager.schedule_root_change(std::path::Path::new(&path), &mode)).await
+}
+
+#[tauri::command]
+async fn cancel_data_root_change(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<(), StorageError> {
+    main_window(&window)?;
+    with_storage(app, |manager| manager.cancel_root_change()).await
 }
 #[tauri::command]
 async fn create_todo(app: tauri::AppHandle, window: tauri::WebviewWindow, input: CreateTodo) -> Result<Todo, StorageError> {
@@ -286,6 +305,8 @@ async fn check_desktop(request_id: u32) -> Result<diagnostics::DesktopReport, di
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(app_update::UpdateState::default())
         .manage(StorageState::default())
         .manage(dev_environment::EnvironmentState::default())
         .manage(task_panel_agent::AgentAccessState::default())
@@ -299,7 +320,7 @@ pub fn run() {
         .manage(agent_modules::registered())
         .manage(agent_mcp::BusinessMcp::default())
         .manage(pi_commands::PiExit::default())
-        .invoke_handler(tauri::generate_handler![dev_environment_inspect, dev_environment_status, dev_environment_export, dev_environment_cancel, dev_environment_open, server_credentials_load, server_credentials_save, server_credentials_receipt, server_credentials_add_file, server_credentials_open_folder, task_panel_feedback, task_panel_drafts, task_panel_draft, task_panel_launch, task_panel_worktree, task_panel_workspace_forget, task_panel_workspace_open, task_panel_workspaces, task_panel_agent_access, task_panel_agent_accesses, task_panel_agent_revoke, task_panel_validation_identity, task_panel_list, task_panel_mutate, task_panel_graph, task_panel_changes, task_panel_context, task_panel_context_get, task_panel_imports, task_panel_import_preview, task_panel_import_apply, task_panel_herdr_config, task_panel_herdr_config_save, task_panel_herdr_status, task_panel_herdr_sessions, task_panel_bind, task_panel_focus, task_panel_dispatch, task_panel_execution_action, task_panel_create_execution, task_panel_result, task_panel_check, task_panel_accept, task_panel_index, task_panel_recovery, task_panel_goal, task_panel_analysis, check_desktop, storage_workspace, select_data_root, create_todo, complete_todo, set_todo_deleted, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, project_import_image, project_image_preview, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, agent_context_catalog, agent_conversation, agent_view_conversation, agent_bind, agent_delete_conversation, agent_remember, agent_send, agent_drafts, agent_revalidate_draft, agent_apply_draft, agent_discard_draft, agent_attach_file, agent_attachment_preview, agent_jobs, agent_submit_job, agent_cancel_job, pi_runtime_summary, pi_save_runtime, pi_respond_ui, pi_thinking, pi_stats, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
+        .invoke_handler(tauri::generate_handler![app_update_status,app_update_check,app_update_download,app_update_install,dev_environment_inspect, dev_environment_status, dev_environment_export, dev_environment_cancel, dev_environment_open, server_credentials_load, server_credentials_save, server_credentials_receipt, server_credentials_add_file, server_credentials_open_folder, task_panel_feedback, task_panel_drafts, task_panel_draft, task_panel_launch, task_panel_worktree, task_panel_workspace_forget, task_panel_workspace_open, task_panel_workspaces, task_panel_agent_access, task_panel_agent_accesses, task_panel_agent_revoke, task_panel_validation_identity, task_panel_list, task_panel_mutate, task_panel_graph, task_panel_changes, task_panel_context, task_panel_context_get, task_panel_imports, task_panel_import_preview, task_panel_import_apply, task_panel_herdr_config, task_panel_herdr_config_save, task_panel_herdr_status, task_panel_herdr_sessions, task_panel_bind, task_panel_focus, task_panel_dispatch, task_panel_execution_action, task_panel_create_execution, task_panel_result, task_panel_check, task_panel_accept, task_panel_index, task_panel_recovery, task_panel_goal, task_panel_analysis, check_desktop, storage_workspace, select_data_root, schedule_data_root_change, cancel_data_root_change, create_todo, complete_todo, set_todo_deleted, pick_data_root, open_data_root, list_projects, save_project, project_request, project_catalog, set_project_deleted, project_deletion_request, project_import_image, project_image_preview, news_snapshot, news_materials, save_news_source, news_source_request, preview_news_source, collect_news, retry_news_run, open_news_url, cancel_news_capture, news_reader_snapshot, news_article_detail, news_reader_mark, news_reader_steps, news_reader_step_detail, news_reader_period, news_reader_image, news_reader_export, news_editorial_snapshot, news_pending_materials, news_dismiss_pending, news_reset_preview, news_reset_data, news_processing_snapshot, news_task_detail, save_news_preferences, news_preference_request, organize_news, retry_news_editorial, cancel_news_editorial, analyze_news_event, news_edition_text, export_news_edition, agent_context_catalog, agent_conversation, agent_view_conversation, agent_bind, agent_delete_conversation, agent_remember, agent_send, agent_drafts, agent_revalidate_draft, agent_apply_draft, agent_discard_draft, agent_attach_file, agent_attachment_preview, agent_jobs, agent_submit_job, agent_cancel_job, pi_runtime_summary, pi_save_runtime, pi_respond_ui, pi_thinking, pi_stats, pi_snapshot, pi_connect, pi_disconnect, pi_send, pi_stop, pi_sessions, pi_resources, pi_save_resource, pi_new_session, pi_switch_session, pi_name_session, pi_select_model, pi_save_model, pi_providers, pi_save_provider, pi_fetch_models, model_ranking_workspace, model_ranking_update, model_ranking_attempt, model_ranking_open_source, list_ideas, idea_request, save_idea, set_idea_deleted, convert_idea, bookkeeping_exchange_rate, bookkeeping_list, bookkeeping_mutate, bookkeeping_request, bookkeeping_add_receipt, bookkeeping_open_receipt, bookkeeping_export])
         .setup(|app| { if let Some(window)=app.get_webview_window("main"){context_menu::install(&window)?;} task_panel_monitor::start(app.handle().clone()); news_editorial_commands::start_automation(app.handle().clone()); pi_commands::start_reaper(app.handle().clone()); Ok(()) })
         .build(tauri::generate_context!())
         .expect("AZCine desktop failed to start")

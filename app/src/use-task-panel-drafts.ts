@@ -25,7 +25,7 @@ export function useTaskPanelDrafts(enabled: boolean) {
     if (!enabled || !isTauri()) return;
     try {
       const values = await taskPanelClient(workspace).drafts();
-      const ordered=Object.values(values).sort((a,b)=>String((b as Record<string,unknown>)?.draftSavedAt || '').localeCompare(String((a as Record<string,unknown>)?.draftSavedAt || '')));
+      const ordered=Object.values(values).sort((a,b)=>String((b as TaskDraft & { draftSavedAt?: string })?.draftSavedAt || '').localeCompare(String((a as TaskDraft & { draftSavedAt?: string })?.draftSavedAt || '')));
       for (const value of ordered) if (validDraft(value)) {
         // Never overwrite input typed while the load was in flight.
         const restored = { ...value, autoStart: false };

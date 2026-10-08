@@ -326,12 +326,13 @@ fn given_interrupt_request_when_repeated_then_it_is_sent_once_and_live_occupancy
 }
 
 #[test]
-fn given_required_check_claim_when_accepting_then_real_log_review_is_required_and_corrected_check_can_pass(){
+fn given_user_confirmed_required_check_when_accepting_then_real_log_review_is_required_and_corrected_check_can_pass(){
     use crate::task_panel_evidence::CheckInput;
     let (base,mut s)=fixture();let root=repo_fixture(&mut s,&base);repo_task(&mut s,"task-a");let exchange=base.join("exchange");std::fs::create_dir(&exchange).unwrap();let run=dispatch_fixture(&mut s,&root,&exchange,"task-a");
     let path=result_file(&exchange,&run,"required-check");let mut result:Value=serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();result["checks"]=json!([{"status":"passed","required":true,"command":"fictional test"}]);std::fs::write(&path,serde_json::to_vec(&result).unwrap()).unwrap();
     let review=s.task_panel_result(ResultInput{request_id:"required-result".into(),execution_id:run.id.clone(),path:path.to_string_lossy().into_owned()}).unwrap();
     let acceptance=AcceptInput{request_id:"required-accept".into(),task_id:"task-a".into(),expected_revision:1,execution_id:run.id.clone(),snapshot_id:review.observed_snapshot_id.unwrap(),accepted:true,approved:true,acknowledge_unverified:true,reason:"本人核对".into()};
+    crate::task_panel_evidence::add_evidence(&s.db,&run,"check","user_confirmed","not_run","","",&json!({"id":"fictional test","required":true,"coverage":["src"]}),Some(&acceptance.snapshot_id)).unwrap();
     assert!(s.task_panel_accept(acceptance.clone()).is_err());
     let log=exchange.join("check.log");std::fs::write(&log,"fictional check failed\n").unwrap();
     let check=CheckInput{check_id:Some("fictional test".into()),request_id:"check-failed".into(),execution_id:run.id,expected_revision:1,command:"fictional check".into(),exit_code:Some(1),status:"failed".into(),log_path:log.to_string_lossy().into_owned(),expected_log_hash:None,coverage:vec!["src".into()],approved:true,reason:"本人核对隔离日志".into()};

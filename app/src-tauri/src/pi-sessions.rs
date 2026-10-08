@@ -100,20 +100,8 @@ fn changed_error() -> ConfigError {
     )
 }
 
-fn linked(metadata: &Metadata) -> bool {
-    if metadata.file_type().is_symlink() {
-        return true;
-    }
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        if metadata.file_attributes() & 0x400 != 0 {
-            return true;
-        }
-    }
-
-    false
+fn linked(path: &Path, metadata: &Metadata) -> bool {
+    crate::pi_launch_plan::linked_path(path, metadata).unwrap_or(true)
 }
 
 /// PiPaths::prepare produces canonical owned paths. Recheck the root and every
@@ -138,14 +126,14 @@ fn check_sessions_root(paths: &PiPaths) -> Result<(), ConfigError> {
 
     let mut current = paths.root.clone();
     let metadata = fs::symlink_metadata(&current).map_err(|_| root_error())?;
-    if linked(&metadata) || !metadata.is_dir() {
+    if linked(&current, &metadata) || !metadata.is_dir() {
         return Err(root_error());
     }
 
     for part in relative.components() {
         current.push(part);
         let metadata = fs::symlink_metadata(&current).map_err(|_| root_error())?;
-        if linked(&metadata) || !metadata.is_dir() {
+        if linked(&current, &metadata) || !metadata.is_dir() {
             return Err(root_error());
         }
     }
@@ -189,7 +177,7 @@ fn check_session_depth(paths: &PiPaths, path: &Path) -> Result<(), ConfigError> 
 
 fn regular_file_metadata(path: &Path) -> Result<Metadata, ConfigError> {
     let metadata = fs::symlink_metadata(path).map_err(|_| read_error())?;
-    if linked(&metadata) || !metadata.is_file() {
+    if linked(path, &metadata) || !metadata.is_file() {
         return Err(read_error());
     }
     if metadata.len() > MAX_FILE_BYTES {
@@ -214,7 +202,7 @@ fn open_read_only(path: &Path) -> Result<File, ConfigError> {
 }
 
 fn same_observed_file(before: &Metadata, after: &Metadata) -> Result<(), ConfigError> {
-    if linked(after)
+    if after.file_type().is_symlink()
         || !after.is_file()
         || before.len() != after.len()
         || before.modified().map_err(|_| read_error())?
@@ -356,7 +344,7 @@ fn walk(
             }
         };
 
-        if linked(&metadata) {
+        if linked(&path, &metadata) {
             count_unreadable(result);
             continue;
         }
@@ -370,7 +358,7 @@ fn walk(
             // Recheck immediately before entering, without following a known
             // junction or symbolic link.
             let checked = fs::symlink_metadata(&path);
-            if !matches!(checked, Ok(ref meta) if meta.is_dir() && !linked(meta)) {
+            if !matches!(checked, Ok(ref meta) if meta.is_dir() && !linked(&path, meta)) {
                 count_unreadable(result);
                 continue;
             }

@@ -110,7 +110,7 @@ export function parsePiModel(value: unknown): PiModel {
     api: stringValue(value.api, 1000),
     input,
     reasoning: booleanValue(value.reasoning),
-    thinkingLevelMap: parseThinkingMap(value.thinkingLevelMap),
+    ...(value.thinkingLevelMap === undefined ? {} : {thinkingLevelMap: parseThinkingMap(value.thinkingLevelMap)}),
     contextWindow: integerValue(value.contextWindow, 1),
     maxTokens: integerValue(value.maxTokens, 1),
   };

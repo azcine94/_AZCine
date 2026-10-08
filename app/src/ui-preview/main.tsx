@@ -3,6 +3,7 @@ import { UILink } from '../components/ui/ui-link.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTheme } from '../use-theme.ts';
 import { WorkspaceView } from '../App.tsx';
+import { usePreviewUpdate } from './app-update-fixture.ts';
 import { resolveRoute } from '../routes.ts';
 import { scenes, stateLabels, pageSources, componentSources, styleSources, unregisteredSources } from './catalog.ts';
 import type { Scene } from './catalog.ts';
@@ -27,6 +28,7 @@ function usePreviewTheme() {
   return useTheme({initialTheme:params.get('theme')==='dark'?'dark':'light',persist:false});
 }
 function PreviewScene({scene,state}:{scene:Scene;state:string}) {
+  const updatePreview=usePreviewUpdate(state);
   const models=usePreviewControllers(state),theme=usePreviewTheme();
   const [previewRoute,setPreviewRoute]=useState(scene.route);
   const newsReader=usePreviewReader(state,!!previewRoute?.startsWith('news/daily'));
@@ -52,7 +54,7 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    <AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider>
+    <AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView updatePreview={updatePreview} {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider>
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];

@@ -17,16 +17,7 @@ fn changed() -> ConfigError { failure("pi_config_changed", "未完成的配置�
 // Checking every owned segment before use also refuses Windows directory junctions.
 // This is an ownership check, not an OS sandbox against simultaneous hostile changes.
 fn reject_link(path: &Path) -> Result<(), ConfigError> {
-    match fs::symlink_metadata(path) {
-        Ok(meta) => {
-            #[cfg(windows)]
-            { use std::os::windows::fs::MetadataExt; if meta.file_attributes() & 0x400 != 0 { return Err(failure("pi_path_link", "Pi 自有目录中发现链接或重解析路径，已停止以免读写其他环境。")); } }
-            if meta.file_type().is_symlink() { return Err(failure("pi_path_link", "Pi 自有目录中发现链接，已停止以免读写其他环境。")); }
-            Ok(())
-        },
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(io_error(e)),
-    }
+    crate::pi_launch_plan::no_link(path)
 }
 fn directory(path: &Path) -> Result<(), ConfigError> {
     reject_link(path)?;

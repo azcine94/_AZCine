@@ -6,4 +6,4 @@ test('Incomplete reader data fails visibly instead of displaying partial article
 
 
 import {resolveRoute} from '../src/routes.ts';
-test('Old history bookmarks return to the single news reader',()=>{assert.equal(resolveRoute('#news/history'),'news');});
+test('Old history bookmarks return to the daily archive',()=>{assert.equal(resolveRoute('#news/history'),'news/daily');});

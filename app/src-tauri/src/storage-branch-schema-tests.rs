@@ -88,6 +88,7 @@ fn given_agent16_with_legacy_task_tables_when_opened_then_task_receipts_survive_
     crate::task_panel_store::create_schema(&db).unwrap();
     db.execute_batch("INSERT INTO tp_requests VALUES('retained-task-request','original-input','original-result');
         INSERT INTO tp_tasks VALUES('fixture-task',1,'原任务','保留','[]','[]',NULL,'draft','','fixture','',1,'2026-10-07','2026-10-07');").unwrap();
+    crate::task_panel_store::graph_object(&db, "fixture-task", None, "task", "原任务", "user_confirmed", &serde_json::json!({})).unwrap();
     let retained = agent_rows(&db);
     drop(db);
     let store = Store::open(&root, false).unwrap();

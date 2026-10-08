@@ -147,7 +147,12 @@ Agent `feat/agent-design` 的12a5c89＋06a2251已由29ef06e合入main。`App`仍
 
 ## 3. 用户数据根（不是源码根）
 
-默认系统文档目录 `AZCineData`，可选；不表示默认根已在用户机器创建。目录由对应模块初始化，预留目录不代表功能接通。
+`data-root-change.rs`负责迁移目标与源的非重叠校验、文件复制/SHA256核对及SQLite VACUUM INTO一致副本；`storage::Manager`在本机配置目录保存可取消的待执行请求，下次启动持实例锁/旧根锁后执行，核对新根成功才原子替换定位，并保旧定位和请求回执。`portable-data.rs`通过库内portable_data_root_v1标记识别完整根搬运，修正根内Agent会话绑定、隐藏路径及原生JSONL头部cwd/parentSession；消息行不改，头部改前完整副本保留在config/relocated-sessions。外部绝对路径不推测。原根与迁移失败的目标副本均保留；OneDrive传输期间须关闭应用。
+
+`scripts/build-desktop.mjs`使用仓库工具链校验锁定runtime入口并调用Tauri NSIS构建；bundle资源精确映射到安装目录runtime/<锁定目录>，正式 `pi-runtime.rs` 仅从该资源目录解析Node/Pi。Windows文件所有权检查允许Cloud Files标签以兼容已下载的OneDrive文件，仍拒绝符号链接、目录联接及其他未知重解析标签；不等同云端并发写入保障。
+开发版沿用现有数据根；正式版首次建议系统文档目录 `AZCineData-Release`，可另选；不表示默认根已在用户机器创建。目录由对应模块初始化，预留目录不代表功能接通。
+
+应用标识区分两种入口：基础 `tauri.conf.json` 使用 `com.azcine.workbench.release`，正式定位文件、`instance.lock` 和仓库快捷列表位于该标识对应的本机应用目录；`npm run dev` 生成的Tauri配置显式使用旧标识 `com.azcine.workbench`，保留已有开发定位/数据/仓库列表，窗口标题标注本地开发版。主窗口WebView仍按Worktree隔离。`storage::Manager` 的实例锁随配置目录分开，`Store` 的 `.azcine.lock` 继续按实际数据根互斥；任务面板若主动选择同一总仓库，仓库内的锁仍共用。没有复制旧定位文件或数据库；运行并存尚未验证。
 
 ```text
 <选定数据根>/
@@ -314,3 +319,9 @@ Rust的load/save/receipt/add_file/open_folder五个 `server_credentials_*` 命�
 目录/职责/调用关系变更时只更新本图相关节点；功能细节或测试数字不反复改架构。新增模块区分实际/计划，不以图宣称已实现。
 
 旧迁移 `research/migration/path-map.json` 和快照哈希不改。本次文档迁移单独保存 `archive/documents-<run-id>/manifest.json`，记录原路径、归档路径、copy/move、大小和SHA；现有布局脚本仅解析move重定位，不读旧文档正文。归档文件不自动修链接或恢复成执行入口。
+
+## Windows版本更新
+
+`app-update.rs`管理固定GitHub稳定版端点、检查/下载状态和签名安装，前端仅调用四个受限主窗IPC，不可指定更新URL或密钥；`use-app-update.ts`订阅原生状态，`app-update-panel.tsx`显示版本及确认操作。开发编译禁用安装，正式版使用Tauri updater公钥校验，安装先停止本应用拥有的后台/Pi进程，再由NSIS替换程序并重启。用户选择的数据根位于安装目录之外，更新不搬迁业务数据。
+
+`scripts/prepare-release-runtime.mjs`在干净Windows构建机按runtime-lock下载官方Node与Pi完整安装锁，校验入口哈希，不读取用户配置或宿主Pi；`scripts/build-desktop.mjs`使用仓库自有工具链构建。签名私钥只在本机忽略目录和GitHub Secret，公钥随配置发布。
