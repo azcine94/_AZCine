@@ -18,7 +18,7 @@ AZCine 首个 Windows x64 安装版。下载 `AZCine_0.1.0_x64-setup.exe` 安装
 安装包使用 Tauri 更新签名，未购买 Windows 发布者证书，系统可能显示“未知发布者”。推荐使用默认安装位置，过深的自定义安装路径可能触发 Windows 安装器路径限制。
 <!-- release-notes:end -->
 
-正式下载入口：[GitHub Releases](https://github.com/azcine94/_AZCine/releases)。
+正式下载入口：[Windows v0.1.0](https://github.com/azcine94/_AZCine/releases/tag/v0.1.0)。远端CI及发布流程均通过：脚本12、前端152、Rust275项，Windows正式编译/签名打包成功。公开安装包SHA-256与清单一致，实际安装后6项检查通过，含线上“当前已是最新版本”。
 
 ### 后续发布与恢复
 
@@ -28,7 +28,7 @@ AZCine 首个 Windows x64 安装版。下载 `AZCine_0.1.0_x64-setup.exe` 安装
 
 ## 本地运行
 
-开发版与正式安装版已配置为不同应用标识：开发版保留现有数据，正式版首次启动点击“选择目录”后“使用此目录”，建议目录为系统文档目录下的 `AZCineData-Release`，也可指定其他专用目录。两者分别使用 `%LOCALAPPDATA%/com.azcine.workbench/` 与 `%LOCALAPPDATA%/com.azcine.workbench.release/` 下的定位配置及实例锁；选择不同业务根才能同时使用，手动选择同根仍会互斥。已用隔离身份的release安装包和虚构数据验证迁移、切换及全新本机配置恢复；正常开发/正式标识的双开未专门验证，尚未发版。
+开发版与正式安装版已配置为不同应用标识：开发版保留现有数据，正式版首次启动点击“选择目录”后“使用此目录”，建议目录为系统文档目录下的 `AZCineData-Release`，也可指定其他专用目录。两者分别使用 `%LOCALAPPDATA%/com.azcine.workbench/` 与 `%LOCALAPPDATA%/com.azcine.workbench.release/` 下的定位配置及实例锁；选择不同业务根才能同时使用，手动选择同根仍会互斥。已用隔离身份的release安装包和虚构数据验证迁移、切换及全新本机配置恢复；正常开发/正式标识的双开未专门验证；Windows v0.1.0已发布。
 
 目录选错后，在“设置 → 数据目录 → 更改数据目录”选择：迁移当前数据到新空目录，或切换到已有AZCine数据目录。保存后可取消，正常退出并重新打开才执行；迁移会复制并核对文件、生成SQLite一致快照，成功后切换本机定位，旧根始终保留。切换不会合并两份记录，失败继续使用原目录并显示原因。
 
@@ -131,4 +131,4 @@ Pi 模型设置和 Agent 页面已挂入口，但 S03 整链路验证与独立�
 
 按需读，不全量加载。并行开发时只维护主工作目录的这套文档真源；各Worktree中的副本不单独更新，实际真源位置与文档维护者见主目录[当前工作](docs/current-work.md)。其他旧文档已归档，退出日常读取/更新入口。源码在 `app/`，验证脚本在 `tests/`，每轮证据在 `artifacts/validation/<run-id>/`；不是可以随手清理的用户数据。
 
-当前仅本地开发，无正式发布版本。首次基线提交后可按授权使用功能分支/独立Worktree，不以正式发版为前置；实际提交与远端状态操作前核对。不因文档整理执行Git、推送或发布。
+Windows v0.1.0已于2026-10-08发布，源码标签指向f145dcf；公开下载资产校验及安装后的版本/空数据/保存/Pi/线上更新检查通过。开发入口仍为npm run dev，后续改动按独立任务和PR流程交付。
