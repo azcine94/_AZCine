@@ -27,4 +27,6 @@ runs:
         "RUSTUP_HOME=$env:GITHUB_WORKSPACE/.tooling/rustup" >> $env:GITHUB_ENV
         "CARGO_TARGET_DIR=$env:GITHUB_WORKSPACE/.tooling/build-target" >> $env:GITHUB_ENV
         "$env:GITHUB_WORKSPACE/.tooling/cargo/bin" >> $env:GITHUB_PATH
-
+    - name: Fetch locked Rust dependencies
+      shell: pwsh
+      run: cargo fetch --manifest-path app/src-tauri/Cargo.toml --locked
