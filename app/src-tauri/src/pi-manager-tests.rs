@@ -48,3 +48,13 @@ fn given_malformed_own_config_when_connecting_then_reject_before_native_start(){
 fn given_explicit_disconnect_when_already_disconnected_then_idempotent_exit_without_new_process(){
     let m=PiManager::default();for _ in 0..2{let v=m.disconnect(Arc::new(||{})).unwrap();assert_eq!(v["connection"],"disconnected");assert_eq!(v["busy"],false);assert_eq!(v["stopping"],false);}assert!(m.core.lock().unwrap().process.is_none());
 }
+
+#[test]
+fn paused_queue_blocks_submission_without_waiting_for_operation_lock(){
+    let manager=PiManager::default();let _in_flight=manager.operation.lock().unwrap();
+    manager.pause_business_queue(true).unwrap();
+    let input=||SendInput{generation:0,session_id:"fixture".into(),message:"retained".into(),images:vec![],behavior:None};
+    assert_eq!(manager.send_queued(input(),Arc::new(||{}),"fixture-input".into()).err().unwrap().code,"agent_queue_paused");
+    manager.pause_business_queue(false).unwrap();
+    assert_ne!(manager.send_queued(input(),Arc::new(||{}),"fixture-input".into()).err().unwrap().code,"agent_queue_paused");
+}

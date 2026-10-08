@@ -53,9 +53,10 @@ impl AgentRuntime{
         })();
         if let Ok(mut pool)=self.pool.lock(){pool.connecting.remove(conversation);}result
     }
-    pub fn send(&self,conversation:&str,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,None)}
-    pub fn send_business(&self,conversation:&str,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,Some(input_id))}
-    fn send_inner(&self,conversation:&str,input:SendInput,notify:Notify,input_id:Option<String>)->Result<SendReceipt,PiError>{
+    pub fn send(&self,conversation:&str,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,None,false)}
+    pub fn send_business(&self,conversation:&str,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,Some(input_id),false)}
+    pub fn send_queued(&self,conversation:&str,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(conversation,input,notify,Some(input_id),true)}
+    fn send_inner(&self,conversation:&str,input:SendInput,notify:Notify,input_id:Option<String>,queued:bool)->Result<SendReceipt,PiError>{
         let manager=self.manager(conversation)?;self.touch(conversation)?;
         {let mut pool=self.pool.lock().map_err(|_|interrupted())?;
             if pool.sending.contains(conversation)||pool.deleting.contains(conversation)||pool.retired.contains(conversation){return Err(PiError::new("pi_busy","此会话正在发送或删除，请等待；输入保留。"));}
@@ -63,7 +64,7 @@ impl AgentRuntime{
             if !manager.active()?&&running>=pool.limit{return Err(PiError::new("pi_reply_limit","已达到同时回复上限；本次未排队，文字与附件保留。"));}
             pool.sending.insert(conversation.into());
         }
-        let result=match input_id{Some(id)=>manager.send_business(input,notify,id),None=>manager.send(input,notify)};
+        let result=match input_id{Some(id) if queued=>manager.send_queued(input,notify,id),Some(id)=>manager.send_business(input,notify,id),None=>manager.send(input,notify)};
         if let Ok(mut pool)=self.pool.lock(){pool.sending.remove(conversation);}result
     }
     pub fn summary(&self)->Result<Value,PiError>{let pool=self.pool.lock().map_err(|_|interrupted())?;let slots=pool.slots.iter().map(|(key,s)|{let mut value=s.manager.summary()?;value["conversationKey"]=json!(key);Ok(value)}).collect::<Result<Vec<_>,PiError>>()?;let active=slots.iter().filter(|s|s["active"]==true).count();Ok(json!({"replyLimit":pool.limit,"revision":pool.revision,"active":active,"conversations":slots}))}

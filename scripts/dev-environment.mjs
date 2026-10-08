@@ -8,6 +8,13 @@ export function prepareEnvironment(root) {
   const common = path.resolve(root, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim());
   const main = path.dirname(common);
   const equal = file => existsSync(path.join(main, file)) && readFileSync(path.join(root, file), 'utf8').replaceAll('\r\n', '\n') === readFileSync(path.join(main, file), 'utf8').replaceAll('\r\n', '\n');
+  // Release version metadata does not change the installed dependencies.
+  const dependencyLock = (base,file) => {
+    const text=readFileSync(path.join(base,file),'utf8').replaceAll('\r\n','\n');
+    if(file.endsWith('Cargo.lock'))return text.replace(/(\[\[package\]\]\nname = "azcine"\nversion = )"[^"\n]+"/, '$1"workspace"');
+    const lock=JSON.parse(text);delete lock.version;if(lock.packages?.[''])delete lock.packages[''].version;return JSON.stringify(lock);
+  };
+  const sameDependencies = file => {try{return dependencyLock(root,file)===dependencyLock(main,file);}catch{return false;}};
   const declarations = base => {
     const pkg = JSON.parse(readFileSync(path.join(base,'app/package.json'),'utf8'));
     return JSON.stringify(Object.fromEntries(['dependencies','devDependencies','optionalDependencies','peerDependencies','overrides','engines'].map(key=>[key,pkg[key]??null])));
@@ -46,8 +53,8 @@ export function prepareEnvironment(root) {
     const shareRust = rust.some(relative => states[relative] !== 'owned') || states['.tooling/cargo/git'] === 'shared';
     const shareNode = states['app/node_modules'] !== 'owned';
     const shareRuntime = states['app/resources/runtime'] !== 'owned';
-    if (shareRust && (!equal('rust-toolchain.toml') || !equal('app/src-tauri/Cargo.lock'))) throw Error('分支 Rust 锁与主环境不一致，请准备独立匹配环境。');
-    if (shareNode && (declarations(root) !== declarations(main) || !equal('app/package-lock.json'))) throw Error('分支 Node 依赖与主环境不一致，未链接或安装。');
+    if (shareRust && (!equal('rust-toolchain.toml') || !sameDependencies('app/src-tauri/Cargo.lock'))) throw Error('分支 Rust 锁与主环境不一致，请准备独立匹配环境。');
+    if (shareNode && (declarations(root) !== declarations(main) || !sameDependencies('app/package-lock.json'))) throw Error('分支 Node 依赖与主环境不一致，未链接或安装。');
     if (shareRuntime && !equal('app/resources/runtime-lock.json')) throw Error('应用 runtime 锁不一致，未复用。');
     for (const relative of resources) {
       if (states[relative] !== 'missing') continue;

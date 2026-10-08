@@ -76,7 +76,13 @@ pub async fn pi_select_model(app:tauri::AppHandle,window:tauri::WebviewWindow,ge
         if before["generation"]!=generation||before["sessionId"]!=session_id{return Err(PiError::new("pi_stale_session","会话已变化，请重新选择模型。"));}
         if before["active"]==true||before["waiting"]==true{return Err(PiError::new("pi_busy","请等待当前任务结束后切换模型。"));}
         let catalog=manager.model_catalog(&root,&resources)?;if !catalog.as_array().is_some_and(|rows|rows.iter().any(|m|m["provider"]==provider&&m["id"]==id)){return Err(PiError::new("pi_model_unavailable","模型已移除或不可用，请重新选择。"));}
-        let snapshot=runtime.connect(key,&root,&resources,None,None,true,notify_for(&app,key))?;
+        let native=manager.snapshot()?;
+        // Native set_model preserves an unsaved session and its draft identity.
+        // Newly configured models become available after an explicit reconnect.
+        if !native["models"].as_array().is_some_and(|rows|rows.iter().any(|m|m["provider"]==provider&&m["id"]==id)) {
+            return Err(PiError::new("pi_model_reconnect_required","该模型尚未载入此会话，请重连后选择；当前草稿保留。"));
+        }
+        let snapshot=native;
         manager.session_action(snapshot["generation"].as_u64().ok_or_else(||PiError::new("pi_state_invalid","会话状态不完整。"))?,snapshot["state"]["sessionId"].as_str().ok_or_else(||PiError::new("pi_state_invalid","会话状态不完整。"))?,"set_model",json!({"provider":provider,"modelId":id}),notify_for(&app,key))
     }).await.map_err(|_|PiError::new("pi_worker_interrupted","模型切换中断，输入保留。"))?}
 #[tauri::command]

@@ -10,15 +10,15 @@ export function useAgentQueue(root:string|null){
   const [edits,setEdits]=useState<Record<string,{revision:number;payload:QueuePayload}>>({}),[open,setOpen]=useState<Record<string,boolean>>({});
   const target=useRef(root);target.current=root;const pending=useRef<Promise<unknown>>(Promise.resolve()),polling=useRef(false),alive=useRef(true);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
-  function run(command:string,args:Record<string,unknown>,at=root){
-    const next=pending.current.catch(()=>{}).then(async()=>{if(!at||target.current!==at)throw new Error('数据目录已变化，原队列保留。');const result=await callPi<QueueDocument>(command,args);if(target.current===at&&alive.current){setDocument(result);setError('');}return result;});pending.current=next;return next;
+  function run(command:string,args:Record<string,unknown>,at=root,interrupt=false){
+    const next=(interrupt?Promise.resolve():pending.current.catch(()=>{})).then(async()=>{if(!at||target.current!==at)throw new Error('数据目录已变化，原队列保留。');const result=await callPi<QueueDocument>(command,args);if(target.current===at&&alive.current){setDocument(result);setError('');}return result;});if(!interrupt)pending.current=next;return next;
   }
   useEffect(()=>{setDocument({entries:[],paused:{}});setEdits({});setError('');setBusy(false);if(!root||!desktopPi())return;let active=true;
     void run('agent_queue_read',{root}).catch(e=>{if(active)setError(piError(e));});
     const timer=setInterval(()=>{if(polling.current)return;polling.current=true;void run('agent_queue_tick',{root},root).catch(e=>{if(active)setError(piError(e));}).finally(()=>{polling.current=false;});},1000);
     return()=>{active=false;clearInterval(timer);};
   },[root]);
-  async function mutate(conversationKey:string,action:string,args:Record<string,unknown>={}){if(!root)throw new Error('请先选择数据目录。');const at=root;setBusy(true);try{return await run('agent_queue_mutate',{input:{root,action,conversationKey,...args}});}catch(e){if(target.current===at)setError(piError(e));throw e;}finally{if(alive.current&&target.current===at)setBusy(false);}}
+  async function mutate(conversationKey:string,action:string,args:Record<string,unknown>={}){if(!root)throw new Error('请先选择数据目录。');const at=root;setBusy(true);try{return await run('agent_queue_mutate',{input:{root,action,conversationKey,...args}},at,action==='pause');}catch(e){if(target.current===at)setError(piError(e));throw e;}finally{if(alive.current&&target.current===at)setBusy(false);}}
   const enqueueReceipts=useRef(new Map<string,{signature:string;id:string}>());
   async function enqueue(conversationKey:string,payload:QueuePayload,behavior:string){const key=`${root}/${conversationKey}`,signature=JSON.stringify([payload,behavior]),before=enqueueReceipts.current.get(key);const id=before?.signature===signature?before.id:crypto.randomUUID();enqueueReceipts.current.set(key,{signature,id});await mutate(conversationKey,'enqueue',{id,payload,behavior});enqueueReceipts.current.delete(key);}
   async function change(entry:QueueEntry,action:string){try{await mutate(entry.conversationKey,action,{id:entry.id,revision:entry.revision});if(action==='remove'){setEdits(before=>{const next={...before};delete next[entry.id];return next;});notifyOperation('已移除排队消息',{action:{label:'撤销',run:()=>mutate(entry.conversationKey,'restore',{id:entry.id,revision:entry.revision+1})}});}}catch{/* Visible error retains the queue entry. */}}

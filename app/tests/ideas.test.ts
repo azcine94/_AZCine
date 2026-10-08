@@ -19,6 +19,7 @@ test('Given 畸形IPC/重复编号 When读取 Then拒绝替换；草稿转化保
  assert.equal(ideaDraft(parseIdea(raw)).body,raw.body);
 });
 test('Given 转待办或来源回链 When打开 Then路由解析到正确模块及原编号',()=>{
- for(const page of ['ideas','today']) {const route=resolveRoute(`#${page}/${id}`);assert.equal(navigationPage(route),page);assert.equal(sourceTarget(route),id);assert.equal(pageTitle(route),page==='ideas'?'灵感':'今天');}
+ const route=resolveRoute(`#ideas/${id}`);assert.equal(navigationPage(route),'ideas');assert.equal(sourceTarget(route),id);assert.equal(pageTitle(route),'灵感');
+ const retired=resolveRoute(`#today/${id}`);assert.equal(retired,'today');assert.equal(sourceTarget(retired),null);assert.equal(pageTitle(retired),'今天');
  assert.equal(resolveRoute('#ideas/invalid'),'missing');
 });

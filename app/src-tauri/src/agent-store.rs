@@ -104,6 +104,7 @@ impl Store{
             tx.execute("DELETE FROM agent_bindings WHERE conversation_id=?",[key]).map_err(db)?;
         }
         if let Some(path)=path{tx.execute("INSERT INTO agent_deleted_sessions(path,session_id,deleted_at) VALUES(?,?,?) ON CONFLICT(path) DO NOTHING",params![session_path_key(path),session_id,at]).map_err(db)?;}
+        crate::agent_queue::retire_conversation(&tx,&removed,session_id)?;
         tx.commit().map_err(db)?;Ok(json!({"deleted":true,"conversationKeys":removed,"sessionPath":path,"sessionId":session_id}))
     }
     pub fn agent_prepare_input(&mut self,key:&str,session:&str,generation:u64,message_count:usize,objects:&[Source],attachments:&[String],providers:&Providers)->Result<(String,Value),StorageError>{

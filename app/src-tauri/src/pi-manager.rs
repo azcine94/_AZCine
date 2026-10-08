@@ -35,13 +35,13 @@ struct BusinessInput{id:String,fingerprint:String,priority:u8}
 struct Core{
     generation:u64,seq:u64,connection:String,state:Value,models:Vec<Value>,commands:Vec<String>,
     projection:Projection,error:Option<PiError>,notice:Option<String>,
-    busy:bool,stopping:bool,sending:bool,session_changing:bool,exiting:bool,
+    queue_paused:bool,busy:bool,stopping:bool,sending:bool,session_changing:bool,exiting:bool,
     process:Option<Arc<RpcProcess>>,paths:Option<PiPaths>,cwd:Option<PathBuf>,runtime:Option<RuntimePaths>,
     redactor:Redactor,recovered:HashMap<String,Vec<String>>,
     session_lease:Option<crate::pi_session_lock::SessionLease>,extensions:crate::pi_extension_ui::ExtensionUi,rules:Value,
     delivered_inputs:Vec<String>,business_inputs:Vec<BusinessInput>,business_input:Option<(String,usize)>,
 }
-impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,delivered_inputs:vec![],business_inputs:vec![],business_input:None}}}
+impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,queue_paused:false,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,delivered_inputs:vec![],business_inputs:vec![],business_input:None}}}
 pub type BusinessEnvironment=Arc<dyn Fn(u64,&PiPaths,&RuntimePaths)->Result<Vec<(std::ffi::OsString,std::ffi::OsString)>,PiError>+Send+Sync>;
 pub struct PiManager{core:Arc<Mutex<Core>>,operation:Mutex<()>,business_environment:Mutex<Option<BusinessEnvironment>>}
 impl Default for PiManager{fn default()->Self{Self{core:Arc::new(Mutex::new(Core::default())),operation:Mutex::new(()),business_environment:Mutex::new(None)}}}
@@ -187,14 +187,16 @@ impl PiManager{
         {let mut c=locked(&self.core)?;if c.generation==generation{if result.is_ok(){c.session_lease=None;}c.connection=if result.is_ok(){"disconnected"}else{"error"}.into();c.busy=false;c.stopping=false;c.sending=false;c.session_changing=false;c.projection.interrupted("连接已关闭，未完成内容不算成功。");c.error=result.as_ref().err().cloned();update_state_flags(&mut c);c.seq+=1;}}
         notify();result?;self.snapshot()
     }
-    pub fn send(&self,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(input,notify,None)}
-    pub fn send_business(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id))}
-    fn send_inner(&self,input:SendInput,notify:Notify,input_id:Option<String>)->Result<SendReceipt,PiError>{
+    pub fn send(&self,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(input,notify,None,false)}
+    pub fn send_business(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id),false)}
+    pub fn pause_business_queue(&self,paused:bool)->Result<(),PiError>{locked(&self.core)?.queue_paused=paused;Ok(())}
+    pub fn send_queued(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id),true)}
+    fn send_inner(&self,input:SendInput,notify:Notify,input_id:Option<String>,queued:bool)->Result<SendReceipt,PiError>{
         if input.message.chars().count()>100_000||(input.message.trim().is_empty()&&input.images.is_empty()){return Err(PiError::new("pi_message_invalid","请输入消息（最多 100000 字符），或选择图片；未发送。"));}
         let (mut request_fields,total)={let images=input.images.iter().map(|i|json!({"type":"image","data":i.data,"mimeType":i.mime_type})).collect::<Vec<_>>();(json!({"message":input.message,"images":images}),input.images.iter().fold(0usize,|n,i|n.saturating_add(i.data.len())))};
         if input.images.len()>crate::pi_image_limits::MAX_IMAGES||total>crate::pi_image_limits::MAX_IMAGE_BATCH_BASE64_BYTES||input.images.iter().any(|i|!matches!(i.mime_type.as_str(),"image/png"|"image/jpeg"|"image/webp"|"image/gif")||!crate::pi_image_limits::image_encoded_size_allowed(&i.data)||!valid_base64(&i.data)){return Err(PiError::new("pi_images_invalid","图片格式或大小不支持（最多4张，每张不超过50MB），附件与输入保留。"));}
         if let Some(behavior)=&input.behavior{if !matches!(behavior.as_str(),"steer"|"followUp"){return Err(PiError::new("pi_behavior_invalid","请选择有效的插入或排队方式。"));}request_fields["streamingBehavior"]=json!(behavior);}
-        let pending:RpcRequest={let mut c=locked(&self.core)?;check_session(&c,input.generation,&input.session_id)?;if c.exiting||c.busy||c.stopping||c.sending{return Err(busy());}let rpc=connected(&c)?;
+        let pending:RpcRequest={let mut c=locked(&self.core)?;if queued&&c.queue_paused{return Err(PiError::new("agent_queue_paused","队列已暂停，此消息未发送。"));}check_session(&c,input.generation,&input.session_id)?;if c.exiting||c.busy||c.stopping||c.sending{return Err(busy());}let rpc=connected(&c)?;
             let current=&c.state["model"];if current.is_null()||!c.models.iter().any(|m|m["id"]==current["id"]&&m["provider"]==current["provider"]){return Err(PiError::new("pi_model_required","请先配置并选择模型；消息和附件仍保留。"));}
             if !input.images.is_empty()&&!current["input"].as_array().is_some_and(|a|a.iter().any(|v|v=="image")){return Err(PiError::new("pi_images_unsupported","当前模型没有声明图片能力，请换模型或移除图片后发送；附件和文字仍保留。"));}
             if let Some(command)=input.message.trim().strip_prefix('/').and_then(|s|s.split_whitespace().next()){if matches!(command,"login"|"logout"|"settings"|"reload"|"model"|"resume"|"new"|"tree"|"fork"|"clone"|"share"|"export"|"quit")&&!c.commands.iter().any(|v|v==command){return Err(PiError::new("pi_tui_command","这是原版终端专用命令，不会在 RPC 中假装执行；模型和会话请用本页入口，完整终端交接在资源阶段接入。"));}}

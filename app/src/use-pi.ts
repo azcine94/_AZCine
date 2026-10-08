@@ -16,7 +16,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
   const [modelCatalog,setModelCatalog]=useState<PiSnapshot['models']|null>(null);
   const [modelCatalogError,setModelCatalogError]=useState('');
   const catalogVersion=useRef(0);
-  async function refreshModels(){const version=++catalogVersion.current;try{const rows=parsePiModels({models:await invokePi('pi_model_catalog')});if(version===catalogVersion.current){setModelCatalog(rows);setModelCatalogError('');}}catch(e){if(version===catalogVersion.current){setModelCatalog([]);setModelCatalogError('模型目录刷新失败：'+piError(e));}}}
+  async function refreshModels(){const version=++catalogVersion.current;try{const rows=parsePiModels({models:await invokePi('pi_model_catalog')});if(version===catalogVersion.current){setModelCatalog(rows);setModelCatalogError('');}}catch(e){if(version===catalogVersion.current){setModelCatalogError('模型目录刷新失败：'+piError(e));}}}
   useEffect(()=>{setModelCatalog(null);setModelCatalogError('');if(root&&desktopPi())void refreshModels();return()=>{++catalogVersion.current;};},[root]);
   const {sessionPins,setSessionPinned,forgetSessionPins}=useAgentSessionPins(root);
   const [conversationKey,setConversationKey]=useState('default'),keyRef=useRef('default');
@@ -211,13 +211,13 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
   }
   async function connectBinding(binding:AgentBinding,session?:PiSession,reconnect=false){
     const targetRoot=rootRef.current;
-    const key=binding.conversationKey,pendingKey=`unconnected:${key}`;
+    const key=binding.conversationKey,pendingKey=`unconnected:${key}`,priorSession=snapshots.current[key]?.state?.sessionId;
     if(keyRef.current==='default')transferConversation('default',key);
     chooseKey(key);
     await operate('连接',async()=>{const v=parseSnapshot(await callPi('pi_connect',{cwd:session?.cwd??binding.cwd??(cwd.trim()||null),sessionPath:session?.path??binding.sessionPath,reconnect},key));
       if(!mounted.current||rootRef.current!==targetRoot)return;
-      if(v.state)transferDraft(pendingKey,v.state.sessionId);
-      acceptSnapshot(v,key);if(v.state){bindings.current[key]={...binding,sessionId:v.state.sessionId,sessionPath:v.state.sessionFile,cwd:v.cwd??binding.cwd,title:v.state.sessionName??binding.title};if(pendingConversation.current?.conversationKey===key)pendingConversation.current=null;}await invokePi('agent_remember',{conversationKey:key});resources.invalidate();await reloadSessions();await refreshRuntime();});
+      if(v.state){transferDraft(pendingKey,v.state.sessionId);if(reconnect&&priorSession)transferDraft(priorSession,v.state.sessionId);}
+      acceptSnapshot(v,key);if(v.state){bindings.current[key]={...binding,sessionId:v.state.sessionId,sessionPath:v.state.sessionFile,cwd:v.cwd??binding.cwd,title:v.state.sessionName??binding.title};if(pendingConversation.current?.conversationKey===key)pendingConversation.current=null;}await invokePi('agent_remember',{conversationKey:key});resources.invalidate();await refreshModels();await reloadSessions();await refreshRuntime();});
   }
   async function connect(session?:PiSession,reconnect=false,automatic=false){
     if(actionRef.current||viewingEpoch.current!==null)return;
