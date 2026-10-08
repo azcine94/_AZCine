@@ -1,0 +1,10 @@
+.project-cell-images{position:relative;min-width:0;display:flex;flex-direction:column;gap:var(--s-1);border-radius:var(--r-xs)}
+.project-cell-images[data-dragging]{outline:2px solid var(--ring);outline-offset:-2px;background:var(--accent)}
+.project-cell-value{display:flex;align-items:center;gap:var(--s-1);min-width:0}
+.project-cell-value>.input,.project-cell-value>.date-input,.project-cell-value>.project-stage-picker{flex:1;min-width:0}
+.project-cell-image-add{flex:none;opacity:0}
+.project-cell-images:hover .project-cell-image-add,.project-cell-images:focus-within .project-cell-image-add{opacity:1}
+.project-cell-image-tray{display:flex;flex-wrap:wrap;gap:var(--s-1);padding:var(--s-1)}
+.project-cell-image-status{color:var(--muted-foreground);font-size:var(--fs-xs);line-height:var(--lh-xs);padding:var(--s-1)}
+.project-cell-image-retry{display:flex;flex-wrap:wrap;gap:var(--s-1)}
+.project-cell-images [role=alert]{font-size:var(--fs-xs);line-height:var(--lh-xs);overflow-wrap:anywhere}

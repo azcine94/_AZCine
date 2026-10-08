@@ -5,6 +5,8 @@ import { invoke } from './desktop-api.ts';
 import { parseProject, parseProjectCatalog, parseProjectDeletionReceipt, parseProjectContent } from './projects-contract.ts';
 import type { ProjectContent, ProjectDocument, ProjectUndo, ProjectDeletionRequest, ProjectDeletionReceipt } from './projects-contract.ts';
 import { workspaceError } from './workspace-contract.ts';
+import { createImageImportDraft } from './project-image-imports.ts';
+import type { ImageImportDraft } from './project-image-imports.ts';
 
 export interface ProjectSaveRequest { requestId: string; expectedRevision: number | null; document: ProjectContent }
 export interface ProjectDraft { content: ProjectContent; baseline: number | null; dirty: boolean; undoApplied?: boolean }
@@ -22,6 +24,13 @@ function equalContent(a: ProjectContent, b: ProjectContent): boolean {
   return JSON.stringify(ordered(contentOf(a))) === JSON.stringify(ordered(contentOf(b)));
 }
 export function useProjects(root: string | null) {
+  const imageImports = useRef(new Map<string, ImageImportDraft>());
+  function imageImportDraft(key: string) {
+    const scoped = `${root ?? 'preview'}:${key}`;
+    let draft = imageImports.current.get(scoped);
+    if (!draft) { draft = createImageImportDraft(); imageImports.current.set(scoped, draft); }
+    return draft;
+  }
   const [projects, setProjects] = useState<ProjectDocument[]>([]);
   const projectsRef = useRef<ProjectDocument[]>([]);
   const [removedProjects, setRemovedProjects] = useState<ProjectDocument[]>([]);
@@ -288,7 +297,7 @@ export function useProjects(root: string | null) {
     putDraft(id, { content: contentOf(official), baseline: official.revision, dirty: false });
     message(id, '', '已采用正式记录。');
   }
-  return { projects, removedProjects, deletionPending, lastDeleted, setDeleted, reconcileDeletion, drafts, pending, errors, notices, loading:loading||Boolean(root&&loadedRoot.current!==root), loadError, busy, newName, newId, undos, labelDrafts, query,
+  return { imageImportDraft, projects, removedProjects, deletionPending, lastDeleted, setDeleted, reconcileDeletion, drafts, pending, errors, notices, loading:loading||Boolean(root&&loadedRoot.current!==root), loadError, busy, newName, newId, undos, labelDrafts, query,
     changeQuery: setQuery, changeNewName, refresh, change, save, create, reconcile, rebase, replaceWithOfficial, putUndo, changeLabelDraft };
 }
 export type ProjectsController = ReturnType<typeof useProjects>;

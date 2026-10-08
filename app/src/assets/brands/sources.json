@@ -1,0 +1,245 @@
+[
+  {
+    "file": "anthropic.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/anthropic.svg",
+    "sha256": "e833fdfa7e7187a86a05b870925067556a506dcd4239089aed73e1e58c9366a3",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "openai.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/openai.svg",
+    "sha256": "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "google.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/google.svg",
+    "sha256": "c4bb45d362cb0a98b33b1f2fb424db2a5cd95a90e1043ae4e387de81a5e64951",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "meta.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/meta.svg",
+    "sha256": "805ef9a35305393eb5a89be46b0708c9b119b3308ca44aaedd1457ff04857060",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "xai.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/xai.svg",
+    "sha256": "89eb7de9f0d02a41cfecd9109e253d7fd3529e27467dee4254faa67f3ac21451",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "microsoft.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/microsoft.svg",
+    "sha256": "0617d6111e99845e7ab06dd4ff1e16c2c1ad381575b3204ef02dd71b716ffa4b",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "deepseek.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/deepseek.svg",
+    "sha256": "8f9443e351b6dacce71871790201b799d92e8bf96a45ef79aeb5e9bf4db423e2",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "moonshot.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/moonshot.svg",
+    "sha256": "435f41b74e6a87639b6bf860e9628f20cbe7d6229bece412d548f4cea3081852",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "bytedance.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/bytedance.svg",
+    "sha256": "f7ae0a574bd2e28b17258e6e65061c564f764d807cba65d6d1013f50cbfdd7f5",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "alibaba.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/alibaba.svg",
+    "sha256": "9ecd942970e4616933c9e1c014f58ad31ea4c1775efefc4f41b55ea166f443ee",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "tencent.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/tencent.svg",
+    "sha256": "24f53f9f8195a04d0183e5ffa6b3e05e783e043d56b11ed65d066eb9211e5dc8",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "minimax.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/minimax.svg",
+    "sha256": "bb96e2005081494716de6af5fd030701ae551ee68393ad61b325c07325607848",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "mistral.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/mistral.svg",
+    "sha256": "a06cfa54e7deff7f7544175b006b7f8a03fbc5624c44f7d553a44d07ea96e629",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "stepfun.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/stepfun.svg",
+    "sha256": "90138fab370e3c0ce3105d38a496d6796ce73d44f9829d8e1045013dc064bcd2",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "upstage.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/upstage.svg",
+    "sha256": "2b740c9457fdbe4b0e7e3ff2e10f99882314a813e1e81f8d291b7b61d56a2416",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "zai.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/zai.svg",
+    "sha256": "e748cb5108ce37b116d7a5ba97d37e0ae97eadf6849b0de11afb248e244a01e1",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "bfl.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/bfl.svg",
+    "sha256": "c08f545c77c40f2447fb91d75f78db81dc2aeebb7291bb51ad2a982276219dc7",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "ideogram.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/ideogram.svg",
+    "sha256": "4025876b532d087ddecdaac90deef5a48addde8ca14bbdd408970ac395992103",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "krea.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/krea.svg",
+    "sha256": "05d722278e4fcca5f24a3919241beabf7b9f3e233a1e6bd9a47028e116aa7832",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "luma.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/luma.svg",
+    "sha256": "d27fea3504ac83a9029979d397a4489944112f77a145a1ab8a2d61f524f3031c",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "nvidia.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/nvidia.svg",
+    "sha256": "5a419b99e0ffdbfbe8caa7ec25581054eae03024da59cb860c54ea55ac8e7e73",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "recraft.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/recraft.svg",
+    "sha256": "ccb97a588aebf55a78bbc6ef6416cb0d9c5862a180dfada2713e0b6fc3245d08",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "reve.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/reve.svg",
+    "sha256": "5ba4a5b7e1c0e0d5abee8857f36b37ec9a2241309aa68face6b3279bd34bfa75",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "xiaomi.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/98820a4dc8c363ca72fa2c0d294ea4a0a9bba75d/icons/xiaomi.svg",
+    "sha256": "8866d12a70d85ab43acd3b9c80f1b37792d91160d8273efffdf817af5fd608cb",
+    "license": "CC0-1.0 (Simple Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "hidream.png",
+    "source": "https://avatars.githubusercontent.com/u/199627684?v=4&s=96",
+    "identitySource": "https://github.com/HiDream-ai",
+    "sha256": "f431d27f523fdbbdb58ac65c8f4b63df59722400f9586663da8370f2d1f88b2c",
+    "license": "Brand identification only; artwork and trademark belong to HiDream.ai"
+  },
+  {
+    "file": "alibaba-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/alibaba-color.svg",
+    "sha256": "48ee796c5b1da5f5f11dbd70c5c64a3f7efcb9eeb9022ae687d81fc813e942ee",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "bytedance-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/bytedance-color.svg",
+    "sha256": "3d37647be262c79b044e293bb1a4993202537e9f9ffdbd2bbe7e9fc5378d1005",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "claude-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/claude-color.svg",
+    "sha256": "a3101f3047a119aa11825ad9369510f0c472428c8c52d420e31bc62db44a8364",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "deepseek-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/deepseek-color.svg",
+    "sha256": "deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "google-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/google-color.svg",
+    "sha256": "4e6aa8892ef15a6b431f40f2c9045979bf7e2357524e7bbb89b353cf4f32a5ac",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "luma-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/luma-color.svg",
+    "sha256": "84b5c8214fd89a8b46e33eeb15f02d266c3d49e0716664a82fb2e3711e1ceec6",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "meta-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/meta-color.svg",
+    "sha256": "adf9f2c1a646ccd3a37ca8c2e7e5985d64630cd633f4b95fba393d1d44e0578c",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "microsoft-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/microsoft-color.svg",
+    "sha256": "5cfb0ffa3231313c2968b5e3fedfcce8e2e96c61bde4572384c3889a77a80350",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "minimax-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/minimax-color.svg",
+    "sha256": "7f7187fa6d9b341ac5f22f6c5a970523afb439dc45566d64eb4f4b9b604d6b01",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "mistral-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/mistral-color.svg",
+    "sha256": "722f74b289d95486b43662fe24fa883b333701296f618406cd0ed502299170b6",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "nvidia-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/nvidia-color.svg",
+    "sha256": "8c941e4eb8b782eccaaea1240c059d20be33ab8eda28d7c9ed9b53ac802fe683",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "stepfun-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/stepfun-color.svg",
+    "sha256": "f55afc0e6004c8854f76bd5bbcc0fce9fc0ed9316691d54fb02d088c24fab40d",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "tencent-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/tencent-color.svg",
+    "sha256": "7c370ad4b75e3f30d0fa7da71f90466a0ee95a887189479aa9df414079b50eb6",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "upstage-color.svg",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/packages/static-svg/icons/upstage-color.svg",
+    "sha256": "206e23f9143cd308998cddae36b674651d7435eebc357c596dacb2b39228a485",
+    "license": "MIT (Lobe Icons); trademarks belong to their owners"
+  },
+  {
+    "file": "xiaomi-color.svg",
+    "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/98820a4dc8c363ca72fa2c0d294ea4a0a9bba75d/icons/xiaomi.svg",
+    "colorSource": "https://raw.githubusercontent.com/simple-icons/simple-icons/98820a4dc8c363ca72fa2c0d294ea4a0a9bba75d/data/simple-icons.json",
+    "modification": "Set original brand fill #FF6900",
+    "sha256": "20fb26a3565ed90895c0f29ad006301a5dd9cede687b3ff4a27a0758ad0f9ede",
+    "license": "CC0-1.0 (Simple Icons); trademarks belong to their owners"
+  }
+]

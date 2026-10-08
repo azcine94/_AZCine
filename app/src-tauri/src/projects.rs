@@ -26,7 +26,11 @@ pub struct ListColumn {
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ListRow { pub id: String, pub cells: BTreeMap<String, String> }
+pub struct ListRow {
+    pub id: String, pub cells: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<BTreeMap<String, Vec<crate::project_images::ProjectImage>>>,
+}
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChecklistItem { pub id: String, pub text: String, pub checked: bool }
@@ -128,6 +132,14 @@ pub fn validate_content(doc: &ProjectContent) -> Result<(), StorageError> {
                 }
                 for row in rows {
                     entity(&row.id, &mut used)?;
+                    if let Some(images) = &row.images {
+                        for (column_id, attachments) in images {
+                            let mut image_ids = HashSet::new();
+                            if !column_map.contains_key(column_id.as_str()) || attachments.len() > 16 || attachments.iter().any(|image| !image.valid() || !image_ids.insert(image.id.to_ascii_lowercase())) {
+                                return Err(invalid("图片必须关联现有单元格，每格最多16张且引用有效，未覆盖原内容。"));
+                            }
+                        }
+                    }
                     for (column_id, value) in &row.cells {
                         let kind = column_map.get(column_id.as_str()).ok_or_else(|| invalid("行包含不存在的列，未丢弃原值或保存。"))?;
                         let valid = match kind {

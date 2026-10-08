@@ -253,7 +253,7 @@ impl Store {
                 tx.execute("INSERT INTO news_material_keys(source_id,key,material_id) VALUES (?1,?2,?3) ON CONFLICT(source_id,key) DO NOTHING", params![work.source.id, key, material_id]).map_err(db_error)?;
             }
             if let Some(body)=&entry.body {
-                tx.execute("INSERT INTO news_bodies(material_id,body,kind,fetched_at) VALUES(?1,?2,?3,?4) ON CONFLICT(material_id) DO NOTHING",params![material_id,body,if entry.body_full{"feed"}else{"summary"},fetched_at]).map_err(db_error)?;
+                tx.execute("INSERT INTO news_bodies(material_id,body,kind,fetched_at) VALUES(?1,?2,?3,?4) ON CONFLICT(material_id) DO UPDATE SET body=excluded.body,kind=excluded.kind,fetched_at=excluded.fetched_at,error=CASE WHEN excluded.kind='feed' THEN NULL ELSE news_bodies.error END WHERE news_bodies.kind='summary' OR (news_bodies.kind='feed' AND length(news_bodies.body)<300)",params![material_id,body,if entry.body_full{"feed"}else{"summary"},fetched_at]).map_err(db_error)?;
             }
         }
         if outside>0{tx.execute("UPDATE news_runs SET skipped=skipped+?1,warning=CASE WHEN warning IS NULL THEN ?2 ELSE warning||'；'||?2 END WHERE id=?3",params![outside,format!("按已选采集范围跳过 {outside} 条（包含未纳入的日期不明资料）"),work.id]).map_err(db_error)?;}

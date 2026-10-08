@@ -1,3 +1,4 @@
+import '../styles/globals.css';
 import { UILink } from '../components/ui/ui-link.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTheme } from '../use-theme.ts';
@@ -10,11 +11,13 @@ import { usePreviewControllers } from './controllers.ts';
 import { useStateActions } from './state-actions.ts';
 import {usePreviewReader} from './news-reader-fixture.ts';
 import { Feedback } from '../components/ui/feedback.tsx';
+import { AttachmentPreviewImages } from '../components/ui/attachment-preview.tsx';
+import { attachmentImageData, uuid } from './data.ts';
 import sourceInventory from 'virtual:azcine-ui-inventory';
 import { Button } from '../components/ui/button.tsx';
 import { Input } from '../components/ui/input.tsx';
 import { NativeSelect, NativeSelectOption } from '../components/ui/native-select.tsx';
-import '../styles/globals.css';
+
 import './preview.css';
 
 const params=new URLSearchParams(location.search);
@@ -25,7 +28,9 @@ function usePreviewTheme() {
 }
 function PreviewScene({scene,state}:{scene:Scene;state:string}) {
   const models=usePreviewControllers(state),theme=usePreviewTheme();
-  const newsReader=usePreviewReader(state);
+  const [previewRoute,setPreviewRoute]=useState(scene.route);
+  const newsReader=usePreviewReader(state,!!previewRoute?.startsWith('news/daily'));
+  useEffect(()=>{const changed=()=>{const next=resolveRoute(location.hash);if(next==='news'||next.startsWith('news/'))setPreviewRoute(next);};window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
   const stateError=useStateActions(state);
   useEffect(()=>{
     const receive=(event:MessageEvent)=>{
@@ -42,11 +47,12 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     if (!href?.startsWith('#') || document.getElementById(href.slice(1))) return;
     event.preventDefault();event.stopPropagation();
     const route=resolveRoute(href);
+    if(route==='news'||route.startsWith('news/')){setPreviewRoute(route);return;}
     if (parent!==window) parent.postMessage({type:'azcine-ui-route',route,theme:theme.theme},location.origin);
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    {scene.route ? <WorkspaceView {...models} {...theme} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
+    <AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView {...models} {...theme} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider>
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];

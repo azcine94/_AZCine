@@ -50,7 +50,7 @@ pub async fn organize(app:tauri::AppHandle,id:String,kind:String,retry:bool,date
     let path=cache_path(&root,&id,"input.json")?;
     let mut input=if retry {
         let id=id.clone();let run=with_storage(app.clone(),move|m|{let s=m.store()?;if s.news_history_hidden(&id)?{return Err(StorageError::new("news_history_removed","这条处理记录已删除，未重新执行。"));}s.editorial_run(&id)}).await?;
-        if !matches!(run.status.as_str(),"failed"|"cancelled"|"interrupted"|"awaitingModel"){return Err(StorageError::new("news_retry_not_failed","此整理记录无需重试，没有重复运行。"));}
+        if !matches!(run.status.as_str(),"failed"|"cancelled"|"interrupted"|"awaitingModel"|"pendingMaterials"){return Err(StorageError::new("news_retry_not_failed","此整理记录无需重试，没有重复运行。"));}
         if path.try_exists().map_err(|_|invalid_reply())?{let mut input:RunInput=read(&path)?;input.run=run;input}
         else{return Err(StorageError::new("news_task_input_missing","原任务输入快照缺失，未扩大处理范围；请保留记录并重新选择资料发起任务。"));}
     }else{
@@ -120,7 +120,7 @@ pub async fn organize(app:tauri::AppHandle,id:String,kind:String,retry:bool,date
     }.await;
     app.state::<AiControl>().active.lock().map_err(|_|invalid_reply())?.take();
     let outcome=if app.state::<AiControl>().cancel.load(Ordering::Acquire){Err(StorageError::new("news_cancelled","资讯任务已取消；已经提交的结果保留，未报告成功。"))}else{outcome};
-    match outcome {Ok(())=>finish(&app,&mut input.run,"completed",None).await?,Err(e)=>{let status=if e.code=="news_cancelled"{"cancelled"}else if e.code=="news_model_unavailable"{"awaitingModel"}else{"failed"};finish(&app,&mut input.run,status,Some(e.message.clone())).await?;return Err(e);}}
+    match outcome {Ok(())=>finish(&app,&mut input.run,"completed",None).await?,Err(e) if e.code=="news_materials_pending"=>finish(&app,&mut input.run,"pendingMaterials",Some(e.message)).await?,Err(e)=>{let status=if e.code=="news_cancelled"{"cancelled"}else if e.code=="news_model_unavailable"{"awaitingModel"}else{"failed"};finish(&app,&mut input.run,status,Some(e.message.clone())).await?;return Err(e);}}
     with_storage(app,|m|m.store()?.editorial_snapshot()).await
 }
 #[tauri::command]
@@ -219,10 +219,9 @@ pub fn start_automation(app:tauri::AppHandle){tauri::async_runtime::spawn_blocki
         if let Ok((sources,date))=plan{
             for id in sources{let enabled=with_storage(app.clone(),|m|Ok(m.store()?.news_preferences()?.config.auto_collect)).await.unwrap_or(false);if !enabled{break;}let _=crate::news_commands::automatic_collect(app.clone(),Some(id)).await;}
             if let Some(date)=date{if !app.state::<AiControl>().busy.load(Ordering::Acquire){
-                match crate::news_commands::automatic_collect(app.clone(),None).await {
-                    Err(e) if e.code=="news_collection_busy"=>{},
-                    _=>{let _=organize(app.clone(),uuid_value(),"daily".into(),false,Some(date),None).await;}
-                }
+                // Daily editions use saved results. Collection is controlled exclusively
+                // by auto_collect above; creating an edition must not start another fetch.
+                let _=organize(app.clone(),uuid_value(),"daily".into(),false,Some(date),None).await;
             }}
         }
     });

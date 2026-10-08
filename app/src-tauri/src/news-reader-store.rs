@@ -83,7 +83,7 @@ impl Store {
         let total:i64=self.db.query_row(&format!("SELECT count(*) FROM news_articles WHERE {conditions}"),params![tab,category,query],|r|r.get(0)).map_err(db_error)?;
         let mut q=self.db.prepare(&format!("SELECT json_remove(payload,'$.originalBody','$.translatedBody'),bookmarked FROM news_articles WHERE {conditions} ORDER BY COALESCE(json_extract(payload,'$.material.publishedAt'),json_extract(payload,'$.material.discoveredAt')) DESC,id DESC LIMIT ?4")).map_err(db_error)?;
         let items=q.query_map(params![tab,category,query,limit as i64],|r|Ok((r.get::<_,String>(0)?,r.get::<_,bool>(1)?))).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?.iter().map(|(raw,bookmark)|{let mut v:Value=decode(raw)?;v["bookmarked"]=json!(bookmark);Ok(v)}).collect::<Result<Vec<Value>,StorageError>>()?;
-        let mut e=self.db.prepare("SELECT payload FROM news_reader_editions ORDER BY date DESC,rowid DESC LIMIT 60").map_err(db_error)?;let editions=e.query_map([],|r|r.get::<_,String>(0)).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?.iter().map(|r|decode::<Value>(r)).collect::<Result<Vec<_>,_>>()?;
+        let mut e=self.db.prepare("SELECT payload FROM news_reader_editions ORDER BY date DESC,rowid DESC").map_err(db_error)?;let editions=e.query_map([],|r|r.get::<_,String>(0)).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?.iter().map(|r|decode::<Value>(r)).collect::<Result<Vec<_>,_>>()?;
         Ok(json!({"items":items,"total":total,"stories":self.reader_stories()?,"editions":editions,"taxonomy":crate::news_prompts::taxonomy(),"upstream":crate::news_prompts::UPSTREAM}))
     }
     pub fn reader_stories(&self)->Result<Vec<Value>,StorageError>{

@@ -1,3 +1,5 @@
+import { parseThinkingMap } from './pi-thinking.ts';
+import type { ThinkingLevelMap } from './pi-thinking.ts';
 export interface PiModel {
   id: string;
   name: string;
@@ -5,6 +7,7 @@ export interface PiModel {
   api: string;
   input: ('text' | 'image')[];
   reasoning: boolean;
+  thinkingLevelMap?: ThinkingLevelMap;
   contextWindow: number;
   maxTokens: number;
 }
@@ -107,6 +110,7 @@ export function parsePiModel(value: unknown): PiModel {
     api: stringValue(value.api, 1000),
     input,
     reasoning: booleanValue(value.reasoning),
+    thinkingLevelMap: parseThinkingMap(value.thinkingLevelMap),
     contextWindow: integerValue(value.contextWindow, 1),
     maxTokens: integerValue(value.maxTokens, 1),
   };

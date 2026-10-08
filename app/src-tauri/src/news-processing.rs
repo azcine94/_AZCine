@@ -9,17 +9,21 @@ use tauri::{Manager as _,Emitter as _};
 pub struct Step { pub at:String,pub phase:String }
 #[derive(Clone,Serialize,Deserialize)]
 #[serde(rename_all="camelCase")]
+pub struct PendingMaterial {pub material_id:String,pub title:String,pub reason:String}
+#[derive(Clone,Serialize,Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct ProcessingProgress {
     pub run_id:String,pub phase:String,pub started_at:String,pub updated_at:String,
     pub batch:usize,pub batches:usize,pub batch_size:usize,pub completed:usize,pub total:usize,
     pub pid:Option<u32>,pub model:Option<ModelChoice>,pub input:Vec<Material>,
     pub response:String,pub received_chars:usize,pub steps:Vec<Step>,pub error:Option<String>,
+    #[serde(default)] pub pending_materials:Vec<PendingMaterial>,
 }
 pub enum ProgressEvent { Phase(&'static str), Process(u32,Arc<crate::pi_rpc::RpcProcess>), Model(ModelChoice), Text(String,usize) }
 pub type Observer=Arc<dyn Fn(ProgressEvent)+Send+Sync>;
 fn now()->String{crate::news_store::now()}
 pub fn begin(app:&tauri::AppHandle,run:&EditorialRun,batch_size:usize){
-    if let Ok(mut state)=app.state::<AiControl>().progress.lock(){*state=Some(ProcessingProgress{run_id:run.id.clone(),phase:"preparing".into(),started_at:now(),updated_at:now(),batch:0,batches:run.total.div_ceil(batch_size),batch_size,completed:run.processed,total:run.total,pid:None,model:None,input:vec![],response:String::new(),received_chars:0,steps:vec![],error:None});}
+    if let Ok(mut state)=app.state::<AiControl>().progress.lock(){*state=Some(ProcessingProgress{run_id:run.id.clone(),phase:"preparing".into(),started_at:now(),updated_at:now(),batch:0,batches:run.total.div_ceil(batch_size),batch_size,completed:run.processed,total:run.total,pid:None,model:None,input:vec![],response:String::new(),received_chars:0,steps:vec![],error:None,pending_materials:vec![]});}
 }
 pub fn batch(app:&tauri::AppHandle,index:usize,input:&[Material],completed:usize){
     if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut(){p.batch=index+1;p.input=input.to_vec();p.completed=completed;p.response.clear();p.received_chars=0;}}
@@ -31,7 +35,7 @@ pub fn observer(app:&tauri::AppHandle)->Observer {
     Arc::new(move|event|{
         let streaming=matches!(&event,ProgressEvent::Text(_, _));
         let mut updated=false;
-        if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut().filter(|p|target.as_ref().is_some_and(|(id,at)|&p.run_id==id && &p.started_at==at) && !matches!(p.phase.as_str(),"completed"|"cancelled"|"failed"|"awaitingModel"|"interrupted")){
+        if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut().filter(|p|target.as_ref().is_some_and(|(id,at)|&p.run_id==id && &p.started_at==at) && !matches!(p.phase.as_str(),"completed"|"cancelled"|"failed"|"awaitingModel"|"interrupted"|"pendingMaterials")){
             updated=true;
             match event {
                 ProgressEvent::Phase(phase)=>{if phase=="sending"{p.response.clear();p.received_chars=0;}p.phase=if phase=="waitingModel"&&p.received_chars>0{"receiving".into()}else if phase=="waitingModel"&&p.phase=="thinking"{"thinking".into()}else{phase.into()};p.steps.push(Step{at:now(),phase:phase.into()});},
@@ -45,6 +49,10 @@ pub fn observer(app:&tauri::AppHandle)->Observer {
     })
 }
 pub fn completed(app:&tauri::AppHandle,count:usize){if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut(){p.completed=count;}}}
+pub fn pending_material(app:&tauri::AppHandle,material:&Material,reason:&str){
+    if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut(){p.pending_materials.push(PendingMaterial{material_id:material.id.clone(),title:material.title.clone(),reason:reason.into()});}}
+    observer(app)(ProgressEvent::Phase("materialPending"));
+}
 pub fn terminal(app:&tauri::AppHandle,status:&str,error:Option<String>){
     if let Ok(mut state)=app.state::<AiControl>().progress.lock(){if let Some(p)=state.as_mut(){p.phase=status.into();p.error=error;p.updated_at=now();p.pid=None;p.steps.push(Step{at:now(),phase:status.into()});}}
     let _=app.emit_to("main","news-processing-changed",());

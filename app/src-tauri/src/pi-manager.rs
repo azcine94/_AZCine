@@ -225,7 +225,7 @@ impl PiManager{
     pub fn session_action(&self,generation:u64,session_id:&str,command:&str,fields:Value,notify:Notify)->Result<Value,PiError>{
         let _operation=self.operation()?;
         if !matches!(command,"new_session"|"switch_session"|"set_model"|"set_session_name"|"set_thinking_level"){return Err(PiError::new("pi_action_invalid","此操作没有受控原生入口，未发送。"));}
-        if command=="set_thinking_level"&&!matches!(fields["level"].as_str(),Some("off"|"minimal"|"low"|"medium"|"high"|"xhigh")){return Err(PiError::new("pi_thinking_invalid","思考级别无效。"));}
+        if command=="set_thinking_level"&&!matches!(fields["level"].as_str(),Some("off"|"minimal"|"low"|"medium"|"high"|"xhigh"|"max")){return Err(PiError::new("pi_thinking_invalid","思考级别无效。"));}
         let mut next_lease=None;
         if command=="switch_session"{
             let (paths,cwd)={let c=locked(&self.core)?;check_session(&c,generation,session_id)?;check_idle(&c)?;(c.paths.clone().ok_or_else(interrupted)?,c.cwd.clone())};

@@ -45,7 +45,8 @@
 .ranking-leader[data-place="1"] .ranking-place { color:var(--acc); }
 .ranking-place svg { width:16px; height:16px; }
 .ranking-leader-org { min-width:0; color:var(--t2); font:var(--fs-xs)/var(--lh-xs) var(--font); overflow-wrap:anywhere; text-align:right; }
-.ranking-leader h3 { margin:var(--s-4) 0 var(--s-5); font:600 var(--fs-h)/var(--lh-h) var(--font); overflow-wrap:anywhere; }
+.ranking-leader-model { display:flex; align-items:center; gap:var(--s-3); min-width:0; margin:var(--s-4) 0 var(--s-5); }
+.ranking-leader h3 { min-width:0; margin:0; font:600 var(--fs-h)/var(--lh-h) var(--font); overflow-wrap:anywhere; }
 .ranking-leader-bottom { display:flex; align-items:flex-end; justify-content:space-between; gap:var(--s-3); margin-top:auto; }
 .ranking-leader-label { display:block; margin-bottom:var(--s-1); color:var(--t2); font:var(--fs-xs)/var(--lh-xs) var(--font); }
 .ranking-leader-value { display:block; color:var(--text); font:650 var(--fs-feature)/var(--lh-feature) var(--mono); letter-spacing:-1px; font-variant-numeric:tabular-nums; }
@@ -90,7 +91,7 @@
 .ranking-table tr[data-top="1"] .ranking-rank-badge { background:var(--acc); color:var(--acc-fg); font-weight:700; }
 .ranking-table tr[data-top="2"] .ranking-rank-badge,.ranking-table tr[data-top="3"] .ranking-rank-badge { background:var(--acc-soft); color:var(--acc); font-weight:700; }
 .ranking-spread { color:var(--t2); font:var(--fs-xs)/var(--lh-xs) var(--mono); }
-.ranking-model { display:block; min-width:0; }
+.ranking-model { display:flex; align-items:center; gap:var(--s-3); min-width:0; }
 .ranking-model-copy { min-width:0; }
 .ranking-model-name { display:block; font:600 var(--fs-body)/var(--lh-body) var(--font); overflow-wrap:anywhere; }
 .ranking-model-meta { display:block; margin-top:var(--s-1); color:var(--t2); font:var(--fs-xs)/var(--lh-xs) var(--font); overflow-wrap:anywhere; }
@@ -138,7 +139,7 @@
   
   
   .ranking-leaders { grid-template-columns:1fr; gap:var(--s-3); }
-  .ranking-leader h3 { margin-block:var(--s-3); }
+  .ranking-leader-model { margin-block:var(--s-3); }
   .ranking-table-heading { padding:var(--s-4); flex-wrap:wrap; gap:var(--s-2); }
   .ranking-progress { flex-wrap:wrap; }
 }

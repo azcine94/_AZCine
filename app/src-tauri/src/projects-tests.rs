@@ -27,7 +27,7 @@ fn content() -> ProjectContent {
                 rows: vec![ListRow { id: id(13), cells: BTreeMap::from([
                     (id(8), "SH-010".into()), (id(9), id(2)), (id(10), "2028-02-29".into()),
                     (id(11), "false".into()), (id(12), "其他来源交期 2029-01-03".into()),
-                ]) }],
+                ]), images: None }],
             },
         ],
     }
@@ -162,8 +162,8 @@ fn given_unicode_lengths_and_field_limits_when_validate_then_exact_boundaries_ar
 #[test]
 fn given_collection_and_encoded_size_limits_when_validate_then_complete_document_or_explicit_rejection() {
     let mut d = content(); list(&mut d).1.clear();
-    list(&mut d).1.extend((1000..11000).map(|n| ListRow { id: id(n), cells: BTreeMap::new() }));
-    assert!(validate_content(&d).is_ok()); list(&mut d).1.push(ListRow { id: id(12000), cells: BTreeMap::new() }); assert_invalid(d);
+    list(&mut d).1.extend((1000..11000).map(|n| ListRow { id: id(n), cells: BTreeMap::new(), images: None }));
+    assert!(validate_content(&d).is_ok()); list(&mut d).1.push(ListRow { id: id(12000), cells: BTreeMap::new(), images: None }); assert_invalid(d);
     let mut d = content(); list(&mut d).0.extend((100..159).map(|n| ListColumn { id: id(n), name: "普通列".into(), kind: ColumnKind::Text, width: None }));
     assert!(validate_content(&d).is_ok()); list(&mut d).0.push(ListColumn { id: id(159), name: "越界列".into(), kind: ColumnKind::Text, width: None }); assert_invalid(d);
     let mut d = content(); d.labels.extend((100..198).map(|n| StageLabel { id: id(n), name: format!("阶段{n}") }));
@@ -267,7 +267,7 @@ fn given_legacy_columns_and_resized_reordered_list_when_save_reopen_then_ids_cel
     let mut next = first.content.clone();
     let (columns, rows) = list(&mut next);
     columns[0].width = Some(320); columns.swap(0, 2);
-    rows.push(ListRow { id: id(90), cells: BTreeMap::from([(id(8), "SH-020".into())]) }); rows.swap(0, 1);
+    rows.push(ListRow { id: id(90), cells: BTreeMap::from([(id(8), "SH-020".into())]), images: None }); rows.swap(0, 1);
     let second = store.save_project(save(201, Some(first.revision), next.clone())).unwrap();
     assert_eq!(second.content, next);
     for width in [111, 641] { let mut invalid_doc = next.clone(); list(&mut invalid_doc).0[0].width = Some(width); assert_invalid(invalid_doc); }

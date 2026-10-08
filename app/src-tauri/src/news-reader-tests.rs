@@ -53,6 +53,24 @@ fn run(s:&Store,n:u32)->EditorialRun{s.start_editorial_run(&id(n),"organize",Non
     assert!(body.contains("## Scope"));assert!(body.contains(&prose));assert!(body.contains("[documentation](https://example.org/docs)"));assert!(!body.contains("hidden"));assert!(!body.contains("mb-0"));
 }
 
+#[test]fn given_html_href_with_bare_ampersand_when_resolving_aggregator_then_keep_original_link(){
+    let base = "https://www.techmeme.com/261007/p42";
+    let title = "Example researchers request preserving visibility into model reasoning (Example Journal)";
+    let original = "https://example.org/article?st=sample&reflink=desktopwebshare_permalink";
+    let html = format!("<a href=\"{original}\">Example researchers request preserving visibility into model reasoning</a>");
+    assert_eq!(crate::news_content::page_original(&html, base, title).as_deref(), Some(original));
+    let body = crate::news_content::markdown(&html, base, false).unwrap();
+    assert_eq!(crate::news_content::feed_original(&body, base, title).as_deref(), Some(original));
+}
+
+#[test]fn given_mixed_html_entities_when_decoding_then_preserve_bare_ampersands_without_losing_valid_entities(){
+    assert_eq!(crate::news_content::decode_html("A & B &ldquo;quoted&rdquo; &#x4E2D; &unknown; &amp;"), "A & B “quoted” 中 &unknown; &");
+    assert_eq!(crate::news_content::decode_html("?a=1&amp;b=2&c=3"), "?a=1&b=2&c=3");
+    assert_eq!(crate::news_content::decode_html("&amp;lt;"), "&lt;");
+    let body = crate::news_content::markdown("<a href=\"javascript&#58;alert(1)&unknown\">unsafe target</a>", "https://example.org", false).unwrap();
+    assert!(!body.contains("javascript"));
+}
+
 #[test]fn saved_old_results_share_the_reader_without_reprocessing_or_replacing_state(){
     use crate::news_editorial_types::{Event,EventDraft,ModelChoice};
     let mut s=store();let m=material(&mut s,1);let event_id="d".repeat(64);

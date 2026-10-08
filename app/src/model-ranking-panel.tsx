@@ -1,6 +1,7 @@
 import { UILink } from './components/ui/ui-link.tsx';
 import { Button } from './components/ui/button.tsx';
 import { LoadingStatus } from './components/ui/loading-status.tsx';
+import { BrandLogo, brandName } from './components/ui/brand-logo.tsx';
 import { BOARD_INFO, MODEL_BOARDS, rankingTime, RANKING_DATASET, RANKING_PRICE_SOURCE } from './model-ranking-contract.ts';
 import type { ModelBoard, ModelSnapshot, RankingMetric, RankingRow } from './model-ranking-contract.ts';
 import type { ModelRankingController } from './use-model-ranking.ts';
@@ -9,8 +10,7 @@ const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const signed = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
 const priceNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 });
 const priceDescription = 'Models.dev 收录的基础 API 报价，美元 / 百万 token，输入 / 输出；推理档位沿用基础模型价。优先厂商直供，悬停报价可查看服务商和采集时间。';
-const organizations: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', meta: 'Meta', xai: 'xAI', 'microsoft-ai': 'Microsoft AI', deepseek: 'DeepSeek', moonshot: 'Moonshot', bytedance: 'ByteDance', alibaba: 'Alibaba', tencent: 'Tencent' };
-function organization(row: RankingRow) { return row.organization ? organizations[row.organization] ?? row.organization : '厂商未提供'; }
+function organization(row: RankingRow) { return brandName(row.organization); }
 function Icon({ name }: { name: 'agent' | 'image' | 'refresh' | 'external' | 'clock' | 'trophy' }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     {name === 'agent' && <><rect x="4" y="7" width="16" height="13" rx="4" /><path d="M12 3v4M8 12v2m8-2v2M9 17h6M1 11v5m22-5v5" /></>}
@@ -22,7 +22,7 @@ function Icon({ name }: { name: 'agent' | 'image' | 'refresh' | 'external' | 'cl
   </svg>;
 }
 function ModelName({ row }: { row: RankingRow }) {
-  return <span className="ranking-model"><span className="ranking-model-copy">
+  return <span className="ranking-model"><BrandLogo organization={row.organization} /><span className="ranking-model-copy">
     <span className="ranking-model-name">{row.model}</span>
     <span className="ranking-model-meta">{organization(row)}{row.license && <><span className="ranking-meta-dot">·</span>{row.license}</>}</span>
     {row.kind === 'text-to-image' && row.preliminary === true && <span className="ranking-preliminary">初步排名</span>}
@@ -51,7 +51,7 @@ function RankingLeaders({ snapshot }: { snapshot: ModelSnapshot }) {
   return <div className="ranking-leaders" aria-label="榜单前三名">{snapshot.rows.slice(0, 3).map((row, index) =>
     <article className="ranking-leader" data-place={index + 1} key={row.model}>
       <div className="ranking-leader-top"><span className="ranking-place"><Icon name="trophy" />第 {row.rank} 名</span><span className="ranking-leader-org">{organization(row)}</span></div>
-      <h3 title={row.model}>{row.model}</h3>
+      <div className="ranking-leader-model"><BrandLogo organization={row.organization} size="md" /><h3 title={row.model}>{row.model}</h3></div>
       <div className="ranking-leader-bottom"><div><span className="ranking-leader-label">{row.kind === 'agent' ? '好评与投诉' : 'Arena 分数'}</span>
         <strong className="ranking-leader-value" data-direction={row.kind === 'agent' && row.praiseVsComplaint.value < 0 ? 'negative' : 'positive'}>
           {row.kind === 'agent' ? <>{signed.format(row.praiseVsComplaint.value)}<small>%</small></> : number.format(row.score)}

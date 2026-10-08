@@ -1,7 +1,8 @@
-import { useRef,useState } from 'react';
-import { ChevronDown,ChevronLeft,ListChecks,MoreHorizontal,Pin,PinOff,Trash2,X } from 'lucide-react';
+import { useId,useRef,useState } from 'react';
+import { ChevronDown,ChevronLeft,ListChecks,MoreHorizontal,Pin,PinOff,Pencil,Trash2,X } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
+import { Label } from './components/ui/label.tsx';
 import { Checkbox } from './components/ui/checkbox.tsx';
 import { StatusDot } from './components/ui/status-dot.tsx';
 import type { StatusDotTone } from './components/ui/status-dot.tsx';
@@ -30,6 +31,9 @@ export function AgentSessionNavigation({model,busy,attaching,inDialog=false,onNa
   const [query,setQuery]=useState(''),[groups,setGroups]=useState(readGroups),[managing,setManaging]=useState(false),[selected,setSelected]=useState<string[]>([]);
   const [targets,setTargets]=useState<NamedTarget[]>([]),[errors,setErrors]=useState<string[]>([]),[deleting,setDeleting]=useState(false);
   const origin=useRef<HTMLElement|null>(null),inFlight=useRef(false),manageButton=useRef<HTMLButtonElement>(null);
+  const [renameTarget,setRenameTarget]=useState<NamedTarget|null>(null),[renameName,setRenameName]=useState(''),[renameError,setRenameError]=useState(''),[renaming,setRenaming]=useState(false);
+  const renameOrigin=useRef<HTMLElement|null>(null),renameFlight=useRef(false);
+  const renameNameId=useId(),renameErrorId=useId();
   const nativeRows=model.runtimeSummary?.conversations.filter(row=>!!row.sessionId)??[];
   const allLive=[...new Set(nativeRows.map(row=>row.sessionId))].map(id=>{const matches=nativeRows.filter(row=>row.sessionId===id);const row=matches.find(row=>row.conversationKey===model.conversationKey)??matches[0]!;return{...row,active:matches.some(row=>row.active),waiting:matches.some(row=>row.waiting),connection:matches.some(row=>row.connection==='connecting')?'connecting':row.connection};});
   const state=model.snapshot?.state;
@@ -38,7 +42,7 @@ export function AgentSessionNavigation({model,busy,attaching,inDialog=false,onNa
   const filter=(row:SessionRow)=>row.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   const rows=[...live,...history];
   const eligible=rows.filter(row=>!row.protected),matching=eligible.filter(filter),chosen=eligible.filter(row=>selected.includes(row.target.sessionId));
-  const blocked=busy||attaching||deleting;
+  const blocked=busy||attaching||deleting||renaming;
   const pinOrder=new Map<string,number>(model.sessionPins.map((id,index)=>[id,index]));
   const pinnedRows=rows.filter(row=>pinOrder.has(row.target.sessionId)),recentRows=rows.filter(row=>!pinOrder.has(row.target.sessionId));
   function collapse(key:string){setGroups(before=>{const next={...before,[key]:!before[key]};try{localStorage.setItem('azcine.agent-session-groups',JSON.stringify(next));}catch{/* Keep the preference in memory. */}return next;});}
@@ -50,6 +54,10 @@ export function AgentSessionNavigation({model,busy,attaching,inDialog=false,onNa
     requestAnimationFrame(()=>Array.from(body?.querySelectorAll<HTMLButtonElement>('[data-session-pin]')??[]).find(button=>button.dataset.sessionPin===row.target.sessionId)?.focus({preventScroll:true}));
   }
   function confirm(rows:SessionRow[],trigger:HTMLElement|null){origin.current=trigger;setErrors([]);setTargets(rows.map(row=>({...row.target,name:row.name})));}
+  function beginRename(row:SessionRow,trigger:HTMLElement|null){renameOrigin.current=trigger;setRenameTarget({...row.target,name:row.name});setRenameName(row.name);setRenameError('');}
+  async function rename(){if(renameFlight.current||!renameTarget)return;renameFlight.current=true;setRenaming(true);setRenameError('');
+    try{await model.renameConversation(renameTarget,renameName);setRenameTarget(null);}catch(error){setRenameError(piError(error));}finally{renameFlight.current=false;setRenaming(false);}
+  }
   async function remove(){if(inFlight.current||!targets.length)return;inFlight.current=true;setDeleting(true);setErrors([]);const current=targets;
     try{const result=await model.deleteConversations(current);setSelected(before=>before.filter(id=>!result.deleted.includes(id)));const failed=current.filter(row=>!result.deleted.includes(row.sessionId));setTargets(failed);setErrors(result.errors.map(item=>`${current.find(row=>row.sessionId===item.sessionId)?.name??'会话'}：${item.error}`));if(!failed.length)setManaging(false);}
     catch(error){setErrors([piError(error)]);}finally{inFlight.current=false;setDeleting(false);}
@@ -67,11 +75,12 @@ export function AgentSessionNavigation({model,busy,attaching,inDialog=false,onNa
       </div>
       {!groups[key]&&<div className="pi-session-items">{filtered.map(row=>{
         const pinned=pinOrder.has(row.target.sessionId);
-        return <RecordContextMenu key={row.target.sessionId} copyText={row.name} actions={[{label:'删除会话',destructive:true,disabled:blocked||model.viewing||row.protected,run:trigger=>confirm([row],trigger)}]}><div className="pi-session-row" data-pinned={pinned||undefined}>
+        return <RecordContextMenu key={row.target.sessionId} copyText={row.name} actions={[{label:'重命名会话',disabled:blocked||model.viewing||row.protected,run:trigger=>beginRename(row,trigger)},{label:'删除会话',destructive:true,disabled:blocked||model.viewing||row.protected,run:trigger=>confirm([row],trigger)}]}><div className="pi-session-row" data-pinned={pinned||undefined}>
           {managing&&<Checkbox className="pi-session-checkbox" aria-label={`选择会话：${row.name}`} disabled={blocked||row.protected} checked={selected.includes(row.target.sessionId)} onCheckedChange={checked=>setSelected(before=>checked===true?[...new Set([...before,row.target.sessionId])]:before.filter(id=>id!==row.target.sessionId))}/>}
           <Button variant="app-control" className="pi-session-item" title={`${row.name}\n${pinned?'已置顶 · ':''}${row.status.label}${row.details?` · ${row.details}`:''}`} disabled={blocked} aria-current={row.active?'true':undefined} onClick={row.select}><StatusDot label={row.status.label} tone={row.status.tone}/><strong>{row.name}</strong></Button>
           <span className="pi-session-pin-slot"><Button variant="ghost" size="icon-xs" data-session-pin={row.target.sessionId} disabled={blocked} aria-label={`${pinned?'取消置顶':'置顶'}会话：${row.name}`} title={pinned?'取消置顶':'置顶'} aria-pressed={pinned} onClick={event=>togglePin(row,event.currentTarget)}>{pinned?<PinOff aria-hidden="true"/>:<Pin aria-hidden="true"/>}</Button></span>
           <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" className="pi-session-menu" data-session-menu disabled={blocked} aria-label={`会话操作：${row.name}`}><MoreHorizontal/></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+            <DropdownMenuItem disabled={model.viewing||row.protected} onSelect={()=>beginRename(row,document.querySelector<HTMLButtonElement>('.pi-session-row:has([data-state="open"]) [data-session-menu]'))}><Pencil/>重命名会话</DropdownMenuItem>
             {row.protected&&<p className="px-2 py-1 text-xs text-muted-foreground">结束运行或等待后可删除</p>}<DropdownMenuItem variant="destructive" disabled={model.viewing||row.protected} onSelect={()=>confirm([row],document.querySelector<HTMLButtonElement>('.pi-session-row:has([data-state="open"]) [data-session-menu]'))}><Trash2/>删除会话</DropdownMenuItem>
           </DropdownMenuContent></DropdownMenu>
         </div></RecordContextMenu>;
@@ -85,5 +94,10 @@ export function AgentSessionNavigation({model,busy,attaching,inDialog=false,onNa
     <div className="pi-session-body">{model.sessionError&&<Feedback tone="error">{model.sessionError}</Feedback>}{model.unreadable>0&&<p role="status">{model.unreadable} 个会话文件未能读取；原文件保留。</p>}{renderGroup('pinned','置顶',pinnedRows)}{renderGroup('recent','最近会话',recentRows)}{!rows.some(filter)&&<p className="pi-session-empty">{query?'没有匹配的会话。':'暂无已保存会话。开始聊天后会保留记录。'}</p>}</div>
     <FormDialog open={!!targets.length} onOpenChange={open=>{if(!open&&!inFlight.current){setTargets([]);setErrors([]);}}} returnFocus={origin.current?.isConnected?origin.current:returnFocus()??manageButton.current} title={targets.length>1?'批量删除会话':'删除会话'} description={`确认删除 ${targets.length} 个会话？列表与未发送草稿会移除，聊天原文件和业务草案保留。运行或等待中的会话无法删除。`}>
       <ul className="pi-session-delete-list">{targets.map(row=><li key={row.sessionId}>{row.name}</li>)}</ul>{errors.map((error,index)=><Feedback key={index} tone="error" role="alert">{error}</Feedback>)}<div className="ui-form-dialog-actions"><Button variant="ghost" disabled={deleting} onClick={()=>{setTargets([]);setErrors([]);}}>取消</Button><Button variant="destructive" data-session-delete-confirm disabled={blocked||model.viewing} onClick={()=>void remove()}>{deleting?'正在删除…':`删除 ${targets.length} 个会话`}</Button></div>
+    </FormDialog>
+    <FormDialog open={!!renameTarget} onOpenChange={open=>{if(!open&&!renameFlight.current)setRenameTarget(null);}} title="重命名会话" description="修改会话名称，聊天内容和未发送草稿保留。" returnFocus={renameOrigin.current?.isConnected?renameOrigin.current:returnFocus()}>
+      <form className="min-w-0" onSubmit={event=>{event.preventDefault();void rename();}}><div className="grid min-w-0 gap-2"><Label htmlFor={renameNameId}>会话名称</Label><Input id={renameNameId} value={renameName} disabled={renaming} autoFocus onFocus={event=>event.currentTarget.select()} onChange={event=>setRenameName(event.target.value)} aria-invalid={!!renameError} aria-describedby={renameError?renameErrorId:undefined}/>
+        {renameError&&<Feedback id={renameErrorId} tone="error" role="alert">{renameError}</Feedback>}</div><div className="ui-form-dialog-actions"><Button type="button" variant="ghost" disabled={renaming} onClick={()=>setRenameTarget(null)}>取消</Button><Button type="submit" disabled={renaming||!renameName.trim()}>{renaming?'正在保存…':'保存名称'}</Button></div>
+      </form>
     </FormDialog></>;
 }

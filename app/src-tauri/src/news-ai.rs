@@ -8,6 +8,18 @@ use tauri::Manager as _;
 pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
 pub struct AiWorker { _slot:crate::agent_jobs::BackgroundLease, rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>>, pub usage:Mutex<Value> }
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
+/// Retry only transport/service failures, never invalid output or configuration.
+/// Pi returns provider errors as text; explicit HTTP status takes precedence.
+pub(crate) fn transient_failure(error:&StorageError)->bool {
+    if matches!(error.code,"news_ai_disconnected"|"news_ai_timeout"){return true;}
+    if error.code!="news_ai_incomplete"{return false;}
+    let message=error.message.to_ascii_lowercase();
+    if ["unauthorized","forbidden","invalid api key","insufficient_quota","insufficient balance","context length","context_length","not found","unsupported"].iter().any(|s|message.contains(s)){return false;}
+    let status=message.split(|c:char|!c.is_ascii_digit()).filter(|s|s.len()==3)
+        .filter_map(|s|s.parse::<u16>().ok()).find(|status|(400..=599).contains(status));
+    if let Some(status)=status{return matches!(status,408|429|500|502|503|504|529);}
+    ["upstream connect error","connection refused","connection reset","econnreset","econnrefused","etimedout","eai_again","fetch failed","socket hang up","network error","connection error","timed out","service unavailable","temporarily unavailable","server overloaded"].iter().any(|s|message.contains(s))
+}
 fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError>{
     let value=rpc.request(command,fields,Duration::from_secs(30)).map_err(|e|error(e.code,e.message))?;
     if value["success"]!=true{return Err(error("news_ai_rejected","原版Pi拒绝资讯请求，未记录成功；请检查本应用模型配置。"));}
@@ -25,7 +37,9 @@ impl AiWorker {
         // Application-owned private task configuration: never change interactive Pi settings.
         paths.agent=paths.pi_root.join("news-private-agent");crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
         std::fs::create_dir_all(&paths.agent).map_err(|_|error("news_ai_config","无法准备资讯专用配置。"))?;
-        let mut settings=docs[2].clone();settings["retry"]=json!({"enabled":false});settings["compaction"]=json!({"enabled":false});settings["defaultThinkingLevel"]=json!("off");
+        // The application pipeline owns bounded retries and records each attempt.
+        // Keep native retries off so one receipt cannot hide additional requests.
+        let mut settings=docs[2].clone();settings["retry"]=json!({"enabled":false});settings["compaction"]=json!({"enabled":false});
         for (name,value) in [("models.json",&docs[0]),("auth.json",&docs[1]),("settings.json",&settings)] {
             let path=paths.agent.join(name);crate::pi_launch_plan::no_link(&path).map_err(map)?;
             let bytes=serde_json::to_vec(value).map_err(|_|invalid_reply())?;
@@ -72,9 +86,8 @@ impl AiWorker {
         let session=request(&self.rpc,"new_session",json!({}))?;
         if session["cancelled"]!=false{return Err(error("news_cancelled","原版Pi未确认新资讯会话，没有发送。"));}
         request(&self.rpc,"set_model",json!({"provider":self.model.provider,"modelId":self.model.id}))?;
-        // These tasks require a final structured answer. Set only this private
-        // upstream session; do not inherit the interactive Agent's reasoning level.
-        request(&self.rpc,"set_thinking_level",json!({"level":"off"}))?;
+        // Native set_model applies the saved per-model thinking level (or global
+        // default) and clamps it to this model's declared supported levels.
         let state=request(&self.rpc,"get_state",json!({}))?;
         if state["model"]["provider"]!=self.model.provider||state["model"]["id"]!=self.model.id{return Err(error("news_model_unavailable","原版Pi未使用选定资讯模型，没有发送。"));}
         self.settled.store(false,Ordering::Release);
@@ -84,8 +97,8 @@ impl AiWorker {
         let deadline=Instant::now()+Duration::from_secs(180);
         while !self.settled.load(Ordering::Acquire){
             if self.cancelled.load(Ordering::Acquire){let _=self.rpc.shutdown(Duration::ZERO);return Err(error("news_cancelled","资讯任务已取消；已完成结果与材料保留。"));}
-            if !self.rpc.is_connected(){return Err(error("news_ai_disconnected","资讯专用Pi进程中断，未报告成功；未自动付费重试。"));}
-            if Instant::now()>=deadline {let _=self.rpc.shutdown(Duration::ZERO);return Err(error("news_ai_timeout","模型整理超过180秒，已停止本任务进程树；未自动付费重试，材料保留。"));}
+            if !self.rpc.is_connected(){return Err(error("news_ai_disconnected","资讯专用Pi进程中断，未取得完整结果；材料保留。"));}
+            if Instant::now()>=deadline {let _=self.rpc.shutdown(Duration::ZERO);return Err(error("news_ai_timeout","模型整理超过180秒，已停止本任务进程树；材料保留。"));}
             thread::sleep(Duration::from_millis(25));
         }
         (self.observer)(crate::news_processing::ProgressEvent::Phase("readingResult"));
@@ -119,6 +132,27 @@ mod final_text_tests {
     fn final_answer_uses_only_text_blocks(){
         assert_eq!(final_text(&json!({"content":[{"type":"thinking","thinking":"private reasoning"},{"type":"text","text":"{\"label\":\"PASS\"}"}]})).unwrap(),"{\"label\":\"PASS\"}");
         assert_eq!(final_text(&json!({"content":[{"type":"text","text":"  \n "}]})).unwrap_err().code,"news_ai_empty_answer");
+    }
+}
+#[cfg(test)]
+mod transient_failure_tests {
+    use super::*;
+    #[test]
+    fn gateway_503_and_temporary_connection_errors_allow_retry(){
+        for reason in ["503: {\"message\":\"upstream connect error: Connection refused\",\"type\":\"server_error\"}","HTTP 502 Bad Gateway","504 Gateway Timeout","429 Too Many Requests","500 Internal Server Error","529 overloaded","TypeError: fetch failed","ECONNRESET","connection error"]{
+            assert!(transient_failure(&error("news_ai_incomplete",reason)),"{reason}");
+        }
+        assert!(transient_failure(&error("news_ai_timeout","模型请求超时")));
+        assert!(transient_failure(&error("news_ai_disconnected","Pi进程中断")));
+    }
+    #[test]
+    fn permanent_failures_do_not_repeat_paid_requests(){
+        for reason in ["401 Unauthorized: connection error","403 Forbidden","400 invalid request","404 model not found","429 insufficient_quota","429 insufficient balance","unsupported model","context_length_exceeded","结束原因：length"]{
+            assert!(!transient_failure(&error("news_ai_incomplete",reason)),"{reason}");
+        }
+        for code in ["news_cancelled","news_ai_invalid","news_ai_empty_answer","news_model_unavailable","news_request_quota","news_editorial_save_failed"]{
+            assert!(!transient_failure(&error(code,"503 connection error")),"{code}");
+        }
     }
 }
 pub fn parse_json<T:serde::de::DeserializeOwned>(text:&str)->Result<T,StorageError>{

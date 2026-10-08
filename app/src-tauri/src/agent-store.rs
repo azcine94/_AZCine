@@ -146,7 +146,7 @@ impl Store{
         if status!="review"||actual!=revision{return Err(StorageError::new("agent_draft_conflict","草案状态已经变化，未应用；请重新读取。"));}
         let payload:DraftPayload=serde_json::from_str(&payload).map_err(|_|invalid("草案格式损坏。"))?;let context:Value=serde_json::from_str(&context).map_err(|_|invalid("发送基线损坏。"))?;
         if let Err(e)=validate_payload(&tx,&payload,&context,providers){
-            drop(tx);if e.code=="agent_baseline_conflict"{self.db.execute("UPDATE agent_drafts SET status='conflict',validation=json_set(validation,'$.error',?),revision=revision+1 WHERE id=? AND revision=? AND status='review'",params![e.message,draft_id,revision]).map_err(db)?;}return Err(e);
+            drop(tx);let status=if e.code=="agent_baseline_conflict"{"conflict"}else{"blocked"};self.db.execute("UPDATE agent_drafts SET status=?,validation=json_set(validation,'$.error',?),revision=revision+1 WHERE id=? AND revision=? AND status='review'",params![status,e.message,draft_id,revision]).map_err(db)?;return Err(e);
         }
         let mut receipts=Vec::new();for op in &payload.operations{let baseline=baseline(&context,op)?;receipts.push(providers.module(&op.module)?.apply(&tx,op,&baseline)?);}
         let receipt=json!({"draftId":draft_id,"appliedAt":now(),"items":receipts,"pendingDecisions":payload.decisions});

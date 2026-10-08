@@ -2,14 +2,16 @@ import { EmptyState } from './components/ui/empty-state.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { UILink } from './components/ui/ui-link.tsx';
 import { StatusBadge } from './components/ui/status-badge.tsx';
+import { StatusDot } from './components/ui/status-dot.tsx';
 import { Disclosure } from './components/ui/disclosure.tsx';
 import { Button } from './components/ui/button.tsx';
 import { NativeSelect } from './components/ui/native-select.tsx';
 import { Input } from './components/ui/input.tsx';
 import { FormDialog, useCreationDialog } from './components/ui/form-dialog.tsx';
-import { useEffect, useRef } from 'react';
+import { Switch } from './components/ui/switch.tsx';
+import { useEffect, useRef, useState } from 'react';
 import { domainLabels, equalConfig, formatNewsTime, identityLabels, publicationLabel, statusLabels, usageLabels } from './news-contract.ts';
-import type { CollectionRun, Domain, FeedEntry, NewsMaterial, NewsSource } from './news-contract.ts';
+import type { CollectionRun, Domain, FeedEntry, NewsMaterial, NewsSource, RunStatus } from './news-contract.ts';
 import type { NewsController } from './use-news.ts';
 import { NewsRangeControl } from './news-range-control.tsx';
 import {NewsResetControl} from './news-reset-control.tsx';
@@ -37,10 +39,15 @@ function EntryBody({ entry, model }: { entry: FeedEntry | NewsMaterial; model: N
     <div className="news-entry-footer"><span className="meta">仅订阅摘要 / 原文链接，不保存全文</span><OriginalLink url={entry.url} model={model} /></div>
   </>;
 }
+function CollectionStatus({ status }: { status: RunStatus | null }) {
+  const label = status ? statusLabels[status] : '尚未采集';
+  const tone = status && ['fetchFailed', 'parseFailed', 'saveFailed'].includes(status) ? 'error' : status === 'interrupted' ? 'warning' : status === 'added' ? 'success' : 'neutral';
+  return <StatusBadge tone={tone}><StatusDot aria-hidden="true" label={label} tone={tone} />{label}</StatusBadge>;
+}
 function RunResult({ run, model }: { run: CollectionRun; model: NewsController }) {
   const active = ['queued', 'fetching', 'parsing', 'saving'].includes(run.status);
   return <li className="news-run">
-    <div className="news-run-main"><strong>{run.sourceName}</strong><StatusBadge className={`news-status${run.error ? ' bad-t' : ''}`}>{statusLabels[run.status]}</StatusBadge>
+    <div className="news-run-main"><strong>{run.sourceName}</strong><CollectionStatus status={run.status} />
       <span className="meta">配置 v{run.sourceRevision} · {formatNewsTime(run.attemptedAt)}</span></div>
     {!active && <p className="meta">取得 {run.fetched} 条 · 新增 {run.added} 条 · 无效条目 {run.skipped} 条{run.finishedAt && ` · 结束 ${formatNewsTime(run.finishedAt)}`}</p>}
     {run.warning && <p className="warn-t s">{run.warning}</p>}
@@ -86,18 +93,25 @@ export function NewsSettingsEntry() {
 function SourceRow({ source, model }: { source: NewsSource; model: NewsController }) {
   const id = source.config.id;
   return <tr>
-    <td data-label="信源"><UILink variant="text" className="news-source-name foundation-link" href={`#settings/news/sources/${id}`}>{source.config.name}</UILink><p className="meta">{source.feedKind ? source.feedKind.toUpperCase() : 'RSS / Atom（待解析）'} · 配置 v{source.revision}</p><p className="news-url meta">{source.config.feedUrl}</p></td>
-    <td data-label="覆盖与用途"><p>{source.config.domains.length ? source.config.domains.map(domain => domainLabels[domain]).join('、') : '覆盖领域未设'}</p><p className="meta">{identityLabels[source.config.identity]} · {usageLabels[source.config.usage]}</p><p className="meta">采集频率 {source.config.intervalMinutes} 分钟</p></td>
-    <td data-label="采集状态"><p>{source.lastStatus ? statusLabels[source.lastStatus] : '尚未采集'}</p><p className="meta">最近尝试：{formatNewsTime(source.lastAttemptAt)}</p><p className="meta">最近成功：{formatNewsTime(source.lastSuccessAt)}</p>{source.lastError && <Feedback as="p" tone="error" className="form-error s">{source.lastError}</Feedback>}</td>
-    <td data-label="操作"><div className="news-source-actions"><StatusBadge className="news-status">{source.config.enabled ? '已启用' : '已暂停'}</StatusBadge>
-      <Button variant="app-pill" className="pill" disabled={!model.connected || model.busy.includes(`save:${id}`) || !!model.pending[id]} onClick={() => void model.toggle(source)}>{source.config.enabled ? '暂停' : '启用'}</Button>
+    <td data-label="信源"><UILink variant="text" className="news-source-name foundation-link" title={source.config.name} href={`#settings/news/sources/${id}`}>{source.config.name}</UILink>
+      <Disclosure className="news-source-details"><summary>来源详情</summary><p className="meta">{source.feedKind?.toUpperCase() || 'RSS / Atom'} · 配置 v{source.revision}</p><p className="news-url meta">{source.config.feedUrl}</p><p>{source.config.domains.length ? source.config.domains.map(domain => domainLabels[domain]).join('、') : '覆盖领域未设'}</p><p className="meta">{identityLabels[source.config.identity]} · {usageLabels[source.config.usage]} · 每 {source.config.intervalMinutes} 分钟采集</p><p className="meta">最近尝试：{formatNewsTime(source.lastAttemptAt)}</p><p className="meta">最近成功：{formatNewsTime(source.lastSuccessAt)}</p></Disclosure>
+    </td>
+    <td data-label="采集状态"><CollectionStatus status={source.lastStatus} />{source.lastError && <Disclosure className="news-source-details"><summary>查看失败原因</summary><Feedback as="p" tone="error" className="form-error s">{source.lastError}</Feedback></Disclosure>}</td>
+    <td data-label="启停与操作"><div className="news-source-actions"><label className="news-source-toggle"><Switch checked={source.config.enabled} disabled={!model.connected || model.busy.includes(`save:${id}`) || !!model.pending[id]} onCheckedChange={() => void model.toggle(source)} aria-label={`${source.config.name}，启用采集`} /><span>{source.config.enabled ? '已启用' : '已暂停'}</span></label>
+      {model.drafts[id]?.dirty && <StatusBadge tone="warning">未保存</StatusBadge>}{model.pending[id] && <StatusBadge tone="warning">待核对</StatusBadge>}
       <UILink variant="pill" className="pill" href={`#settings/news/sources/${id}`}>编辑 / 预览</UILink>
       <Button variant="app-text" className="text-action" disabled={!model.connected || model.collecting || !source.config.enabled} onClick={() => void model.collect(id)}>采集此源</Button>
-      {model.drafts[id]?.dirty && <span className="meta">有未保存草稿</span>}{model.pending[id] && <UILink variant="text" className="foundation-link" href={`#settings/news/sources/${id}`}>核对上次保存</UILink>}
+      {model.pending[id] && <UILink variant="text" className="foundation-link" href={`#settings/news/sources/${id}`}>核对上次保存</UILink>}
     </div>{model.errors[id] && <Feedback as="p" tone="error" className="form-error s" role="alert">{model.errors[id]}</Feedback>}</td>
   </tr>;
 }
 export function NewsSourceManager({ model, create = false }: { model: NewsController; create?: boolean }) {
+  const [query, setQuery] = useState(''), [enabled, setEnabled] = useState('all'), [page, setPage] = useState(0);
+  const list = useRef<HTMLDivElement>(null);
+  const needle = query.trim().toLocaleLowerCase();
+  const filtered = model.snapshot.sources.filter(source => (enabled === 'all' || source.config.enabled === (enabled === 'enabled')) && `${source.config.name} ${source.config.feedUrl}`.toLocaleLowerCase().includes(needle));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / 10)), currentPage = Math.min(page, pageCount - 1);
+  function goToPage(next: number) { setPage(next); list.current?.scrollIntoView({ block: 'start' }); }
   const creation = useCreationDialog(create);
   const submitted = useRef<{ session: number; id: string } | null>(null);
   function closeCreation(open: boolean) {
@@ -118,7 +132,12 @@ export function NewsSourceManager({ model, create = false }: { model: NewsContro
     <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
     {!creation.open && <NewsFeedback model={model} />}
     <div className="news-management-summary"><span className="meta">{model.snapshot.sources.length} 个来源 · {model.snapshot.sources.filter(source => source.config.enabled).length} 个已启用</span><Button variant="app-text" className="text-action" disabled={!model.connected || model.loading} onClick={() => void model.refresh()}>重新读取</Button></div>
-    <table className="table news-source-table"><caption className="news-table-caption">公开 RSS / Atom 信源</caption><thead><tr><th scope="col">信源</th><th scope="col">覆盖与用途</th><th scope="col">采集状态</th><th scope="col">启停与操作</th></tr></thead><tbody>{model.snapshot.sources.map(source => <SourceRow key={source.config.id} source={source} model={model} />)}</tbody></table>
+    <div ref={list} className="news-source-directory">
+      <div className="news-source-filters"><Input variant="app" type="search" aria-label="搜索信源名称或地址" placeholder="搜索信源名称或地址" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /><NativeSelect variant="app" aria-label="筛选信源启停状态" value={enabled} onChange={event => { setEnabled(event.target.value); setPage(0); }}><option value="all">全部状态</option><option value="enabled">已启用</option><option value="paused">已暂停</option></NativeSelect><span className="meta" role="status">{filtered.length} / {model.snapshot.sources.length} 个信源</span></div>
+      <table className="table news-source-table"><caption className="news-table-caption">公开 RSS / Atom 信源</caption><thead><tr><th scope="col">信源</th><th scope="col">采集状态</th><th scope="col">启停与操作</th></tr></thead><tbody>{filtered.slice(currentPage * 10, (currentPage + 1) * 10).map(source => <SourceRow key={source.config.id} source={source} model={model} />)}</tbody></table>
+      {!filtered.length && model.snapshot.sources.length > 0 && <EmptyState as="div"><h3>没有匹配的信源</h3><Button variant="app-text" onClick={() => { setQuery(''); setEnabled('all'); setPage(0); }}>清除筛选</Button></EmptyState>}
+      {filtered.length > 0 && <nav className="news-pager" aria-label="信源分页"><Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => goToPage(currentPage - 1)}>上一页</Button><span className="meta">第 {currentPage + 1} / {pageCount} 页 · 每页 10 条</span><Button variant="outline" size="sm" disabled={currentPage + 1 === pageCount} onClick={() => goToPage(currentPage + 1)}>下一页</Button></nav>}
+    </div>
     {!model.snapshot.sources.length && !model.loading && <EmptyState as="div" className="foundation-empty"><h3>信源尚未读取</h3><p>请选择本机数据目录并重新读取；不会用网页演示数据替代正式配置。</p></EmptyState>}
     <p className="meta news-boundary">身份是来源声明，不代表独立事实核验。覆盖领域不据来源名称猜测。自动采集需在运行规则中开启，默认暂停。</p>
     <section className="news-run-section"><h2 className="title">最近采集记录</h2><p className="meta">显示最近100条来源级记录。抓取、解析、保存失败分别处理；没有新增不等于失败。</p>

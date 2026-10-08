@@ -52,7 +52,7 @@ fn history_rows(db:&Connection,mode:&str)->Result<Vec<(String,String)>,StorageEr
         if matches!(run.status.as_str(),"running"|"saving"){
             if target.is_some(){return Err(StorageError::new("news_history_active","运行中的任务不能删除，请先等待结束或取消。"));}continue;
         }
-        if !matches!(run.status.as_str(),"completed"|"failed"|"cancelled"|"interrupted"|"awaitingModel"){return Err(invalid());}
+        if !matches!(run.status.as_str(),"completed"|"failed"|"cancelled"|"interrupted"|"awaitingModel"|"pendingMaterials"){return Err(invalid());}
         ended.push((id,payload));
     }
     if target.is_some()&&ended.is_empty(){return Err(StorageError::new("news_history_missing","这条处理记录已移除或不存在，请重新读取。"));}

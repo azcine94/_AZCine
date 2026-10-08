@@ -4,6 +4,8 @@ export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'f
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'[data-agent-more]'};
 export const stateActions:Record<string,StateAction[]>={
+  'daily-menu':[{selector:'button[aria-label="日报更多操作"]'}],
+  'provider-thinking':[{selector:'.provider-advanced-section details',action:'open'}],
   'operation-toast':[{selector:'[data-toast-demo]'}],
   'history-delete':[{selector:'[data-history-delete]'}],
   'history-clear':[{selector:'[data-history-clear]'}],
@@ -42,6 +44,7 @@ export const stateActions:Record<string,StateAction[]>={
   'agent-draft-long':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
   'agent-draft-conflict':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'}],
   'agent-draft-confirm':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'},{selector:'.agent-review-dialog .ui-form-dialog-footer button',text:'核对后应用'}],
+  'agent-draft-apply-error':[{selector:'.agent-draft-card-trigger,.agent-draft-entry button'},{selector:'.agent-review-dialog .ui-form-dialog-footer button',text:'核对后应用'},{selector:'.agent-review-dialog .ui-form-dialog-footer button',text:'本人已核对，应用变更'}],
   'agent-process-retry':[{selector:'.pi-process-toggle'}],
   'agent-process-nested':[{selector:'.pi-process-toggle'},{selector:'.pi-call-toggle'}],
   'agent-process-nested-running':[{selector:'.pi-call-toggle'}],
@@ -53,6 +56,8 @@ export const stateActions:Record<string,StateAction[]>={
   'agent-sessions-collapsed':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-group=pinned]',action:'collapse'},{selector:'[data-session-group=recent]',action:'collapse'}],
   'agent-process':[{selector:'.pi-process-toggle'}],
   'agent-delete':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-menu]',action:'menu'},{selector:'[data-slot=dropdown-menu-item]',text:'删除会话'}],
+  'agent-session-rename':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-menu]',action:'menu'},{selector:'[data-slot=dropdown-menu-item]',text:'重命名会话'}],
+  'table-image-preview':[{selector:'.project-cell-image-tray .ui-attachment-tile'}],
   'provider-interface':[{selector:'.provider-models details',action:'open'}],
   'stage-select':[stage], 'stage-create':[stage,{selector:'.project-stage-picker__actions button',text:'新增标签'}],
   'stage-manage':[stage,{selector:'.project-stage-picker__actions button',text:'管理标签'}],

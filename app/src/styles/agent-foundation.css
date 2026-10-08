@@ -84,7 +84,7 @@
 .pi-agent-layout[data-redesign=true] .pi-chat-controls{flex:none;flex-wrap:nowrap;gap:var(--s-1)}
 .pi-agent-layout[data-redesign=true] .pi-chat-feedback{padding-inline:var(--s-4)}
 .pi-agent-layout[data-redesign=true] .pi-message-area{padding-inline:var(--s-5)}
-.pi-agent-layout[data-redesign=true] .pi-chat-messages{scrollbar-gutter:auto}
+.pi-agent-layout[data-redesign=true] .pi-chat-messages{scrollbar-gutter:stable both-edges;overflow-anchor:none;scroll-behavior:auto}
 .pi-agent-layout[data-redesign=true] .pi-chat-flow{padding:var(--s-4) 0 var(--s-5)}
 .pi-agent-layout[data-redesign=true] .pi-chat-flow[data-empty=true]{height:100%;display:flex;align-items:center;justify-content:center}
 .pi-agent-layout[data-redesign=true] .pi-chat-empty{width:100%;padding:var(--s-5) 0;border:0;background:transparent;text-align:center;align-items:center;gap:0}
@@ -194,7 +194,6 @@
 .pi-agent-layout .pi-message-markdown .pi-markdown-table{min-width:0;max-width:100%;margin-block:var(--s-3);white-space:normal}
 .pi-agent-layout .pi-markdown-table [data-slot="table-container"]{border:1px solid var(--border);border-radius:var(--r-ctl);overscroll-behavior-x:contain}
 .pi-agent-layout .pi-markdown-table th{background:var(--muted)}
-.pi-agent-layout .pi-markdown-table :is(th,td){min-width:112px;max-width:280px;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:760px){
   [data-slot="dialog-content"].agent-review-dialog{width:calc(100vw - 32px)}
   .agent-review-dialog .agent-draft-values{grid-template-columns:minmax(0,1fr)}
