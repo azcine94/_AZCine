@@ -1,3 +1,4 @@
+// Legacy todo fields remain readable for existing database snapshots; no todo UI or write IPC is exposed.
 export interface Todo {
   id: string; title: string; dueDate: string | null; projectId: string | null;
   completed: boolean; revision: number; createdAt: string;

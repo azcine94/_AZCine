@@ -29,6 +29,8 @@ pub struct ListColumn {
 pub struct ListRow {
     pub id: String, pub cells: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub images: Option<BTreeMap<String, Vec<crate::project_images::ProjectImage>>>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -132,6 +134,7 @@ pub fn validate_content(doc: &ProjectContent) -> Result<(), StorageError> {
                 }
                 for row in rows {
                     entity(&row.id, &mut used)?;
+                    if row.height.is_some_and(|height| !(48..=800).contains(&height)) { return Err(invalid("行高需为 48–800 的整数。")); }
                     if let Some(images) = &row.images {
                         for (column_id, attachments) in images {
                             let mut image_ids = HashSet::new();

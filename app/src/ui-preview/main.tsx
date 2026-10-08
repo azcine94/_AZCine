@@ -1,6 +1,9 @@
+import { GoodcasePreview } from '../goodcase-panel.tsx';
+import { goodcaseFixture } from './goodcase-fixture.ts';
+import { useCalendarFixture } from './issue-fixes-fixture.ts';
 import '../styles/globals.css';
 import { UILink } from '../components/ui/ui-link.tsx';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../use-theme.ts';
 import { WorkspaceView } from '../App.tsx';
 import { usePreviewUpdate } from './app-update-fixture.ts';
@@ -13,6 +16,8 @@ import { useStateActions } from './state-actions.ts';
 import {usePreviewReader} from './news-reader-fixture.ts';
 import { Feedback } from '../components/ui/feedback.tsx';
 import { AttachmentPreviewImages } from '../components/ui/attachment-preview.tsx';
+import { TodayHotTopicsPreview } from '../today-news-panel.tsx';
+import type { HotTopicsState } from '../aihot-hot-topics.ts';
 import { attachmentImageData, uuid } from './data.ts';
 import sourceInventory from 'virtual:azcine-ui-inventory';
 import { Button } from '../components/ui/button.tsx';
@@ -28,12 +33,19 @@ function usePreviewTheme() {
   return useTheme({initialTheme:params.get('theme')==='dark'?'dark':'light',persist:false});
 }
 function PreviewScene({scene,state}:{scene:Scene;state:string}) {
+  const goodcasePreview=useMemo(()=>goodcaseFixture(state),[state]);
   const updatePreview=usePreviewUpdate(state);
+  const calendarPreview=useCalendarFixture(state);
   const models=usePreviewControllers(state),theme=usePreviewTheme();
   const [previewRoute,setPreviewRoute]=useState(scene.route);
   const newsReader=usePreviewReader(state,!!previewRoute?.startsWith('news/daily'));
   useEffect(()=>{const changed=()=>{const next=resolveRoute(location.hash);if(next==='news'||next.startsWith('news/'))setPreviewRoute(next);};window.addEventListener('hashchange',changed);return()=>window.removeEventListener('hashchange',changed);},[]);
   const stateError=useStateActions(state);
+  const hotTopics:HotTopicsState = {
+    items:state==='today-news-empty'||state==='today-news-loading'?[]:Array.from({length:10},(_,index)=>({id:`fixture-hot-${index}`,rank:index+1,title:`虚构热点 ${index+1} · ${state==='today-news-long'?'用于检查长标题自动换行与正常页面排版的示例文字。'.repeat(5):'AI 工具与制作流程的新进展'}`,url:`https://aihot.news/items/fixture-${index}`,source:'UI 虚构信源',sourceCount:index+1})),
+    loaded:state!=='today-news-loading',loading:state==='today-news-loading',
+    error:state==='today-news-error'?'示例：AIHOT 暂时无法连接。':'',checkedAt:state==='today-news-loading'?'':'2026-10-09T01:00:00+08:00',
+  };
   useEffect(()=>{
     const receive=(event:MessageEvent)=>{
       if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='azcine-ui-theme')return;
@@ -54,7 +66,7 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    <AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView updatePreview={updatePreview} {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider>
+    <GoodcasePreview.Provider value={goodcasePreview}><TodayHotTopicsPreview.Provider value={hotTopics}><AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView calendarPreview={calendarPreview} updatePreview={updatePreview} {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider></TodayHotTopicsPreview.Provider></GoodcasePreview.Provider>
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];

@@ -17,7 +17,9 @@ export function ImageViewer({ open, onOpenChange, src, name }: {
   const opener = useRef<HTMLElement | null>(null), wasOpen = useRef(false);
   if (open && !wasOpen.current) opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   wasOpen.current = open;
-  const fit = natural.width && size.width ? Math.min((size.width - 32) / natural.width, (size.height - 32) / natural.height) : 1;
+  // Opening a small image must never upscale it to fill the preview window.
+  const ready = natural.width > 0 && size.width > 0 && size.height > 0;
+  const fit = ready ? Math.max(.01, Math.min(1, (size.width - 32) / natural.width, (size.height - 32) / natural.height)) : 1;
   const zoom = view.fitted ? Math.max(.01, fit) : view.zoom;
   useLayoutEffect(() => {
     if (!open) return;
@@ -42,7 +44,7 @@ export function ImageViewer({ open, onOpenChange, src, name }: {
   }
   function reset() { drag.current = null; setView({ zoom: 1, x: 0, y: 0, fitted: true }); }
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent layout="form" showCloseButton={false} className="ui-image-viewer" onOpenAutoFocus={event => { event.preventDefault(); viewport.current?.focus(); }} onCloseAutoFocus={event => { if(opener.current?.isConnected){event.preventDefault();opener.current.focus({preventScroll:true});} }}>
+    <DialogContent layout="form" showCloseButton={false} className="ui-image-viewer" style={{ animation: 'none' }} onOpenAutoFocus={event => { event.preventDefault(); viewport.current?.focus(); }} onCloseAutoFocus={event => { if(opener.current?.isConnected){event.preventDefault();opener.current.focus({preventScroll:true});} }}>
       <header className="ui-image-viewer-header"><DialogTitle title={name}>{name}</DialogTitle>
         <div className="ui-image-viewer-actions"><Button variant="ghost" size="icon-sm" aria-label="缩小图片" disabled={!natural.width || zoom <= Math.min(.05, fit)} onClick={() => changeZoom(zoom / 1.25)}><Minus/></Button>
           <Button variant="ghost" size="sm" className="ui-image-viewer-percent" title="以原始尺寸查看" disabled={!natural.width} onClick={() => { setView({ zoom: 1, x: 0, y: 0, fitted: false }); }}>{Math.round(zoom * 100)}%</Button>
@@ -70,7 +72,7 @@ export function ImageViewer({ open, onOpenChange, src, name }: {
         const held = drag.current; if (!held || held.id !== event.pointerId) return;
         setView({ zoom, x: held.originX + event.clientX - held.x, y: held.originY + event.clientY - held.y, fitted: false });
       }} onPointerUp={event => { drag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}>
-        {failed ? <p role="alert">图片暂时无法读取，请关闭后重试。</p> : <img src={src} alt={name} draggable={false} onLoad={event => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailed(true)} style={{ width: natural.width || undefined, height: natural.height || undefined, visibility: natural.width ? 'visible' : 'hidden', transform: `translate(${view.x}px, ${view.y}px) scale(${zoom})` }}/>}
+        {failed ? <p role="alert">图片暂时无法读取，请关闭后重试。</p> : <img src={src} alt={name} draggable={false} decoding="async" onLoad={event => setNatural({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailed(true)} style={{ width: natural.width || undefined, height: natural.height || undefined, visibility: ready ? 'visible' : 'hidden', transform: `translate(${view.x}px, ${view.y}px) scale(${zoom})` }}/>}
       </div>
       <footer className="ui-image-viewer-footer"><span>滚轮缩放 · 拖动查看 · 双击切换尺寸</span><span>{natural.width ? `${natural.width} × ${natural.height}` : failed ? '读取失败' : '正在读取图片…'}</span></footer>
     </DialogContent>

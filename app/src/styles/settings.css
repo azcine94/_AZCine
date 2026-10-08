@@ -119,8 +119,8 @@
 .provider-section-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
 .provider-section-heading h3 { font-size:14px; }
 .provider-inline-empty { padding:20px; background:var(--island-2); border-radius:var(--r-ctl); color:var(--t2); }
-.provider-models { display:grid; gap:16px; }
-.provider-model-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:12px; align-items:end; padding-bottom:16px; border-bottom:1px solid var(--line); }
+.provider-models { display:grid; gap:0; }
+.provider-model-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:12px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
 
 .provider-discovery { display:grid; gap:16px; padding-top:16px; border-top:1px solid var(--line); min-width:0; }
 .provider-candidates { display:grid; max-height:320px; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:var(--r-ctl); }

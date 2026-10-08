@@ -1,6 +1,11 @@
 /* AZCine 公共控件。业务变体由组件显式选择，主题只引用 tokens。 */
 /* 尺寸各有用途；这里统一焦点与操作排列，不改变已确认的页面布局。 */
 .ui-button:focus-visible,.ui-link:focus-visible,.ui-disclosure>summary:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.ui-choice-chip { border:1px solid var(--border); border-radius:var(--r-ctl); background:transparent; color:var(--muted-foreground); padding:4px 9px; font:400 11px/20px var(--font); }
+.ui-choice-chip[aria-pressed=true] { background:var(--primary); color:var(--primary-foreground); border-color:var(--primary); }
+.ui-underline-tab { border:0; border-bottom:2px solid transparent; background:transparent; color:var(--muted-foreground); padding:0 0 12px; white-space:nowrap; font:400 13px/20px var(--font); }
+.ui-underline-tab[aria-pressed=true] { color:var(--foreground); border-bottom-color:var(--foreground); }
+.ui-content-button { border:0; background:transparent; color:inherit; padding:0; font:inherit; text-align:left; }
 .ui-action-group { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2); }
 .ui-action-group[data-direction="column"] { flex-direction:column; align-items:stretch; }
 .ui-menu-item { display:flex; align-items:center; gap:var(--s-2); width:100%; min-height:var(--control-h); padding:var(--s-2) var(--s-3); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; text-align:left; text-decoration:none; overflow-wrap:anywhere; }

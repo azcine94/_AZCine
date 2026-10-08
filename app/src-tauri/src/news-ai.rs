@@ -5,7 +5,7 @@ use crate::{news_editorial_types::*,pi_launch_plan::PiPaths,pi_redactor::Redacto
 use tauri::Manager as _;
 
 #[derive(Default)]
-pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Option<Arc<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
+pub struct AiControl { pub busy: Arc<AtomicBool>, pub cancel: Arc<AtomicBool>, pub active: Mutex<Vec<std::sync::Weak<RpcProcess>>>, pub replies: Mutex<std::collections::HashMap<String,(EditorialReply,ModelChoice)>>,pub progress:Mutex<Option<crate::news_processing::ProcessingProgress>>,pub analyses:Mutex<std::collections::HashMap<String,EventAnalysis>> }
 pub struct AiWorker { _slot:crate::agent_jobs::BackgroundLease, rpc:Arc<RpcProcess>, settled:Arc<AtomicBool>, cancelled:Arc<AtomicBool>, redactor:Redactor, pub model:ModelChoice, observer:crate::news_processing::Observer, output:Arc<Mutex<String>>, pub usage:Mutex<Value> }
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
 /// Retry only transport/service failures, never invalid output or configuration.
@@ -28,14 +28,15 @@ fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError
 impl AiWorker {
     pub fn connect(app:&tauri::AppHandle,root:&Path,resources:&Path,preferred:Option<&ModelChoice>,cancelled:Arc<AtomicBool>,observer:crate::news_processing::Observer)->Result<Self,StorageError>{
         observer(crate::news_processing::ProgressEvent::Phase("queued"));
-        let slot_key=format!("news-{}",chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
+        static NEXT_WORKER:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
+        let slot_key=format!("news-{}-{}",chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default(),NEXT_WORKER.fetch_add(1,Ordering::Relaxed));
         let slot=app.state::<crate::agent_jobs::BackgroundSlots>().acquire(&slot_key,&cancelled,Instant::now()+Duration::from_secs(3600))?;
         observer(crate::news_processing::ProgressEvent::Phase("connecting"));
         let map=|e:crate::pi_model_config::ConfigError|error(e.code,e.message);
         let runtime=crate::pi_runtime::resolve(resources).map_err(map)?;let mut paths=PiPaths::prepare(root).map_err(map)?;
         let docs=crate::agent_jobs::configuration(app,&paths.root,resources,&cancelled,Instant::now()+Duration::from_secs(30))?;let redactor=Redactor::from_documents(&docs[0],&docs[1]);
         // Application-owned private task configuration: never change interactive Pi settings.
-        paths.agent=paths.pi_root.join("news-private-agent");crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
+        paths.agent=paths.pi_root.join("news-private-agents").join(&slot_key);crate::pi_launch_plan::no_link(&paths.agent).map_err(map)?;
         std::fs::create_dir_all(&paths.agent).map_err(|_|error("news_ai_config","无法准备资讯专用配置。"))?;
         // The application pipeline owns bounded retries and records each attempt.
         // Keep native retries off so one receipt cannot hide additional requests.
@@ -62,6 +63,7 @@ impl AiWorker {
                 if let Some(delta)=event["assistantMessageEvent"]["delta"].as_str(){if let Ok(mut text)=streamed.lock(){if text.len()+delta.len()<=2*1024*1024{text.push_str(delta);}let emit=stream_emit.lock().map(|mut at|{if at.elapsed()<Duration::from_millis(250){false}else{*at=Instant::now();true}}).unwrap_or(false);if emit{let count=text.chars().count();let safe=mask.text(&text,true);let preview:String=safe.chars().take(20000).collect();public(crate::news_processing::ProgressEvent::Text(preview,count));}}}
             }
         }).map_err(|e|error(e.code,e.message))?);
+        {let control=app.state::<AiControl>();let mut active=control.active.lock().map_err(|_|invalid_reply())?;active.retain(|p|p.strong_count()>0);active.push(Arc::downgrade(&rpc));}
         observer(crate::news_processing::ProgressEvent::Process(rpc.id().map_err(|e|error(e.code,e.message))?,rpc.clone()));
         if cancelled.load(Ordering::Acquire){let _=rpc.shutdown(Duration::ZERO);return Err(error("news_cancelled","资讯任务已取消，未发送资料给模型。"));}
         observer(crate::news_processing::ProgressEvent::Phase("checkingModel"));

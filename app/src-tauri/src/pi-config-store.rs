@@ -193,6 +193,12 @@ impl ConfigStore {
         let next = plan_provider_update(&documents, input)?;
         self.publish_documents(&before, next, |_| Ok(()))
     }
+    pub fn delete_provider(&self,input:&crate::pi_provider_config::ProviderDeleteInput)->Result<(),ConfigError>{
+        self.recover()?;let before=self.originals()?;let documents=self.private_documents()?;
+        if self.originals()?!=before{return Err(changed());}
+        let next=crate::pi_provider_config::plan_provider_delete(&documents,input)?;
+        self.publish_documents(&before,next,|_|Ok(()))
+    }
     fn publish_documents(&self, before: &[Option<Vec<u8>>; 3], next: [Value; 3], hook: impl FnMut(usize) -> Result<(), ConfigError>) -> Result<(), ConfigError> {
         let encoded: Vec<Vec<u8>> = next.iter().map(|v| serde_json::to_vec_pretty(v).map_err(|_| broken())).collect::<Result<_,_>>()?;
         if encoded.iter().any(|bytes| bytes.len() as u64 > LIMIT) { return Err(failure("pi_config_limit", "保存后的原生配置超过 2 MiB，未修改原配置。")); }

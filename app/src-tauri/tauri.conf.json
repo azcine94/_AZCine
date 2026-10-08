@@ -27,7 +27,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420 https://datasets-server.huggingface.co https://models.dev; object-src 'none'; base-uri 'self'; frame-src 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https://goodcase.ai https://media.goodcase.ai; media-src 'self' blob: https://goodcase.ai https://media.goodcase.ai; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420 https://datasets-server.huggingface.co https://models.dev https://aihot.news; object-src 'none'; base-uri 'self'; frame-src 'none'"
     }
   },
   "bundle": {

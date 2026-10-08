@@ -30,7 +30,7 @@ export function usePiProviders(root:string|null,enabled:boolean,pi:PiController)
       loaded.current.add(target);
       change(before=>{
         const incoming=new Map(views.map(v=>[v.provider,v]));
-        const kept=before.map<ProviderDraft>(d=>{if(d.root!==target)return d;const v=incoming.get(d.provider);if(!v)return d;incoming.delete(d.provider);
+        const kept=before.filter(d=>d.root!==target||!d.persisted||incoming.has(d.provider)).map<ProviderDraft>(d=>{if(d.root!==target)return d;const v=incoming.get(d.provider);if(!v)return d;incoming.delete(d.provider);
           return d.dirty?{...d,persisted:true,hasCredential:v.hasCredential}: {...fromView(v,target,d.uid),tab:d.tab,remote:d.remote,fetching:d.fetching,selectedIds:d.selectedIds,modelQuery:d.modelQuery,notice:d.notice,error:d.error};});
         return [...kept,...[...incoming.values()].map(v=>fromView(v,target))];
       });
@@ -88,6 +88,17 @@ export function usePiProviders(root:string|null,enabled:boolean,pi:PiController)
     }catch(e){if(mounted.current)fail(piError(e));}
     finally{saveLock.current=false;if(mounted.current)setSaving(null);}
   }
-  return {providers,active,ready:!!root&&loaded.current.has(root),loading,loadError,saving,reload,select,addProvider,ui,edit,editModel,addManual,removeNew,addSelected,fetchModels,save};
+  async function remove(uid:string,modelId?:string):Promise<void>{
+    const sent=current.current.find(d=>d.uid===uid);if(!sent||sent.root!==rootRef.current||saveLock.current)throw new Error('配置正在变化，请稍后重试。');
+    if(!sent.persisted){change(before=>before.filter(d=>d.uid!==uid));return;}
+    if(sent.dirty)throw new Error('此服务商有未保存更改，请先保存，再删除。');
+    saveLock.current=true;setSaving(uid);
+    try{const receipt=await piRef.current.saveConfiguration('pi_delete_provider',{provider:sent.provider,modelId:modelId??null,expectedModels:sent.models.filter(m=>m.persisted).map(m=>m.id)});
+      if(!receipt)throw new Error(piRef.current.error??'删除未完成，请检查资讯模型引用和连接状态。');
+      change(before=>modelId===undefined?before.filter(d=>d.uid!==uid):before.map(d=>d.uid===uid?{...d,models:d.models.filter(m=>m.id!==modelId),revision:d.revision+1,notice:receipt.message}:d));
+      await reload();
+    }finally{saveLock.current=false;if(mounted.current)setSaving(null);}
+  }
+  return {remove,providers,active,ready:!!root&&loaded.current.has(root),loading,loadError,saving,reload,select,addProvider,ui,edit,editModel,addManual,removeNew,addSelected,fetchModels,save};
 }
 export type PiProvidersController=ReturnType<typeof usePiProviders>;

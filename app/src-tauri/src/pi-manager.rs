@@ -39,9 +39,9 @@ struct Core{
     process:Option<Arc<RpcProcess>>,paths:Option<PiPaths>,cwd:Option<PathBuf>,runtime:Option<RuntimePaths>,
     redactor:Redactor,recovered:HashMap<String,Vec<String>>,
     session_lease:Option<crate::pi_session_lock::SessionLease>,extensions:crate::pi_extension_ui::ExtensionUi,rules:Value,
-    business_inputs:Vec<BusinessInput>,business_input:Option<(String,usize)>,
+    delivered_inputs:Vec<String>,business_inputs:Vec<BusinessInput>,business_input:Option<(String,usize)>,
 }
-impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,business_inputs:vec![],business_input:None}}}
+impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,delivered_inputs:vec![],business_inputs:vec![],business_input:None}}}
 pub type BusinessEnvironment=Arc<dyn Fn(u64,&PiPaths,&RuntimePaths)->Result<Vec<(std::ffi::OsString,std::ffi::OsString)>,PiError>+Send+Sync>;
 pub struct PiManager{core:Arc<Mutex<Core>>,operation:Mutex<()>,business_environment:Mutex<Option<BusinessEnvironment>>}
 impl Default for PiManager{fn default()->Self{Self{core:Arc::new(Mutex::new(Core::default())),operation:Mutex::new(()),business_environment:Mutex::new(None)}}}
@@ -65,6 +65,7 @@ fn on_event(core:&Weak<Mutex<Core>>,generation:u64,event:Value,notify:&Notify){
                 let pending=c.business_inputs.iter().position(|input|input.fingerprint==fingerprint)
                     .or_else(||c.business_inputs.iter().enumerate().min_by_key(|(_,input)|input.priority).map(|(index,_)|index));
                 c.business_input=pending.map(|index|(c.business_inputs.remove(index).id,c.projection.messages.len()));
+                if let Some((id,_))=c.business_input.clone(){c.delivered_inputs.push(id);if c.delivered_inputs.len()>200{c.delivered_inputs.remove(0);}}
             }
             c.projection.event(&event);
             if kind=="session_info_changed" && c.state.is_object(){c.state["sessionName"]=event.get("name").filter(|v|v.is_string()).cloned().unwrap_or(Value::Null);}
@@ -267,6 +268,12 @@ impl PiManager{
         crate::pi_resources::update(&runtime,&paths,&index,&input)?;
         Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
     }
+    pub fn model_catalog(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
+        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
+        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let documents=ConfigStore::open(&paths.root)?.private_documents()?;
+        let models=crate::pi_resources::models(&runtime,&paths)?;lease.check()?;Ok(Redactor::from_documents(&documents[0],&documents[1]).value(models,false))
+    }
     pub fn providers(&self, root:&Path,resources:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
@@ -286,6 +293,9 @@ impl PiManager{
         crate::pi_provider_config::plan_provider_update(&[json!({}),json!({}),json!({})],&input)?;
         self.save_configuration(root,resources,notify,move|config|{config.save_provider(&input)?;Ok(json!({"provider":input.provider,"models":input.models.len()}))})
     }
+    pub fn delete_provider(&self,root:&Path,resources:&Path,input:crate::pi_provider_config::ProviderDeleteInput,notify:Notify)->Result<Value,PiError>{
+        self.save_configuration(root,resources,notify,move|config|{config.delete_provider(&input)?;Ok(json!({"provider":input.provider,"deleted":true}))})
+    }
     fn save_configuration(&self,root:&Path,resources:&Path,notify:Notify,save:impl FnOnce(&ConfigStore)->Result<Value,PiError>)->Result<Value,PiError>{
         let _operation=self.operation()?;
         if locked(&self.core)?.exiting{return Err(cancelled());}
@@ -304,7 +314,7 @@ impl PiManager{
         // bodies or creating a native process. The frontend owns the view cache.
         c.state=state;c.cwd=Some(PathBuf::from(cwd));c.seq+=1;Ok(true)
     }
-    pub fn summary(&self)->Result<Value,PiError>{let c=locked(&self.core)?;Ok(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"active":c.busy||c.sending||c.stopping||is_running(&c),"waiting":c.extensions.waiting(),"stopping":c.stopping,"sessionId":c.state["sessionId"],"sessionFile":c.state["sessionFile"],"name":c.state["sessionName"],"businessInputId":c.business_input.as_ref().map(|v|&v.0),"businessMessageIndex":c.business_input.as_ref().map(|v|v.1),"outcome":c.projection.outcome,"cwd":c.cwd}))}
+    pub fn summary(&self)->Result<Value,PiError>{let c=locked(&self.core)?;Ok(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"active":c.busy||c.sending||c.stopping||is_running(&c),"waiting":c.extensions.waiting(),"stopping":c.stopping,"sessionId":c.state["sessionId"],"sessionFile":c.state["sessionFile"],"name":c.state["sessionName"],"deliveredInputIds":c.delivered_inputs,"businessInputId":c.business_input.as_ref().map(|v|&v.0),"businessMessageIndex":c.business_input.as_ref().map(|v|v.1),"outcome":c.projection.outcome,"cwd":c.cwd}))}
     pub fn expire_ui(&self,notify:&Notify)->Result<(),PiError>{let mut c=locked(&self.core)?;if c.extensions.expire(){c.seq+=1;drop(c);notify();}Ok(())}
     pub fn respond_ui(&self,input:crate::pi_extension_ui::UiResponse,notify:Notify)->Result<Value,PiError>{
         let mut c=locked(&self.core)?;check_session(&c,input.generation,&input.session_id)?;let rpc=connected(&c)?;

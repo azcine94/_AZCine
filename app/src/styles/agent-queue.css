@@ -1,0 +1,7 @@
+.agent-message-queue { margin:8px 0; border:1px solid var(--border); border-radius:var(--r-panel); background:var(--muted); min-width:0; }
+.agent-message-queue > header { display:flex; align-items:center; gap:8px; padding:4px 8px; flex-wrap:wrap; }
+.agent-message-queue > ol { list-style:none; margin:0; padding:0 12px; max-height:240px; overflow:auto; }
+.agent-message-queue li { border-top:1px solid var(--border); padding:10px 0; min-width:0; }
+.agent-message-queue li > p { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; max-height:100px; overflow:auto; }
+.agent-queue-heading { color:var(--t2); font-size:var(--fs-s); }
+.agent-queue-actions { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }

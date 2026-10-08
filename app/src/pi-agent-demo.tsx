@@ -1,4 +1,5 @@
 import {useOperationNotice} from './components/ui/operation-toast.tsx';
+import {useAgentQueue} from './use-agent-queue.ts';
 import {useAgentObjects} from './use-agent-objects.ts';
 import { Button } from './components/ui/button.tsx';
 // Loaded only by the development preview entry. No IPC, storage or model requests.
@@ -66,7 +67,9 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const objects=useAgentObjects(null,active.id);
   const snapshot:PiSnapshot={generation,seq:0,connection:'ready',busy:false,stopping:false,sending:false,state:{sessionId:active.id,sessionFile:active.path,sessionName:active.name,model:selectedModel,thinkingLevel:'medium',isStreaming:scenario==='running',isCompacting:false,pendingMessageCount:0,messageCount:projection.messages.length},models:MODELS,projection,recoveredQueue:[],error:null,notice:null,cwd:'demo',runtime:null,paths:null};
   const switchSession=(session:PiSession)=>{setActive({...session,name:renamed[session.id]??session.name});setScenario('complete');setNotice(null);setSessionName('');};
+  const queue=useAgentQueue(null);
   const controller:PiController={
+    queue,continueQueue:async()=>{},modelCatalog:MODELS,modelCatalogError:'',
     viewing:false,selectSession:async session=>{switchSession(session);},
     sessionPins,setSessionPinned:(sessionId,pinned)=>setSessionPins(before=>pinned?before.includes(sessionId)?before:[...before,sessionId]:before.filter(id=>id!==sessionId)),
     objects,prepareRedo:async()=>{},uiAnswers:{},setUiAnswer:()=>{},conversationKey:'ui-demo',source:{module:'agent',page:'agent',objectId:null},openSource:async()=>{},newConversation:async()=>{},selectConversation:async()=>{},runtimeSummary:null,refreshRuntime:async()=>{},saveLimit:async()=>{},files:[],attachFile:async()=>{},removeFile:()=>{},respondUi:async()=>{},stats:null,refreshStats:async()=>{},takeEditor:()=>{},

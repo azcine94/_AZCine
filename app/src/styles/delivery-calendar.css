@@ -1,0 +1,44 @@
+.delivery-calendar.today-card { height:560px; padding:0; min-height:0; overflow:hidden; }
+.delivery-calendar > :is(.ui-feedback,.meta) { flex:none; margin:var(--s-2) var(--s-4) 0; max-height:64px; overflow:auto; }
+.delivery-calendar-body { display:grid; grid-template-columns:minmax(0,1fr); flex:1; min-width:0; min-height:0; }
+.delivery-calendar-body[data-expanded=true] { grid-template-columns:minmax(0,1fr) minmax(168px,30%); }
+.delivery-calendar-month { display:flex; flex-direction:column; min-width:0; min-height:0; padding:var(--s-4) var(--s-4) var(--s-2); }
+.delivery-calendar-heading { display:flex; flex:none; align-items:center; justify-content:space-between; gap:var(--s-2); min-height:var(--control-h); margin-bottom:var(--s-2); }
+.delivery-calendar-heading-actions { display:flex; align-items:center; gap:var(--s-1); }
+.delivery-calendar-toolbar { display:flex; flex:none; align-items:center; gap:var(--s-1); margin-bottom:var(--s-2); min-width:0; }
+.delivery-calendar-toolbar > strong { font-size:var(--fs-s); white-space:nowrap; }
+.delivery-calendar-month-nav { display:flex; align-items:center; margin-right:auto; }
+.delivery-calendar-key { display:flex; flex:none; align-items:center; justify-content:flex-end; gap:var(--s-4); min-height:28px; padding-top:var(--s-1); color:var(--t2); font-size:var(--fs-xs); }
+.delivery-calendar-key > span { display:flex; align-items:center; gap:var(--s-1); }
+.delivery-calendar-key i,.delivery-calendar-dot { width:5px; height:5px; flex:none; border-radius:var(--r-pill); background:var(--bad); }
+.delivery-calendar-key .personal,.delivery-calendar-entry[data-personal=true] .delivery-calendar-dot { background:var(--t2); }
+.delivery-calendar-missing { flex:none; align-self:flex-start; }
+.delivery-calendar-agenda { min-width:0; min-height:0; display:flex; flex-direction:column; border-left:1px solid var(--border); padding:var(--s-4) var(--s-3); }
+.delivery-calendar-agenda > header { display:flex; flex:none; align-items:center; gap:var(--s-1); min-height:var(--control-h); margin-bottom:var(--s-3); }
+.delivery-calendar-agenda h3 { font:500 var(--fs-body)/var(--lh-body) var(--font); }
+.delivery-calendar-agenda > header > span { margin-left:auto; color:var(--t2); font-size:var(--fs-xs); }
+.delivery-calendar-selected { flex:none; color:var(--t2); font-size:var(--fs-s); margin-bottom:var(--s-3); }
+.delivery-calendar-events { flex:1; overflow:auto; min-height:0; overscroll-behavior:contain; }
+.delivery-calendar-entry { display:flex; align-items:flex-start; gap:var(--s-2); padding:var(--s-3) 0; border-bottom:1px solid var(--border); }
+.delivery-calendar-entry:first-child { padding-top:var(--s-1); }
+.delivery-calendar-entry:last-child { border-bottom:0; }
+.delivery-calendar-dot { margin-top:9px; }
+.delivery-calendar-entry > svg { color:var(--t2); margin-top:var(--s-1); }
+.delivery-calendar-entry-actions { flex:none; gap:var(--s-1); }
+.delivery-calendar-entry-content { display:block; flex:1; min-width:0; padding:0; text-align:left; color:var(--text); }
+.delivery-calendar-entry-content strong,.delivery-calendar-entry-content > span { display:block; overflow-wrap:anywhere; }
+.delivery-calendar-entry-content strong { font:500 var(--fs-body)/var(--lh-body) var(--font); }
+.delivery-calendar-entry-content > span { color:var(--t2); font:400 var(--fs-s)/var(--lh-s) var(--font); margin-top:2px; }
+.delivery-calendar-entry[data-done=true] strong { text-decoration:line-through; color:var(--t2); }
+.delivery-calendar-empty { padding:var(--s-2) 0; color:var(--t2); }
+.delivery-calendar-add { flex:none; margin-top:var(--s-3); }
+.calendar-form { display:grid; gap:var(--s-4); }
+.calendar-form-field { display:grid; gap:var(--s-2); min-width:0; }
+.calendar-form-actions { justify-content:flex-end; }
+/* Respond to the actual content width, including an expanded application sidebar. */
+.workspace[data-page=today] .workspace-scroll { container:today-content / inline-size; }
+@container today-content (max-width:900px) {
+  .today-cards-b { grid-template-columns:minmax(0,1fr); grid-template-areas:"review" "ideas" "delivery" "news"; }
+}
+.today-cards-b:has(.delivery-calendar[data-focused=true]) { grid-template-columns:minmax(0,1fr); grid-template-areas:"review" "delivery" "news"; }
+.today-cards-b:has(.delivery-calendar[data-focused=true]) > .today-ideas-card { display:none; }

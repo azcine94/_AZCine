@@ -6,6 +6,7 @@ export interface MessagePart {
   title?: string;
   callId?: string;
   imageUrl?: string;
+  imageNote?: string;
 }
 
 export interface MessageView {
@@ -416,6 +417,16 @@ export function messageView(value: unknown): MessageView {
           value.role === 'user' ? '用户' : '系统',
         );
         applyProjection(view, contentProjection(value.content, 'ordinary'));
+        // Native prompt() appends resize hints after a blank line. Only fold
+        // exact trailing notes on an image-bearing user message; keep a disclosure
+        // so even legacy text with this exact shape remains available.
+        if(value.role==='user'&&view.parts.some(part=>part.kind==='image')){
+          for(const part of view.parts){if(part.kind!=='text')continue;
+            const match=part.text.match(/(?:^|\n\n)(\[Image: original [1-9]\d*[x×][1-9]\d*, displayed at [1-9]\d*[x×][1-9]\d*\. Multiply coordinates by \d+\.\d{2} to map to original image\.\](?:\n\[Image: original [1-9]\d*[x×][1-9]\d*, displayed at [1-9]\d*[x×][1-9]\d*\. Multiply coordinates by \d+\.\d{2} to map to original image\.\])*)$/);
+            if(match){part.imageNote=match[1];part.text=part.text.slice(0,match.index);}
+          }
+        }
+
         return view;
       }
       case 'assistant':

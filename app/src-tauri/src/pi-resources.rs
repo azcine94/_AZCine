@@ -44,6 +44,11 @@ fn bridge(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,command:&str,input:Valu
     if reply["success"]!=true{return Err(if reply["errorCode"]=="conflict"{conflict()}else{error()});}
     Ok(reply["data"].clone())
 }
+pub fn models(runtime:&RuntimePaths,paths:&PiPaths)->Result<Value,PiError>{
+    let value=bridge(runtime,paths,&paths.default_cwd,"models",json!({"package":runtime.package,"agent":paths.agent}))?;
+    let rows=value.as_array().ok_or_else(error)?.iter().map(|v|crate::pi_projection::model(v).ok_or_else(error)).collect::<Result<Vec<_>,_>>()?;
+    Ok(json!(rows))
+}
 pub fn inspect(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,generation:u64,commands:Value,connected:bool)->Result<ResourceIndex,PiError>{
     let mut data=bridge(runtime,paths,cwd,"resources",json!({"package":runtime.package,"agent":paths.agent,"cwd":cwd,"commands":commands}))?;
     let append=paths.agent.join("APPEND_SYSTEM.md");

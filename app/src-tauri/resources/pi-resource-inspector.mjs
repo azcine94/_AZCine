@@ -48,7 +48,11 @@ async function inspect(input) {
       if (statSync(path).size > MAX_FILE) throw new Error('settings-size');
       fn(readFileSync(path, 'utf8'));
     } else fn(undefined);
-  } });
+  } }, { projectTrusted: false });
+  // Match the RPC process's native --no-approve policy BEFORE resolution.
+  // Filtering the resulting list is too late: resolution walks ancestor
+  // .agents/skills directories and follows their entries. User-scoped resources
+  // explicitly installed/configured in this application's agentDir still work.
   if (settings.drainErrors().length) throw new Error('settings');
   const missing = [];
   const manager = new DefaultPackageManager({ cwd: input.cwd, agentDir: input.agent, settingsManager: settings, builtinExtensions: builtInExtensions.map(item => item.name) });
@@ -98,7 +102,13 @@ for await (const line of lines) {
   const request = JSON.parse(line);
   try {
     let data;
-    if (request.type === 'resources') data = await inspect(request.input);
+    if (request.type === 'models') {
+      const { ModelRuntime } = await import(pathToFileURL(join(request.input.package, 'dist/core/model-runtime.js')).href);
+      const runtime = await ModelRuntime.create({ modelsPath: join(request.input.agent, 'models.json'), authPath: join(request.input.agent, 'auth.json'), allowModelNetwork: false });
+      if (runtime.getError()) throw new Error('models');
+      data = runtime.getAvailableSnapshot().map(model => ({ id: model.id, name: model.name, provider: model.provider, api: model.api, input: model.input, reasoning: model.reasoning, contextWindow: model.contextWindow, maxTokens: model.maxTokens, ...(model.thinkingLevelMap ? {thinkingLevelMap:model.thinkingLevelMap} : {}) }));
+    }
+    else if (request.type === 'resources') data = await inspect(request.input);
     else if (request.type === 'save_extensions') {
       const input = request.input;
       const agent = input.agent.replace(/^\\\\\?\\/, '');

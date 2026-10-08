@@ -76,7 +76,7 @@ function ProjectDeletionConfirmation({ model, target, close }: { model: Projects
   const blocked = !!model.busy || model.loading || !!model.loadError || !!model.pending[project.id] || stale;
   const body = <><DialogHeader><DialogTitle>{deleted ? '删除项目' : '恢复项目'}</DialogTitle><DialogDescription>{deleted ? '项目移入“已删除”，可随时恢复。' : '恢复后回到项目列表，原交付安排重新参与汇总。'}</DialogDescription></DialogHeader>
       <p className="project-deletion-name">{project.name}</p>
-      <p className="subtle">{deleted ? '项目将退出列表和交付汇总，文档内容、待办和灵感关联保留。' : '恢复原文档，保留原有待办和灵感关联。'}</p>
+      <p className="subtle">{deleted ? '项目将退出列表和交付汇总，文档内容和灵感关联保留。' : '恢复原文档，保留原有灵感关联。'}</p>
       {model.drafts[project.id]?.dirty && <Feedback tone="pending">未保存的编辑会保留为本地草稿，恢复后需核对版本再保存。</Feedback>}
       {status(model, key)}
       {model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
@@ -319,9 +319,8 @@ export function ProjectEditor({ model, projectId, targetRow }: { model: Projects
     </section></RecordContextMenu>)}
     <div className="document-add-bottom"><ProjectAddMenu disabled={disabled} onAdd={add} /></div>
     {(!checklistUndo || hideChecklists) && undoEntry}
-    <div className="form-actions"><Button variant="app-text" className="text-action" data-project-preserve disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>读取正式记录（保留草稿）</Button>{draft.dirty && <Button variant="app-text" className="text-action" data-project-preserve disabled={locked} aria-disabled={disabled} onClick={() => setConfirmDiscard(true)}>放弃此项目未保存编辑</Button>}</div>
+    {draft.dirty && <div className="form-actions"><Button variant="app-text" className="text-action" data-project-preserve disabled={locked} aria-disabled={disabled} onClick={() => setConfirmDiscard(true)}>放弃此项目未保存编辑</Button></div>}
     {confirmDiscard && <Feedback as="div" tone="pending" className="pending-note" role="alert"><p>仅丢弃此项目尚未保存的编辑，采用当前正式记录；其他项目草稿不变。</p><div className="form-actions"><Button variant="app-pill" className="pill" data-project-preserve disabled={locked} aria-disabled={disabled} onClick={() => { model.replaceWithOfficial(projectId); setConfirmDiscard(false); }}>确认放弃未保存编辑</Button><Button variant="app-pill" className="pill" onClick={() => setConfirmDiscard(false)}>保留编辑</Button></div></Feedback>}
-    <p className="meta">资料导入在 S05 接入；这里不提供假解析。</p>
       </div>
     </div>
   </div>;

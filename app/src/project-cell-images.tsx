@@ -1,22 +1,19 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { ImagePlus, ClipboardPaste } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
-import { Input } from './components/ui/input.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './components/ui/dropdown-menu.tsx';
 import { AttachmentPreview } from './components/ui/attachment-preview.tsx';
 import { invoke, isTauri } from './desktop-api.ts';
 import { parseProjectImage } from './projects-contract.ts';
 import type { ProjectImage } from './projects-contract.ts';
 import type { ImageImportDraft } from './project-image-imports.ts';
 
-export function ProjectCellImages({ images, disabled, label, change, children, importDraft }: {
+export function ProjectCellImages({ images, disabled, label, change, children, importDraft, height, emptyText = false }: {
   images: ProjectImage[]; disabled: boolean; label: string; children: ReactNode;
   change(update: (images: ProjectImage[]) => ProjectImage[]): boolean;
-  importDraft: ImageImportDraft;
+  importDraft: ImageImportDraft; height?: number; emptyText?: boolean;
 }) {
-  const input = useRef<HTMLInputElement>(null), mounted = useRef(true);
+  const mounted = useRef(true);
   const latest = useRef({ images, disabled, change }); latest.current = { images, disabled, change };
   const { busy, error, request: pending } = useSyncExternalStore(importDraft.subscribe, importDraft.snapshot);
   const hasPending = !!pending;
@@ -53,24 +50,14 @@ export function ProjectCellImages({ images, disabled, label, change, children, i
     } catch (reason) { setError(reason instanceof Error ? reason.message : '图片导入失败，原内容和待导入图片保留。'); }
     finally { importDraft.set({ busy: false }); }
   }
-  async function paste() {
-    if (importDraft.snapshot().busy || latest.current.disabled) return;
-    try {
-      const items = await navigator.clipboard.read(), files: File[] = [];
-      for (const item of items) { const type = item.types.find(value => /^image\/(png|jpeg|webp|gif)$/.test(value)); if (type) files.push(new File([await item.getType(type)], `剪贴板图片.${type.split('/')[1]}`, { type })); }
-      if (!files.length) throw new Error('剪贴板里没有可导入的图片；可选中单元格后按Ctrl+V粘贴。');
-      if (mounted.current) await importFiles(files);
-    } catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : '无法读取剪贴板，请在单元格按Ctrl+V。'); }
-  }
-  return <div className="project-cell-images" data-dragging={dragging || undefined} aria-busy={busy} onPasteCapture={event => {
+  return <div className="project-cell-images" aria-label={label} data-has-images={!!images.length} data-image-only={!!images.length && emptyText} style={height ? {height:height-2} : undefined} data-dragging={dragging || undefined} aria-busy={busy} onPasteCapture={event => {
     const files = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
     if (files.length) { event.preventDefault(); event.stopPropagation(); void importFiles(files); }
   }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); depth.current++; if (!disabled) setDragging(true); } }} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = disabled || busy ? 'none' : 'copy'; } }} onDragLeave={event => { if (event.dataTransfer.types.includes('Files')) { event.stopPropagation(); depth.current = Math.max(0, depth.current - 1); if (!depth.current) setDragging(false); } }} onDrop={event => {
     if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.stopPropagation(); depth.current = 0; setDragging(false); void importFiles(Array.from(event.dataTransfer.files)); }
   }}>
-    <div className="project-cell-value">{children}<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" type="button" data-project-commit className="project-cell-image-add" disabled={disabled || busy || hasPending} aria-label={`${label}，插入图片`} title="插入图片，也可粘贴或拖入"><ImagePlus/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => input.current?.click()}><ImagePlus/>选择图片</DropdownMenuItem><DropdownMenuItem onSelect={() => void paste()}><ClipboardPaste/>粘贴图片</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>
-    <Input ref={input} variant="inline" hidden type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void importFiles(files); }}/>
-    {!!images.length && <div className="project-cell-image-tray">{images.map(image => <AttachmentPreview key={image.id} compact value={{ ...image, projectImage: image }} disabled={disabled || busy} onRemove={() => { change(before => before.filter(item => item.id !== image.id)); }}/>)}</div>}
+    <div className="project-cell-value">{children}</div>
+    {!!images.length && <div className="project-cell-image-tray" style={{gridTemplateColumns:`repeat(${Math.min(images.length,2)},minmax(0,1fr))`}}>{images.map(image => <AttachmentPreview key={image.id} compact value={{ ...image, projectImage: image }} disabled={disabled || busy} onRemove={() => { change(before => before.filter(item => item.id !== image.id)); }}/>)}</div>}
     {busy && <span className="project-cell-image-status" role="status">正在导入图片…</span>}
     {error && <Feedback tone="error" role="alert">{error}</Feedback>}
     {hasPending && !busy && <div className="project-cell-image-retry"><Button variant="app-text" size="xs" type="button" disabled={disabled} onClick={() => void importFiles()}>重试导入</Button><Button variant="app-text" size="xs" type="button" onClick={() => importDraft.set({ request: null, error: '' })}>取消该批</Button></div>}

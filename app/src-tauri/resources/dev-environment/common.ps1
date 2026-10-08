@@ -26,14 +26,52 @@ function Command-File([string]$Name) {
     return ''
 }
 function Real-Directory([string]$Path) {
-    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
-    for ($i=0; $i -lt 8 -and $item.LinkType; $i++) {
-        $target = @($item.Target)[0]
-        if (-not [IO.Path]::IsPathRooted($target)) { $target = Join-Path $item.Parent.FullName $target }
-        $item = Get-Item -LiteralPath $target -ErrorAction Stop
+    $current = Full-Path $Path
+    $seen = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    for ($i=0; $i -lt 16; $i++) {
+        if (-not $seen.Add($current)) { throw "目录链接形成循环：$Path" }
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        if (-not $item.PSIsContainer) { throw "不是可读取的安装目录：$Path" }
+        # Resolve links in ancestors too, without traversing a linked subtree.
+        $cursor = $item
+        while ($cursor) {
+            if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { break }
+            $cursor = $cursor.Parent
+        }
+        if (-not $cursor) { return $item.FullName }
+        if ($cursor.LinkType -notin @('Junction','SymbolicLink')) { throw "不支持的安装目录重解析类型：$($cursor.FullName)" }
+        $targets = @($cursor.Target)
+        if ($targets.Count -ne 1 -or -not $targets[0]) { throw "安装目录链接目标无效：$($cursor.FullName)" }
+        $target = [string]$targets[0]
+        # PowerShell editions may expose the junction's NT target prefix.
+        if ($target.StartsWith('\??\UNC\',[StringComparison]::OrdinalIgnoreCase)) { $target = '\\' + $target.Substring(8) }
+        elseif ($target.StartsWith('\??\',[StringComparison]::OrdinalIgnoreCase)) { $target = $target.Substring(4) }
+
+        if (-not [IO.Path]::IsPathRooted($target)) { $target = Join-Path $cursor.Parent.FullName $target }
+        $suffix = $current.Substring($cursor.FullName.TrimEnd('\').Length).TrimStart('\')
+        $current = Full-Path $(if ($suffix) { Join-Path $target $suffix } else { $target })
     }
-    if (-not $item.PSIsContainer -or $item.LinkType) { throw "不能识别实际目录：$Path" }
-    return $item.FullName
+    throw "目录链接超过 16 层，无法安全解析：$Path"
+}
+function PowerShell-Directory([string]$Path) {
+    $actual = Real-Directory $Path
+    foreach ($name in @('pwsh.exe','System.Management.Automation.dll')) {
+        $file = Get-Item -LiteralPath (Join-Path $actual $name) -Force -ErrorAction Stop
+        if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "PowerShell 安装文件无效：$name" }
+    }
+    $pending = New-Object 'Collections.Generic.Stack[string]'
+    $pending.Push($actual)
+    while ($pending.Count) {
+        foreach ($item in Get-ChildItem -LiteralPath $pending.Pop() -Force -ErrorAction Stop) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "PowerShell 安装目录内部包含不支持的链接：$($item.FullName)" }
+            if ($item.PSIsContainer) { $pending.Push($item.FullName) }
+            else {
+                $stream = [IO.File]::Open($item.FullName,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+                $stream.Dispose()
+            }
+        }
+    }
+    return $actual
 }
 function Discover($InputPaths) {
     $issues = New-Object 'Collections.Generic.List[string]'
@@ -94,8 +132,9 @@ function Discover($InputPaths) {
         $package=Get-AppxPackage -Name Microsoft.PowerShell -ErrorAction SilentlyContinue | Select-Object -First 1
         if($package -and (Test-Path -LiteralPath (Join-Path $package.InstallLocation 'pwsh.exe'))){$pwshRoot=$package.InstallLocation}
     }
-    if ($pwsh -and -not (Test-Path -LiteralPath (Join-Path $pwshRoot 'System.Management.Automation.dll'))) {
-        $issues.Add('PowerShell 7 入口不是实际安装目录，请从能找到完整 pwsh 安装的终端启动 AZCine。')
+    if ($pwshRoot) {
+        try { $pwshRoot = PowerShell-Directory $pwshRoot }
+        catch { $issues.Add("PowerShell 7 无法打包：$($_.Exception.Message)。请修复或使用完整、可读且内部无链接的 PowerShell 安装后重新识别。") }
     }
     $warnings.Add('账号、Key、项目、历史会话不打包；新电脑自行配置认证和 Skills 链接。')
     $warnings.Add('自定义扩展涉及的代理、外部服务和目录，部署后仍需按新电脑情况配置。')

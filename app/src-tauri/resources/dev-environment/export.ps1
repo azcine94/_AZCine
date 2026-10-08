@@ -139,7 +139,11 @@ try {
     Add-Tree $snapshot.runtime 'payload/openpi/runtime'
     Add-Tree $snapshot.dependencies.node 'payload/tools/node'
     Add-Tree $snapshot.dependencies.git 'payload/tools/git'
-    if ($snapshot.dependencies.powershell) { Add-Tree $snapshot.dependencies.powershell 'payload/tools/powershell' }
+    if ($snapshot.dependencies.powershell) {
+        $verifiedPowerShell = PowerShell-Directory $snapshot.dependencies.powershell
+        if (-not $verifiedPowerShell.Equals($snapshot.dependencies.powershell,[StringComparison]::OrdinalIgnoreCase)) { throw 'PowerShell 安装目录在收集期间发生变化，请重新识别后打包。' }
+        Add-Tree $verifiedPowerShell 'payload/tools/powershell'
+    }
     $bin=Join-Path $snapshot.paths.openpi 'bin'
     if(Test-Path -LiteralPath $bin){Add-Tree $bin 'payload/openpi/bin'}
     $agent=Join-Path $snapshot.paths.openpi 'agent'
