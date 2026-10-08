@@ -12,6 +12,7 @@ export function useIdeas(root: string | null) {
   const [drafts, setDrafts] = useState<Record<string, IdeaDraft>>({ new: emptyIdeaDraft() });
   const draftRef = useRef(drafts);
   const [editing, setEditing] = useState<Record<string, boolean>>({});
+  const editSessions = useRef<Record<string, number>>({});
   const [pending, setPending] = useState<Record<string, SaveIdea>>({});
   const requests = useRef<Record<string, SaveIdea>>({});
   const [busy, setBusy] = useState('');
@@ -34,7 +35,12 @@ export function useIdeas(root: string | null) {
   function edit(idea: Idea) {
     if (Object.values(requests.current).some(r => r.content.id === idea.id)) { setError('这张卡的保存结果尚未确认，请先核对保存结果。'); return; }
     if (!draftRef.current[idea.id]) putDraft(idea.id, ideaDraft(idea));
-    setEditing(previous => ({ ...previous, [idea.id]: true }));
+    editSessions.current[idea.id] = (editSessions.current[idea.id] ?? 0) + 1;
+    setEditing({ [idea.id]: true });
+  }
+  function closeEdit(id: string) {
+    editSessions.current[id] = (editSessions.current[id] ?? 0) + 1;
+    setEditing(previous => ({ ...previous, [id]: false }));
   }
   function accept(idea: Idea) {
     ideaRef.current = [...ideaRef.current.filter(i => i.id !== idea.id), idea];
@@ -80,6 +86,8 @@ export function useIdeas(root: string | null) {
     const input = requests.current[key] ?? { requestId: crypto.randomUUID(), expectedRevision: draft.expectedRevision, content: contentFor(key === 'new' ? crypto.randomUUID() : key, draft) };
     requests.current[key] = input;
     const snapshot = JSON.stringify(draft);
+    // An old receipt must not close an editor that was closed and reopened.
+    const editSession = editSessions.current[key];
     try {
       const saved = parseIdea(await invoke('save_idea', { input }));
       if (!sameIdeaContent(saved, input.content) || saved.revision !== (input.expectedRevision ?? 0) + 1 || saved.deleted) throw Error('保存回执与输入不一致，请重新读取核对。');
@@ -90,10 +98,10 @@ export function useIdeas(root: string | null) {
       // A response only confirms the submitted version; later typing stays intact.
       if (sameIdeaContent(contentFor(saved.id, draftRef.current[key]), input.content) && JSON.stringify(draftRef.current[key]) === snapshot) {
         putDraft(key, key === 'new' ? emptyIdeaDraft() : ideaDraft(saved));
-        if (key !== 'new') setEditing(previous => ({ ...previous, [key]: false }));
+        if (key !== 'new' && editSessions.current[key] === editSession) setEditing(previous => ({ ...previous, [key]: false }));
       } else if (key === 'new') {
         putDraft(saved.id, { ...draftRef.current.new, expectedRevision: saved.revision });
-        putDraft('new', emptyIdeaDraft()); setEditing(previous => ({ ...previous, [saved.id]: true }));
+        putDraft('new', emptyIdeaDraft()); setEditing(previous => Object.values(previous).some(Boolean) ? previous : { [saved.id]: true });
       } else putDraft(key, { ...draftRef.current[key], expectedRevision: saved.revision });
       setNotice('灵感已保存。');
     } catch (e) { setPending({ ...requests.current }); throw e; }
@@ -107,11 +115,11 @@ export function useIdeas(root: string | null) {
     const saved = all.find(i => i.id === request.content.id);
     if (receipt && saved && sameIdeaContent(saved, request.content) && saved.revision === receipt.revision && !saved.deleted) {
       if (sameIdeaContent(contentFor(saved.id, draftRef.current[key]), request.content)) putDraft(key, key === 'new' ? emptyIdeaDraft() : ideaDraft(saved));
-      else if (key === 'new') { putDraft(saved.id, { ...draftRef.current.new, expectedRevision: saved.revision }); putDraft('new', emptyIdeaDraft()); setEditing(previous => ({ ...previous, [saved.id]: true })); }
+      else if (key === 'new') { putDraft(saved.id, { ...draftRef.current.new, expectedRevision: saved.revision }); putDraft('new', emptyIdeaDraft()); setEditing(previous => Object.values(previous).some(Boolean) ? previous : { [saved.id]: true }); }
       else putDraft(key, { ...draftRef.current[key], expectedRevision: saved.revision });
       setNotice('已确认保存成功，没有重复创建。');
     } else if (receipt) {
-      if (key === 'new' && saved) { putDraft(saved.id, { ...draftRef.current.new, expectedRevision: receipt.revision }); putDraft('new',emptyIdeaDraft()); setEditing(previous=>({...previous,[saved.id]:true})); }
+      if (key === 'new' && saved) { putDraft(saved.id, { ...draftRef.current.new, expectedRevision: receipt.revision }); putDraft('new',emptyIdeaDraft()); setEditing(previous => Object.values(previous).some(Boolean) ? previous : { [saved.id]: true }); }
       setNotice('已确认原保存成功；记录之后有变化，编辑草稿保留，请核对当前版本。');
     } else setNotice('已确认这次修改未保存，草稿保留；记录有变化时请先核对当前版本。');
     release(key);
@@ -133,16 +141,9 @@ export function useIdeas(root: string | null) {
     setNotice(nextDeleted ? '已移除灵感，可以撤销。' : '灵感已恢复。');
     if (nextDeleted) notifyOperation('灵感已移除', { tone: 'success', action: { label: '撤销', run: () => remove(saved, false) } });
   });
-  const convert = (idea: Idea, refreshWorkspace: () => Promise<void>) => action(`convert:${idea.id}`, async () => {
-    if (Object.values(requests.current).some(r => r.content.id === idea.id)) throw Error('请先核对这张卡的保存结果。');
-    const saved = parseIdea(await invoke('convert_idea', { id: idea.id, revision: idea.revision }));
-    if (saved.id !== idea.id || !saved.todoId || saved.deleted || !sameIdeaContent(saved,idea)) throw Error('转换回执不匹配，请重新读取核对。');
-    accept(saved); rebaseOwnMutation(saved); setNotice('已转为待办，原灵感保留；未设置日期。');
-    await refreshWorkspace();
-  });
   function clearFilters() { setQuery(''); setTag(''); setProjectId(''); setDeleted(false); }
-  return { ideas, drafts, changeDraft, editing, edit, closeEdit: (id: string) => setEditing(previous => ({ ...previous, [id]: false })),
-    pending, busy, loading, errorScope, error, loadError, notice, undo, refresh, save, reconcile, remove, convert,
+  return { ideas, drafts, changeDraft, editing, edit, closeEdit,
+    pending, busy, loading, errorScope, error, loadError, notice, undo, refresh, save, reconcile, remove,
     query, setQuery, tag, setTag, projectId, setProjectId, deleted, setDeleted, clearFilters, continueOnCurrent };
 }
 export type IdeasController = ReturnType<typeof useIdeas>;

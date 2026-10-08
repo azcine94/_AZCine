@@ -58,6 +58,8 @@ function Progress({ value, active, news,run,latestRevision }: { value: Processin
       <div><dt>本次耗时</dt><dd>{elapsed}<span> 秒</span></dd></div>
       <div><dt>收到模型文本</dt><dd>{value.receivedChars}<span> 字符</span></dd></div>
     </dl>
+    {value.stageStartedAt&&<p className="meta">当前步骤已用 {Math.max(0,Math.floor(((active?at:Date.parse(value.updatedAt))-Date.parse(value.stageStartedAt))/1000))} 秒</p>}
+    {!!value.segments?.length&&<section aria-label="正文翻译分段"><h4>正文翻译 · 已完成 {value.segments.filter(s=>s.phase==='segmentCompleted').length} / {value.segments.length} 段 · 最多 2 段并行</h4><ol className="processing-steps">{value.segments.map(segment=><li key={segment.index}><span>第 {segment.index} 段 · {segment.phase==='segmentCompleted'?'完成':segment.phase==='segmentFailed'?'未完成':processingPhases[segment.phase]??segment.phase}</span><span>{segment.startedAt?Math.max(0,Math.floor(((active&&!['segmentCompleted','segmentFailed'].includes(segment.phase)?at:Date.parse(segment.updatedAt))-Date.parse(segment.startedAt))/1000)):0} 秒 · {segment.chars} 字符</span>{segment.response&&<Disclosure><summary>本段返回</summary><pre className="processing-code">{segment.response}</pre></Disclosure>}</li>)}</ol></section>}
     <div className="processing-model-line"><span>本次调用模型</span><strong>{value.model ? `${value.model.provider} / ${value.model.id}` : '尚未取得可用模型'}</strong><span>每批 {value.batchSize} 条</span></div>
     {run&&<TaskModels title={`本任务固定配置 v${run.configRevision}`} config={run.config}/>}
     {run&&latestRevision!==undefined&&latestRevision!==run.configRevision&&<p className="meta">当前正式配置为 v{latestRevision}；此任务继续使用启动时的 v{run.configRevision}，新配置将在新任务中生效。</p>}
@@ -96,11 +98,13 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
   const retryRun = runs.find(run => run.id === retry);
   const current = runs.find(run => ['running', 'saving'].includes(run.status));
   const trace = processing.progress;
+  const errors = [...new Set([model.loadError, model.error, news.error, processing.error].filter(Boolean))];
   const visibleTrace = trace && (!current || trace.runId === current.id) ? trace : null;
   const selectedDone = !!selected && processing.scopeReady && !processing.rangeSnapshot?.ids.includes(selected.id);
   const events = (model.snapshot?.events ?? []).filter(event => event.draft.title.toLowerCase().includes(processing.eventQuery.toLowerCase()));
   const shownDetail = detail && processing.detailTarget && detail.runId === processing.detailTarget.id && (detail.batch === processing.detailTarget.batch || processing.detailLoading) ? detail : null;
   async function start(kind: 'organize' | 'daily') {
+    if(processing.loading||model.loading)return;
     if(kind==='organize'&&(!processing.scopeReady||!processing.rangeSnapshot))return;
     await model.organize(kind, undefined, { ...(kind==='organize'&&processing.rangeSnapshot?{filter:processing.rangeSnapshot.scope,expectedIds:processing.rangeSnapshot.ids}:{}),scope: kind === 'daily' ? 'all' : processing.scope, materialId: kind === 'daily' || processing.scope === 'all' ? null : selected?.id ?? null, batchSize: 1 });
     await processing.refresh(processing.pending.page);
@@ -108,29 +112,27 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
   }
   return <section className="settings-page news-processing">
     <header className="processing-page-header">
-      <div><h2>处理与记录</h2><p className="subtle">选好资料，开始整理；过程与结果保留在这里。</p></div>
+      <div className="processing-title-row"><p className="subtle">选择资料开始整理，过程与结果保留在这里。</p><LoadingStatus active={model.loading} delayMs={200}>读取中…</LoadingStatus></div>
       <nav className="processing-page-links" aria-label="资讯管理"><UILink variant="plain" href="#settings/news/materials">采集资料</UILink><UILink variant="plain" href="#settings/news/ai">处理规则</UILink><UILink variant="plain" href="#news">查看资讯 ↗</UILink></nav>
     </header>
     <div className="news-feedback" aria-live="polite">
-      {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}{model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
-      <LoadingStatus active={model.loading}>正在读取，已有内容保留…</LoadingStatus>
-      {news.error && <Feedback as="p" tone="error" className="form-error" role="alert">{news.error}</Feedback>}{processing.error && <Feedback as="p" tone="error" className="form-error" role="alert">{processing.error}</Feedback>}
+      {errors.map(error => <Feedback key={error} as="p" tone="error" className="form-error" role="alert">{error}</Feedback>)}
       {(configurationDirty||model.pending)&&<Feedback tone="pending">{model.pending?'资讯配置上次保存结果尚未确认，请先核对保存。':'资讯配置有未保存的改动，请先保存再启动新处理。'} <UILink variant="text" href="#settings/news/ai">前往AI处理配置 →</UILink></Feedback>}
       {model.snapshot&&<TaskModels title={`新任务使用已保存配置 v${model.snapshot.preferences.revision}`} config={model.snapshot.preferences.config}/>}
     </div>
 
     <div className="processing-workbench">
       <section className="processing-picker" aria-labelledby="processing-select-title">
-        <header className="processing-section-heading"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{total}</span></h3><Button variant="app-text" className="text-action" disabled={!model.connected || processing.clearing || !!processing.clearRequest} aria-disabled={processing.loading} aria-busy={processing.loading} onClick={() => { if (!processing.loading) void processing.refresh(processing.pending.page); }}>刷新</Button></header>
+        <header className="processing-section-heading"><div className="processing-title-row"><h3 id="processing-select-title">待处理资料 <span className="processing-count">{total}</span></h3><LoadingStatus active={processing.loading} delayMs={200}>读取中…</LoadingStatus></div><Button variant="app-text" className="text-action" disabled={!model.connected || processing.clearing || !!processing.clearRequest} aria-disabled={processing.loading} aria-busy={processing.loading} onClick={() => { if (!processing.loading) void processing.refresh(processing.pending.page); }}>刷新</Button></header>
         <div className="processing-scope-switch" role="group" aria-label="处理范围">
           <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'single'} onClick={() => processing.setScope('single')}>选一条</Button>
           <Button variant="app-scope" disabled={locked||!!processing.clearRequest} aria-pressed={processing.scope === 'all'} onClick={() => processing.setScope('all')}>当前筛选全部</Button>
         </div>
-        <NewsRangeControl value={processing.range} onChange={processing.setRange} disabled={locked||!!processing.clearRequest}/>
+        <div className="processing-filter-layout"><NewsRangeControl compact value={processing.range} onChange={processing.setRange} disabled={locked||!!processing.clearRequest}/>
+          <div className="processing-filters"><label>搜索<Input variant="app" className="input" value={processing.query} disabled={locked||!!processing.clearRequest} onChange={event => processing.setQuery(event.target.value)} maxLength={200} placeholder="标题或摘要关键词" /></label><label>信源<NativeSelect variant="app" className="select" value={processing.source} disabled={locked||!!processing.clearRequest} onChange={event => processing.setSource(event.target.value)}><option value="">全部信源</option>{news.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}</option>)}</NativeSelect></label></div></div>
         <>
-          <div className="processing-filters"><label>搜索<Input variant="app" className="input" value={processing.query} disabled={locked||!!processing.clearRequest} onChange={event => processing.setQuery(event.target.value)} maxLength={200} placeholder="标题或摘要关键词" /></label><label>信源<NativeSelect variant="app" className="select" value={processing.source} disabled={locked||!!processing.clearRequest} onChange={event => processing.setSource(event.target.value)}><option value="">全部信源</option>{news.snapshot.sources.map(source => <option key={source.config.id} value={source.config.id}>{source.config.name}</option>)}</NativeSelect></label></div>
-          <ul className="processing-candidates">{processing.pending.items.map(item => <li key={item.id}><label className={`processing-candidate${processing.scope==='single'&&selected?.id === item.id ? ' selected' : ''}`}>{processing.scope==='single'&&<Input variant="inline" type="radio" name="processing-material" disabled={locked||!!processing.clearRequest} checked={selected?.id === item.id} onChange={() => processing.select(item)} />}<span className="processing-candidate-body"><strong title={item.title}>{item.title}</strong><span className="processing-candidate-meta"><span>{item.sourceName}</span><time dateTime={item.discoveredAt}>{formatNewsTime(item.discoveredAt)}</time></span></span></label></li>)}</ul>
-          {!processing.pending.items.length && <EmptyState as="p" className="processing-empty subtle" aria-busy={processing.loading}>{processing.loading && !processing.dailyCount ? '正在读取待处理资料…' : '没有符合筛选的待处理资料。'}</EmptyState>}
+          <div className="processing-candidate-list" role="region" aria-label="待处理资料列表"><ul className="processing-candidates">{processing.pending.items.map(item => <li key={item.id}><label className={`processing-candidate${processing.scope==='single'&&selected?.id === item.id ? ' selected' : ''}`}>{processing.scope==='single'&&<Input variant="inline" type="radio" name="processing-material" disabled={locked||!!processing.clearRequest} checked={selected?.id === item.id} onChange={() => processing.select(item)} />}<span className="processing-candidate-body"><strong title={item.title}>{item.title}</strong><span className="processing-candidate-meta"><span>{item.sourceName}</span><time dateTime={item.discoveredAt}>{formatNewsTime(item.discoveredAt)}</time></span></span></label></li>)}</ul>
+          {!processing.pending.items.length && <EmptyState as="p" className="processing-empty subtle" aria-busy={processing.loading}>{processing.loading && !processing.dailyCount ? '正在读取待处理资料…' : '没有符合筛选的待处理资料。'}</EmptyState>}</div>
           <div className="processing-picker-pagination"><span className="meta">每页 {processing.pending.pageSize} 条</span><div className="news-pager"><Button variant="app-pill" className="pill" disabled={processing.loading || processing.pending.page === 0} onClick={() => void processing.refresh(processing.pending.page - 1)}>上一页</Button><span className="meta">{processing.pending.page + 1} / {Math.max(1, Math.ceil(processing.pending.total / processing.pending.pageSize))}</span><Button variant="app-pill" className="pill" disabled={processing.loading || (processing.pending.page + 1) * processing.pending.pageSize >= processing.pending.total} onClick={() => void processing.refresh(processing.pending.page + 1)}>下一页</Button></div></div>
         </>
         <div className="processing-queue-actions"><Button variant="app-text" className="text-action" disabled={locked||processing.loading||!processing.scopeReady||!total||!!processing.clearRequest} onClick={processing.prepareClear}>清空当前范围待处理</Button><span className="meta">仅移出队列，资料与报道保留</span></div>
@@ -138,7 +140,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
         
         <footer className="processing-picker-footer">
           <div className="processing-chosen"><span className="meta">{processing.scope === 'single' ? selectedDone ? '上次选择已处理，请选择新资料' : selected ? '本次选择 · 1 条' : '请选择一条资料' : `本次范围 · 当前筛选 ${total} 条`}</span>{processing.scope === 'single' && selected && <strong title={selected.title}>{selected.title}</strong>}{processing.scope === 'single' && selected && <Disclosure className="disclosure"><summary>查看原始资料</summary><Inputs news={news} items={[selected]} /></Disclosure>}</div>
-          <Button variant="app-pill" className="pill on processing-start" disabled={locked || configurationBlocked || !processing.scopeReady || processing.loading || !!processing.clearRequest || (processing.scope === 'single' ? !selected || selectedDone : !total || model.loading)} onClick={() => void start('organize')}>{model.active ? '任务进行中' : processing.scope === 'single' ? selectedDone ? '已处理' : '开始整理' : `整理当前范围 ${total} 条`}</Button>
+          <Button variant="app-pill" className="pill on processing-start" aria-disabled={processing.loading || model.loading} disabled={locked || configurationBlocked || !processing.scopeReady || !!processing.clearRequest || (processing.scope === 'single' ? !selected || selectedDone : !total)} onClick={() => void start('organize')}>{model.active ? '任务进行中' : processing.scope === 'single' ? selectedDone ? '已处理' : '开始整理' : `整理当前范围 ${total} 条`}</Button>
         </footer>
       </section>
 
@@ -165,7 +167,7 @@ export function NewsProcessingPanel({ model, news, processing }: { model: Editor
     {processing.detailTarget && <section id="news-processing-detail" tabIndex={-1} className="processing-card processing-detail" aria-labelledby="processing-detail-title">
       <header className="processing-heading"><div><h3 id="processing-detail-title">任务详情 · {selectedRun?.kind === 'daily' ? '日报' : selectedRun?.kind === 'analysis' ? '事件分析' : '资讯整理'}</h3><p className="meta processing-url">{processing.detailTarget.id}</p></div><UILink variant="action" className="text-action" href="#news">查看资讯 →</UILink></header>
       {selectedRun?.error && <Feedback as="p" tone={selectedRun.status==='pendingMaterials'?'pending':'error'} role="alert">{selectedRun.error}</Feedback>}
-      <LoadingStatus active={processing.detailLoading}>正在读取这批记录…</LoadingStatus>
+      <LoadingStatus active={processing.detailLoading} delayMs={200}>正在读取这批记录…</LoadingStatus>
       {processing.detailError && <Feedback as="p" tone="error" className="form-error" role="alert">{processing.detailError}</Feedback>}
       {shownDetail && <>
         {shownDetail.progress&&<PendingMaterials value={shownDetail.progress}/>}

@@ -5,7 +5,7 @@
 .office-table th:last-child,.office-table td:last-child { border-right:0; }
 .office-table thead th { position:sticky; top:0; z-index:2; padding:0 var(--s-2); font-weight:500; height:44px; background:var(--island-2); }
 .office-table thead th.table-selected-header { background:var(--island-3); color:var(--acc); }
-.office-table td { background:var(--island); height:48px; padding:2px; }
+.office-table td { background:var(--island); height:48px; padding:0; }
 .office-table .table-corner { text-align:center; font:400 var(--fs-xs)/var(--lh-xs) var(--mono); }
 .office-table .table-row-heading { padding:0; height:48px; background:var(--island-2); font:400 var(--fs-xs)/var(--lh-xs) var(--mono); white-space:nowrap; }
 
@@ -32,6 +32,7 @@
 .office-table .table-selected-header { background:var(--acc-soft); color:var(--acc); }
 .office-table td[data-selected=true] { background:var(--acc-soft); }
 .office-table td:focus-within { outline:2px solid var(--acc); outline-offset:-2px; }
+.office-table td:has(.ui-attachment-tile:focus) { outline:none; }
 
 
 .table-resize { position:absolute; top:0; right:0; bottom:0; width:8px; cursor:col-resize; z-index:1; touch-action:none; }
@@ -54,3 +55,8 @@
 }
 
 .project-content .office-table .project-stage-picker__trigger { border:0; border-radius:var(--r-xs); background:transparent; }
+
+.office-table .table-row-heading { position:relative; }
+.table-row-resize { position:absolute; left:0; right:0; bottom:0; height:8px; cursor:row-resize; touch-action:none; z-index:1; }
+.table-row-resize:hover { background:var(--accent); }
+.table-row-resize:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; background:var(--accent); }

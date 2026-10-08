@@ -18,9 +18,10 @@ fn active_project(tx:&Transaction<'_>,id:Option<&str>)->Result<(),StorageError>{
 fn hashed_revision(snapshot:&Value)->Result<i64,StorageError>{let bytes=serde_json::to_vec(snapshot).map_err(|_|invalid("对象版本无法读取。"))?;let hash=Sha256::digest(bytes);let n=u64::from_be_bytes(hash[..8].try_into().unwrap())&((1u64<<52)-1);Ok(n as i64+1)}
 fn context(source:&Source,snapshot:Value,operations:&[&str])->Result<ObjectContext,StorageError>{let revision=snapshot["revision"].as_i64().unwrap_or(hashed_revision(&snapshot)?);if !(1..9_007_199_254_740_991).contains(&revision){return Err(invalid("对象版本无效。"));}Ok(ObjectContext{source:source.clone(),revision,snapshot,operations:operations.iter().map(|s|(*s).into()).collect()})}
 
+// The retired todo module is deliberately not registered; historical tables remain untouched.
 pub fn registered()->Providers{
     let mut p=Providers::default();
-    for module in ["projects","today","ideas","bookkeeping","news","models","jobs"]{p.0.insert(module.into(),Arc::new(BusinessModule(module)));}
+    for module in ["projects","ideas","bookkeeping","news","models","jobs"]{p.0.insert(module.into(),Arc::new(BusinessModule(module)));}
     p
 }
 struct BusinessModule(&'static str);
@@ -91,7 +92,7 @@ fn patch_tables(op:&Operation,baseline:&ObjectContext)->Result<Value,StorageErro
             if let Some(id)=row.row_id {
                 if !changed.insert(id.clone()){return Err(invalid("同一行不能重复修改。"));}
                 let target=rows.iter_mut().find(|r|r.id==id).ok_or_else(||invalid("目标行不存在，未按行号猜测或覆盖。"))?;target.cells.extend(cells);
-            }else{rows.push(crate::projects::ListRow{id:patch_id(baseline,&table.block_id,"row",index),cells,images:None});}
+            }else{rows.push(crate::projects::ListRow{id:patch_id(baseline,&table.block_id,"row",index),cells,height:None,images:None});}
         }
     }
     crate::projects::validate_content(&doc)?;value(doc)
@@ -108,20 +109,17 @@ impl BusinessModule{
     fn validate_proposed(&self,tx:&Transaction<'_>,op:&Operation,baseline:&ObjectContext)->Result<Value,StorageError>{
         let id=self.writable_id(op,baseline)?;
         match (self.0,op.action.as_str()){
-            (_,"delete"|"restore") if matches!(self.0,"projects"|"today"|"ideas"|"bookkeeping")=>{
+            (_,"delete"|"restore") if matches!(self.0,"projects"|"ideas"|"bookkeeping")=>{
                 if !op.values.as_object().is_some_and(|v|v.is_empty()){return Err(invalid("删除或恢复不接受其他字段。"));}
                 let deleted=baseline.snapshot["deleted"].as_bool().unwrap_or(false);if deleted==(op.action=="delete"){return Err(invalid("对象已经处于该状态，请重新读取。"));}Ok(json!({"deleted":op.action=="delete"}))
             },
-            ("ideas","convertToTodo")=>{if !op.values.as_object().is_some_and(|v|v.is_empty())||baseline.snapshot["todoId"].is_string(){return Err(invalid("灵感已转为待办，或参数包含其他字段。"));}Ok(json!({"convertToTodo":true}))},
             ("projects","create")=>{let content:crate::projects::ProjectContent=decode(&op.values)?;if content.id!=id{return Err(invalid("项目编号无效。"));}crate::projects::validate_content(&content)?;value(content)},
             ("ideas","create")=>{let content:crate::ideas::IdeaContent=decode(&op.values)?;if content.id!=id{return Err(invalid("灵感编号无效。"));}crate::ideas::validate(&crate::ideas::SaveIdea{request_id:id.into(),expected_revision:None,content:content.clone()})?;active_project(tx,content.project_id.as_deref())?;value(content)},
-            ("today","create")=>{let input:crate::storage::CreateTodo=decode(&op.values)?;if input.id!=id{return Err(invalid("待办编号无效。"));}crate::storage::validate_todo_creation(tx,&input)?;Ok(op.values.clone())},
             ("bookkeeping","create")=>{let content:crate::bookkeeping::Content=decode(&op.values)?;if content.id!=id{return Err(invalid("开销编号无效。"));}crate::bookkeeping::validate_save(tx,None,&content)?;value(content)},
             ("news","create")=>{let mut source:crate::news_types::SourceConfig=decode(&op.values)?;if source.id!=id{return Err(invalid("信源编号无效。"));}source.name=source.name.trim().into();source.feed_url=crate::news_http::public_url(source.feed_url.trim())?.to_string();crate::news_types::validate_source(&source)?;if source.enabled{return Err(StorageError::new("new_source_paused","新信源必须先以暂停状态保存；请保留这些信源内容，将新建草案的 enabled 改为 false 后重新提交。保存并预览核对后，可通过更新信源配置启用。"));}let duplicate:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM news_sources WHERE name_key=?)",[source.name.to_lowercase()],|r|r.get(0)).map_err(db)?;if duplicate{return Err(invalid("已有同名信源。"));}value(source)},
             ("projects","patchTables")=>patch_tables(op,baseline),
             ("projects","update")=>{let doc:crate::projects::ProjectContent=decode(&op.values)?;if doc.id!=id{return Err(invalid("不能替换公司项目编号。"));}crate::projects::validate_content(&doc)?;value(doc)},
             ("ideas","update")=>{let content:crate::ideas::IdeaContent=decode(&op.values)?;if content.id!=id{return Err(invalid("不能替换灵感编号。"));}crate::ideas::validate(&crate::ideas::SaveIdea{request_id:id.into(),expected_revision:Some(baseline.revision),content:content.clone()})?;if let Some(project)=&content.project_id{let exists:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM projects WHERE id=? AND NOT EXISTS(SELECT 1 FROM project_deletions WHERE project_id=projects.id AND deleted=1))",[project],|r|r.get(0)).map_err(db)?;if !exists{return Err(invalid("关联公司不存在或已移除。"));}}value(content)},
-            ("today","setCompleted")=>{#[derive(serde::Deserialize,serde::Serialize)]#[serde(deny_unknown_fields)]struct Completed{completed:bool}let completed:Completed=decode(&op.values)?;value(completed)},
             ("bookkeeping","update")=>{let content:crate::bookkeeping::Content=decode(&op.values)?;if content.id!=id{return Err(invalid("不能替换开销编号。"));}crate::bookkeeping::validate_save(tx,Some(baseline.revision),&content)?;value(content)},
             ("bookkeeping","setStatus")=>{#[derive(serde::Deserialize,serde::Serialize)]#[serde(deny_unknown_fields)]struct State{status:crate::bookkeeping::Status}let state:State=decode(&op.values)?;crate::bookkeeping::validate_status(tx,&crate::bookkeeping::Target{id:id.into(),revision:baseline.revision},state.status)?;value(state)},
             ("news","updateSource")=>{let mut source:crate::news_types::SourceConfig=decode(&op.values)?;if source.id!=id{return Err(invalid("不能替换信源编号。"));}source.name=source.name.trim().into();source.feed_url=crate::news_http::public_url(source.feed_url.trim())?.to_string();crate::news_types::validate_source(&source)?;let duplicate:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM news_sources WHERE name_key=? AND id!=?)",params![source.name.to_lowercase(),id],|r|r.get(0)).map_err(db)?;if duplicate{return Err(invalid("已有相同名称的信源。"));}value(source)},
@@ -136,23 +134,22 @@ impl ModuleProvider for BusinessModule{
         if self.0=="projects"&&matches!(action,"create"|"update"){if action=="update"{if let Some(fields)=values.as_object_mut(){for key in ["revision","createdAt","deleted"]{fields.remove(key);}}}normalize_project(&mut values,&format!("{object_id}:{}",revision.unwrap_or(0)))?;}
         Ok(values)
     }
-    fn actions(&self)->Vec<String>{match self.0{"projects"=>vec!["create","update","patchTables","delete","restore"],"today"=>vec!["create","setCompleted","delete","restore"],"ideas"=>vec!["create","update","convertToTodo","delete","restore"],"bookkeeping"=>vec!["create","update","setStatus","delete","restore"],"news"=>vec!["create","updateSource"],_=>vec![]}.into_iter().map(str::to_owned).collect()}
+    fn actions(&self)->Vec<String>{match self.0{"projects"=>vec!["create","update","patchTables","delete","restore"],"ideas"=>vec!["create","update","delete","restore"],"bookkeeping"=>vec!["create","update","setStatus","delete","restore"],"news"=>vec!["create","updateSource"],_=>vec![]}.into_iter().map(str::to_owned).collect()}
     fn creation(&self,tx:&Transaction<'_>,op:&Operation)->Result<ObjectContext,StorageError>{
         if op.action!="create"||op.module!=self.0||!self.actions().contains(&op.action){return Err(invalid("此模块没有提供创建操作。"));}
         let id=if self.0=="news"{op.object_id.strip_prefix("source:").ok_or_else(||invalid("新信源标识无效。"))?}else{op.object_id.as_str()};
-        let sql=match self.0{"projects"=>"SELECT EXISTS(SELECT 1 FROM projects WHERE id=?)","today"=>"SELECT EXISTS(SELECT 1 FROM todos WHERE id=?)","ideas"=>"SELECT EXISTS(SELECT 1 FROM ideas WHERE id=?)","bookkeeping"=>"SELECT EXISTS(SELECT 1 FROM bookkeeping_expenses WHERE id=?)","news"=>"SELECT EXISTS(SELECT 1 FROM news_sources WHERE id=?)",_=>return Err(invalid("此模块没有提供创建操作。"))};
+        let sql=match self.0{"projects"=>"SELECT EXISTS(SELECT 1 FROM projects WHERE id=?)","ideas"=>"SELECT EXISTS(SELECT 1 FROM ideas WHERE id=?)","bookkeeping"=>"SELECT EXISTS(SELECT 1 FROM bookkeeping_expenses WHERE id=?)","news"=>"SELECT EXISTS(SELECT 1 FROM news_sources WHERE id=?)",_=>return Err(invalid("此模块没有提供创建操作。"))};
         let exists:bool=tx.query_row(sql,[id],|r|r.get(0)).map_err(db)?;if exists{return Err(missing());}
         Ok(ObjectContext{source:Source{module:self.0.into(),page:self.0.into(),object_id:Some(op.object_id.clone())},revision:0,snapshot:Value::Null,operations:vec!["create".into()]})
     }
     fn list_deleted(&self,tx:&Transaction<'_>)->Result<Vec<Value>,StorageError>{
-        let sql=match self.0{"projects"=>"SELECT id,name FROM projects WHERE EXISTS(SELECT 1 FROM project_deletions WHERE project_id=projects.id AND deleted=1) ORDER BY created_at DESC,id","today"=>"SELECT id,title FROM todos WHERE deleted=1 ORDER BY created_at DESC,id","ideas"=>"SELECT id,CASE WHEN length(trim(title))>0 THEN title ELSE substr(body,1,80) END FROM ideas WHERE deleted=1 ORDER BY updated_at DESC,id","bookkeeping"=>"SELECT id,date||' · '||purpose FROM bookkeeping_expenses WHERE deleted=1 ORDER BY date DESC,created_at DESC,id",_=>return Ok(vec![])};
+        let sql=match self.0{"projects"=>"SELECT id,name FROM projects WHERE EXISTS(SELECT 1 FROM project_deletions WHERE project_id=projects.id AND deleted=1) ORDER BY created_at DESC,id","ideas"=>"SELECT id,CASE WHEN length(trim(title))>0 THEN title ELSE substr(body,1,80) END FROM ideas WHERE deleted=1 ORDER BY updated_at DESC,id","bookkeeping"=>"SELECT id,date||' · '||purpose FROM bookkeeping_expenses WHERE deleted=1 ORDER BY date DESC,created_at DESC,id",_=>return Ok(vec![])};
         Ok(ids(tx,sql)?.into_iter().map(|(id,title)|{let mut v=entry(self.0,format!("{}/{id}",self.0),id,title);v["deleted"]=json!(true);v}).collect())
     }
     fn list(&self,tx:&Transaction<'_>)->Result<Vec<Value>,StorageError>{
         let mut out=Vec::new();
         match self.0{
             "projects"=>for(id,title)in ids(tx,"SELECT id,name FROM projects WHERE NOT EXISTS(SELECT 1 FROM project_deletions WHERE project_id=projects.id AND deleted=1) ORDER BY created_at DESC,id")?{out.push(entry(self.0,format!("projects/{id}"),id,title));},
-            "today"=>for(id,title)in ids(tx,"SELECT id,title FROM todos WHERE deleted=0 ORDER BY completed,due_date,created_at DESC,id")?{out.push(entry(self.0,format!("today/{id}"),id,title));},
             "ideas"=>for(id,title)in ids(tx,"SELECT id,CASE WHEN length(trim(title))>0 THEN title ELSE substr(body,1,80) END FROM ideas WHERE deleted=0 ORDER BY updated_at DESC,id")?{out.push(entry(self.0,format!("ideas/{id}"),id,title));},
             "bookkeeping"=>for(id,title)in ids(tx,"SELECT id,date||' · '||purpose FROM bookkeeping_expenses WHERE deleted=0 ORDER BY date DESC,created_at DESC,id")?{out.push(entry(self.0,format!("bookkeeping/{id}"),id,title));},
             "news"=>{
@@ -171,8 +168,7 @@ impl ModuleProvider for BusinessModule{
         source.validate()?;if source.module!=self.0{return Err(invalid("对象模块不匹配。"));}let id=source.object_id.as_deref().ok_or_else(missing)?;
         let (snapshot,actions): (Value,&[&str])=match self.0{
             "projects"=>{let mut doc=value(self.project(tx,id)?)?;let deleted:bool=tx.query_row("SELECT deleted FROM project_deletions WHERE project_id=?",[id],|r|r.get(0)).optional().map_err(db)?.unwrap_or(false);doc["deleted"]=json!(deleted);(doc,if deleted{&["restore"]}else{&["update","patchTables","delete"]})},
-            "today"=>{let todo=crate::storage::todo_in(tx,id)?.ok_or_else(missing)?;let deleted:bool=tx.query_row("SELECT deleted FROM todos WHERE id=?",[id],|r|r.get(0)).map_err(db)?;let mut todo=value(todo)?;todo["deleted"]=json!(deleted);(todo,if deleted{&["restore"]}else{&["setCompleted","delete"]})},
-            "ideas"=>{let idea=crate::ideas::get(tx,id)?.ok_or_else(missing)?;let deleted=idea.deleted;(value(idea)?,if deleted{&["restore"]}else{&["update","convertToTodo","delete"]})},
+            "ideas"=>{let idea=crate::ideas::get(tx,id)?.ok_or_else(missing)?;let deleted=idea.deleted;(value(idea)?,if deleted{&["restore"]}else{&["update","delete"]})},
             "bookkeeping"=>{let expense=crate::bookkeeping::read(tx,id)?.ok_or_else(missing)?;let deleted=expense.deleted;(value(expense)?,if deleted{&["restore"]}else{&["update","setStatus","delete"]})},
             "news"=>{
                 if let Some(id)=id.strip_prefix("source:"){let source=self.source(tx,id)?;(json!({"config":source.config,"revision":source.revision,"createdAt":source.created_at}),&["updateSource"])}else{
@@ -187,38 +183,31 @@ impl ModuleProvider for BusinessModule{
     }
     fn operation_schema(&self,action:&str)->Value{match(self.0,action){
         (_,"delete"|"restore")=>json!({"values":{},"description":"软删除或恢复记录；需先读取真实对象版本，最终由本人核对应用。"}),
-        ("ideas","convertToTodo")=>json!({"values":{},"description":"按现有灵感标题/正文创建关联待办，并保留灵感；不会重复转化。"}),
         ("projects","create")=>project_contract(json!({"values":{"name":"公司项目名","labels":[],"blocks":[]},"required":["name","labels","blocks"],"description":"省略根id，应用生成。labels为{id,name}；blocks：{kind:text,id,title,body}，{kind:checklist,id,title,items:[{id,text,checked}]}，{kind:list,id,title,included,columns:[{id,name,kind,width?}],rows:[{id,cells:{列id:字符串}}]}。included和checked为布尔值。先按columnRules选择类型，保留用户原表列结构：多条版本/日期原文可以分别建text列，只有明确的当前阶段才用stage列。新实体id可用本次别名，应用统一换为稳定UUID；cells与阶段引用使用对应别名。"})),
-        ("today","create")=>json!({"values":{"title":"待办标题","dueDate":"YYYY-MM-DD或null","projectId":"已有项目id或null"}}),
         ("ideas","create")=>json!({"values":{"title":"标题，可空","body":"必填正文","tags":[],"projectId":null}}),
         ("bookkeeping","create")=>json!({"values":{"date":"YYYY-MM-DD","purpose":"用途","amountFen":"整数人民币分","note":"备注","status":"unclaimed/pending","receiptIds":[],"exchange":null}}),
         ("news","create")=>json!({"values":{"name":"信源名","feedUrl":"公开RSS/Atom URL","identity":"official/research/media/individual","domains":["frontiers/industry/visual"],"usage":"editorial/watch","intervalMinutes":"合法频率整数","enabled":false},"description":"新信源必须以enabled:false（暂停）创建；enabled:true会被拒绝。保存并预览核对后，读取最新版本并通过updateSource草案启用。创建草案不执行采集；不能把待核对或暂停的来源说成已启用。"}),
         ("projects","patchTables")=>project_contract(json!({"description":"修改已有镜头表，无关块、行和单元格自动保留。blockId、rowId、已有列的cells键必须使用snapshot中的稳定id，不用行号或列名。rowId为null表示追加行；已有空行可指定原rowId。cells可使用newColumns.key引用新列，类型与已有列一起遵守columnRules；不为了限制而合并用户的原文列，可分别使用text。新增内部UUID由应用生成。无法确认的字段保留并放入decisions。", "values":{"tables":[{"blockId":"snapshot已有list块id","newColumns":[{"key":"本次新列别名","name":"列名","kind":"text/shot/stage/date/delivered"}],"rows":[{"rowId":"已有行id或null","cells":{"已有列id或新列key":"明确的单元格字符串"}}]}]}})),
         ("projects","update")=>project_contract(json!({"description":"完整 ProjectContent：{id,name,labels:[{id,name}],blocks:[文字/清单/list]}。保留未修改字段和稳定ID；新增实体可用本次唯一别名，由应用换为稳定UUID。结构与类型遵守columnRules和constraints；多条版本原文可分别用text列，不能猜日期/阶段/编号。","required":["id","name","labels","blocks"],"values":"snapshot 去掉 revision、createdAt、deleted；按明确请求修改"})),
         ("ideas","update")=>json!({"values":{"id":"原id","title":"标题，可空","body":"必填正文","tags":["标签"],"projectId":"已有公司id或null"}}),
-        ("today","setCompleted")=>json!({"values":{"completed":"boolean"}}),
         ("bookkeeping","update")=>json!({"values":{"id":"原id","date":"YYYY-MM-DD","purpose":"用途","amountFen":"整数人民币分","note":"备注","status":"unclaimed/pending/submitted/paid","receiptIds":["现有票据id"],"exchange":"原有汇率快照或null"},"description":"沿用原记账校验；不能伪造票据/汇率，已提交或到账修改金额需先退回待提交。"}),
         ("bookkeeping","setStatus")=>json!({"values":{"status":"pending/submitted/paid"},"description":"仅允许原报销状态转换；到账表示本人记录到账，不执行转账。"}),
         ("news","updateSource")=>json!({"values":{"id":"snapshot.config.id","name":"信源名","feedUrl":"公开RSS/Atom URL","identity":"official/research/media/individual","domains":["frontiers/industry/visual"],"usage":"editorial/watch","intervalMinutes":"合法频率整数","enabled":"boolean"},"description":"只改下一轮配置，不采集、不重写历史刊期。"}),
         _=>Value::Null
     }}
-    fn validate(&self,tx:&Transaction<'_>,op:&Operation,baseline:&ObjectContext)->Result<Value,StorageError>{let proposed=self.validate_proposed(tx,op,baseline)?;Ok(json!({"title":baseline.snapshot["name"].as_str().or(baseline.snapshot["title"].as_str()).or(baseline.snapshot["purpose"].as_str()).or(baseline.snapshot["config"]["name"].as_str()).or(proposed["name"].as_str()).or(proposed["title"].as_str()).or(proposed["purpose"].as_str()).unwrap_or(&op.object_id),"actionLabel":match op.action.as_str(){"create"=>"新建记录","delete"=>"移入回收站","restore"=>"恢复记录","convertToTodo"=>"转为待办","update"=>"更新内容","patchTables"=>"修改镜头表","setCompleted"=>"更改待办完成状态","setStatus"=>"更改报销状态","updateSource"=>"更新信源配置",_=>"变更"},"after":proposed}))}
+    fn validate(&self,tx:&Transaction<'_>,op:&Operation,baseline:&ObjectContext)->Result<Value,StorageError>{let proposed=self.validate_proposed(tx,op,baseline)?;Ok(json!({"title":baseline.snapshot["name"].as_str().or(baseline.snapshot["title"].as_str()).or(baseline.snapshot["purpose"].as_str()).or(baseline.snapshot["config"]["name"].as_str()).or(proposed["name"].as_str()).or(proposed["title"].as_str()).or(proposed["purpose"].as_str()).unwrap_or(&op.object_id),"actionLabel":match op.action.as_str(){"create"=>"新建记录","delete"=>"移入回收站","restore"=>"恢复记录","update"=>"更新内容","patchTables"=>"修改镜头表","setStatus"=>"更改报销状态","updateSource"=>"更新信源配置",_=>"变更"},"after":proposed}))}
     fn apply(&self,tx:&Transaction<'_>,op:&Operation,baseline:&ObjectContext)->Result<Value,StorageError>{
         let proposed=self.validate_proposed(tx,op,baseline)?;let request=request_id(tx)?;
         let saved=match(self.0,op.action.as_str()){
             ("projects","create")=>value(crate::projects::save_project_in(tx,crate::projects::SaveProject{request_id:request,expected_revision:None,document:decode(&proposed)?})?)?,
-            ("today","create")=>value(crate::storage::create_todo_in(tx,decode(&proposed)?)?)?,
             ("ideas","create")=>value(crate::ideas::save_idea_in(tx,crate::ideas::SaveIdea{request_id:request,expected_revision:None,content:decode(&proposed)?})?)?,
             ("bookkeeping","create")=>value(crate::bookkeeping::mutate_in(tx,crate::bookkeeping::Mutation::Save{request_id:request,expected_revision:None,content:decode(&proposed)?})?)?,
             ("news","create")=>value(crate::news_store::save_source_in(tx,crate::news_types::SaveSource{request_id:request,expected_revision:None,source:decode(&proposed)?})?)?,
             ("projects","delete"|"restore")=>value(crate::projects::set_project_deleted_in(tx,crate::projects::DeleteProject{request_id:request,project_id:op.object_id.clone(),expected_revision:baseline.revision,deleted:op.action=="delete"})?)?,
-            ("today","delete"|"restore")=>crate::storage::set_todo_deleted_in(tx,&op.object_id,baseline.revision,op.action=="delete")?,
             ("ideas","delete"|"restore")=>value(crate::ideas::set_idea_deleted_in(tx,&op.object_id,baseline.revision,op.action=="delete")?)?,
-            ("ideas","convertToTodo")=>value(crate::ideas::convert_idea_in(tx,&op.object_id,baseline.revision)?)?,
             ("bookkeeping","delete"|"restore")=>value(crate::bookkeeping::mutate_in(tx,crate::bookkeeping::Mutation::Delete{request_id:request,target:crate::bookkeeping::Target{id:op.object_id.clone(),revision:baseline.revision},deleted:op.action=="delete"})?)?,
             ("projects","update"|"patchTables")=>value(crate::projects::save_project_in(tx,crate::projects::SaveProject{request_id:request,expected_revision:Some(baseline.revision),document:decode(&proposed)?})?)?,
             ("ideas","update")=>value(crate::ideas::save_idea_in(tx,crate::ideas::SaveIdea{request_id:request,expected_revision:Some(baseline.revision),content:decode(&proposed)?})?)?,
-            ("today","setCompleted")=>value(crate::storage::complete_todo_in(tx,&op.object_id,baseline.revision,proposed["completed"].as_bool().ok_or_else(||invalid("完成状态无效。"))?)?)?,
             ("bookkeeping","update")=>value(crate::bookkeeping::mutate_in(tx,crate::bookkeeping::Mutation::Save{request_id:request,expected_revision:Some(baseline.revision),content:decode(&proposed)?})?)?,
             ("bookkeeping","setStatus")=>value(crate::bookkeeping::mutate_in(tx,crate::bookkeeping::Mutation::Status{request_id:request,targets:vec![crate::bookkeeping::Target{id:op.object_id.clone(),revision:baseline.revision}],status:decode(&proposed["status"])?})?)?,
             ("news","updateSource")=>value(crate::news_store::save_source_in(tx,crate::news_types::SaveSource{request_id:request,expected_revision:Some(baseline.revision),source:decode(&proposed)?})?)?,

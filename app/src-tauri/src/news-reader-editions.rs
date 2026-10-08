@@ -64,7 +64,7 @@ pub async fn run_period(app:tauri::AppHandle,kind:String,retry_id:Option<String>
     let copy=run.clone();crate::with_storage(app.clone(),move|m|m.store()?.save_editorial_run(&copy)).await?;crate::news_processing::begin(&app,&run,1);
     let resources=app.path().resource_dir().map_err(|_|invalid_reply())?;let mut session=crate::news_pipeline::Session::new(app.clone(),root,resources,run.clone(),input.preferences,retry);let mut result=period(&mut session,&input.kind).await;
     if app.state::<crate::news_ai::AiControl>().cancel.load(std::sync::atomic::Ordering::Acquire){result=Err(StorageError::new("news_cancelled","报告生成已取消，已保存内容保留，未报告成功。"));}
-    app.state::<crate::news_ai::AiControl>().active.lock().map_err(|_|invalid_reply())?.take();
+    app.state::<crate::news_ai::AiControl>().active.lock().map_err(|_|invalid_reply())?.clear();
     match &result {Ok(_)=>crate::news_editorial_commands::finish(&app,&mut run,"completed",None).await?,Err(e)=>{let status=if e.code=="news_cancelled"{"cancelled"}else if e.code=="news_model_unavailable"{"awaitingModel"}else{"failed"};crate::news_editorial_commands::finish(&app,&mut run,status,Some(e.message.clone())).await?;}}
     result
 }

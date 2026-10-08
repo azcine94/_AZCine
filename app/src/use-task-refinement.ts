@@ -65,6 +65,7 @@ export function useTaskRefinement(businessRoot: string | null, workspaceRoot: st
   useEffect(() => { if (!enabled) cancel(); }, [enabled]);
   useEffect(() => { cancel(); setError(''); }, [businessRoot, workspaceRoot, draft.id, draft.repositoryId, draft.projectId]);
 
+  useEffect(()=>{const reload=()=>{if(enabled)void refreshModels();};window.addEventListener('azcine-models-changed',reload);return()=>window.removeEventListener('azcine-models-changed',reload);},[enabled,businessRoot]);
   async function refreshModels() {
     if (!current.current.enabled) return;
     const request = ++modelRequest.current, root = current.current.businessRoot;

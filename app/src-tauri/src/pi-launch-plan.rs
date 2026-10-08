@@ -154,6 +154,11 @@ impl PiPaths {
         Ok(env)
     }
     pub fn arguments(&self, runtime: &RuntimePaths, session: Option<&Path>) -> Result<Vec<OsString>, ConfigError> {
+        // --no-approve is upstream's projectTrustOverride=false. It disables
+        // project/ancestor resource discovery (including .agents/skills), also
+        // after reload/cwd changes. Keep the inspector on the same policy;
+        // --no-context-files alone does not provide this boundary. Resources
+        // explicitly added to our own agent directory remain available.
         let mut args = vec!["--no-global-search-paths".into(),runtime.pi.as_os_str().into(),"--mode".into(),"rpc".into(),"--offline".into(),"--no-approve".into(),"--no-context-files".into(),"--session-dir".into(),self.sessions.as_os_str().into()];
         if let Some(session) = session { args.push("--session".into()); args.push(self.checked_session(session)?.into_os_string()); }
         Ok(args)
@@ -171,7 +176,7 @@ mod tests {
         let env = paths.environment(&rt, &windows, &[]).unwrap();let names:Vec<_>=env.iter().map(|(k,_)|k.to_str().unwrap()).collect();
         assert_eq!(names.len(),16); for absent in ["NODE_OPTIONS","NODE_PATH","OPENAI_API_KEY","BASH_ENV","PI_PROVIDER","PI_MODEL","HTTP_PROXY"] { assert!(!names.contains(&absent)); }
         assert_eq!(env.iter().find(|(k,_)|k=="HOME").unwrap().1, paths.home.as_os_str());
-        let args = paths.arguments(&rt,None).unwrap(); assert!(!args.iter().any(|a|a=="--no-extensions"||a=="--model"||a=="gpt-4o")); assert_eq!(paths.checked_cwd(None).unwrap(),paths.default_cwd);
+        let args = paths.arguments(&rt,None).unwrap(); assert!(args.iter().any(|a|a=="--no-approve")); assert!(!args.iter().any(|a|a=="--approve"||a=="--no-extensions"||a=="--model"||a=="gpt-4o")); assert_eq!(paths.checked_cwd(None).unwrap(),paths.default_cwd);
         assert_eq!(rt.package,rt.root.join("pi/node_modules/@earendil-works/pi-coding-agent"));
     }
     #[test]

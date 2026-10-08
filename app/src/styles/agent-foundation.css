@@ -15,7 +15,7 @@
 .agent-draft-list pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font:12px/20px var(--mono)}
 .agent-draft-actions{display:flex;flex-wrap:wrap;gap:var(--s-2);margin-top:var(--s-2)}
 .agent-jobs{display:grid;gap:var(--s-3);margin-bottom:var(--s-4)}
-.agent-jobs form{display:grid;gap:var(--s-2)}
+.agent-jobs form{display:grid;gap:var(--s-4)}
 .agent-job-row{display:flex;align-items:flex-start;gap:var(--s-3);justify-content:space-between;border-bottom:1px solid var(--border);padding:var(--s-3) 0}
 .agent-job-row>div{min-width:0;flex:1}
 .agent-job-row p{overflow-wrap:anywhere}
@@ -219,3 +219,23 @@
 .pi-agent-layout .pi-session-row:has(.pi-session-checkbox) .pi-session-item{padding-left:32px}
 .pi-agent-layout .pi-session-checkbox{position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:1}
 .pi-agent-layout .pi-session-delete-list{max-height:240px;overflow:auto;padding-left:20px;overflow-wrap:anywhere}
+
+.background-jobs { min-width:0; gap:var(--s-4); }
+.background-jobs-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s-3); }
+.background-jobs-tab { min-width:0; }
+.background-jobs-tab[data-state="inactive"] { display:none; }
+.agent-jobs { container:agent-jobs / inline-size; margin:0; gap:var(--s-4); }
+.agent-jobs h2,.agent-jobs h3 { font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.agent-jobs > header { display:grid; gap:var(--s-1); }
+.agent-jobs-workbench { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:stretch; gap:var(--s-4); }
+.agent-job-composer,.agent-job-records { min-width:0; }
+.agent-job-template { display:grid; gap:var(--s-2); font-size:var(--fs-s); }
+.agent-job-composer textarea { min-height:200px; max-height:400px; resize:vertical; }
+.agent-job-actions { flex-wrap:wrap; }
+.agent-job-records > header { display:flex; align-items:center; justify-content:space-between; gap:var(--s-3); }
+.agent-job-list { min-height:320px; max-height:560px; overflow:auto; scrollbar-gutter:stable; }
+.agent-job-row:first-child { padding-top:0; }
+.agent-job-row:last-child { border-bottom:0; }
+@container agent-jobs (max-width:760px) {
+  .agent-jobs-workbench { grid-template-columns:minmax(0,1fr); }
+}

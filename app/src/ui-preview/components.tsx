@@ -1,4 +1,5 @@
 import { ExpandableTextCell } from '../components/ui/expandable-text-cell.tsx';
+import { SpreadsheetTextCell } from '../components/ui/spreadsheet-text-cell.tsx';
 import { RecordContextMenu } from '../components/ui/record-context-menu.tsx';
 import { OperationToast, notifyOperation, useOperationNotice } from '../components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
@@ -64,7 +65,7 @@ export function Components({state}:{state:string}) {
   const [labels,setLabels]=useState(project.labels),[labelDraft,setLabelDraft]=useState(state==='stage-error'?'制作中':''),[labelError,setLabelError]=useState(state==='stage-error'?'示例：标签名称重复，输入已保留。':'');
   const [renameDrafts,setRenameDrafts]=useState<Record<string,string>>({});
   function validLabel(name:string,id?:string) {const clean=name.trim();if(!clean||clean.length>80||labels.some(label=>label.id!==id&&label.name===clean)){setLabelError('请填写 1–80 字且不重复的标签名称。');return false;}setLabelError('');return true;}
-  const buttonNames:Record<string,string>={'app-pill':'常规按钮','app-text':'文字操作','app-document':'文档操作','app-idea':'灵感操作','app-quiet':'Agent 次要操作','app-primary':'Agent 主操作','app-icon':'图标按钮','app-menu':'菜单项','app-control':'专用控件基础','app-reading-tab':'阅读标签','app-domain':'领域筛选','app-idea-filter':'灵感筛选','app-provider-tab':'服务商标签','app-ranking-tab':'榜单切换','app-scope':'处理范围'};
+  const buttonNames:Record<string,string>={'app-choice-chip':'分类选择','app-underline-tab':'下划线栏目','app-content':'内容卡片','app-pill':'常规按钮','app-text':'文字操作','app-document':'文档操作','app-idea':'灵感操作','app-quiet':'Agent 次要操作','app-primary':'Agent 主操作','app-icon':'图标按钮','app-menu':'菜单项','app-control':'专用控件基础','app-reading-tab':'阅读标签','app-domain':'领域筛选','app-idea-filter':'灵感筛选','app-provider-tab':'服务商标签','app-ranking-tab':'榜单切换','app-scope':'处理范围'};
   return <div className="catalog-components"><OperationToast/><ImageViewer open={viewerOpen} onOpenChange={setViewerOpen} src={state==='image-viewer-error'?'data:image/png;base64,AAAA':`data:image/png;base64,${attachmentImageData}`} name="虚构图片 · 可缩放预览"/>
     <header><h1>通用组件与项目控件</h1><p className="text-muted-foreground mt-2">这里直接使用应用组件。可以打开菜单、日历、弹层，查看焦点、悬停、禁用与选中态。</p></header>
     <div className="catalog-kit-grid">
@@ -95,6 +96,7 @@ export function Components({state}:{state:string}) {
         <Label htmlFor="kit-month">中文月份筛选</Label><MonthInput id="kit-month" value={month} onChange={setMonth} />
         <MonthInput id="kit-month-disabled" value="" onChange={() => {}} disabled />
         <ExpandableTextCell label="长文字单元格" value={cellText} disabled={false} onChange={setCellText} onBlur={()=>{}} onCommit={()=>{}} />
+        <table className="office-table"><tbody><tr><td><SpreadsheetTextCell label="表格直接输入" value={cellText} disabled={false} onChange={setCellText} onBlur={()=>{}} onCommit={()=>{}} /></td></tr></tbody></table>
         <Textarea aria-label="描述" placeholder="填写描述" defaultValue={state==='long'?'较长的中文内容。'.repeat(40):''} />
         <Input aria-label="只读内容" readOnly value="只读资料" /><Input aria-label="禁用输入" disabled placeholder="不可编辑" />
         <div className="flex items-center gap-3"><Checkbox id="kit-checkbox"/><Label htmlFor="kit-checkbox">参与整理</Label><Switch id="kit-switch"/><Label htmlFor="kit-switch">自动采集</Label></div>

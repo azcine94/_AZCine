@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 
-export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'focus'|'collapse'|'create'|'menu'|'context';text?:string;skipWhenDialogOpen?:boolean;optional?:boolean}
+export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'focus'|'collapse'|'create'|'menu'|'context'|'edit-cell';text?:string;skipWhenDialogOpen?:boolean;optional?:boolean}
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'[data-agent-more]'};
 export const stateActions:Record<string,StateAction[]>={
+  'table-date-focus':[{selector:'.office-table .date-input input',action:'focus'}],
+  'jobs-history':[{selector:'.processing-history',action:'reveal'}],
+  'table-cell-selected':[{selector:'[data-cell-control]',action:'focus'}],
+  'table-cell-editing':[{selector:'[data-cell-control]',action:'edit-cell'}],
+  'jobs-agent':[{selector:'[role="tab"]',text:'Agent 整理',action:'menu'}],
+  'calendar-delete':[{selector:'[data-calendar-delete]'}],
+  'calendar-focused':[{selector:'.delivery-calendar button[aria-label="展开日历"]'}],
   'data-migrate':[{selector:'.data-panel button',text:'更改数据目录'}],
   'data-switch':[{selector:'.data-panel button',text:'更改数据目录'}],
   'data-change-failed':[{selector:'.data-panel button',text:'更改数据目录'}],
@@ -27,8 +34,6 @@ export const stateActions:Record<string,StateAction[]>={
   'project-removed':[{selector:'[data-project-trash]',optional:true}],
   'project-restore-confirm':[{selector:'[data-project-trash]',optional:true},{selector:'[data-project-restore]'}],
   'project-create':[{selector:'[data-create="project"]'}],
-  'todo-create':[{selector:'[data-create="todo"]'}],
-  'todo-delete':[{selector:'[data-todo-id]',action:'context'},{selector:'[data-slot=context-menu-content] [role=menuitem]',text:'删除待办'}],
   'idea-create':[{selector:'[data-create="idea"]'}],
   'source-create':[{selector:'[data-create="source"]'}],
   'bookkeeping-fx':[{selector:'[data-create="bookkeeping"]',action:'create'}],
@@ -65,7 +70,7 @@ export const stateActions:Record<string,StateAction[]>={
   'agent-process':[{selector:'.pi-process-toggle'}],
   'agent-delete':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-menu]',action:'menu'},{selector:'[data-slot=dropdown-menu-item]',text:'删除会话'}],
   'agent-session-rename':[{selector:'[data-agent-sessions]',optional:true},{selector:'[data-session-menu]',action:'menu'},{selector:'[data-slot=dropdown-menu-item]',text:'重命名会话'}],
-  'table-image-preview':[{selector:'.project-cell-image-tray .ui-attachment-tile'}],
+  'table-image-preview':[{selector:'.project-cell-image-tray .ui-attachment-tile',action:'menu'}],
   'provider-interface':[{selector:'.provider-models details',action:'open'}],
   'stage-select':[stage], 'stage-create':[stage,{selector:'.project-stage-picker__actions button',text:'新增标签'}],
   'stage-manage':[stage,{selector:'.project-stage-picker__actions button',text:'管理标签'}],
@@ -120,6 +125,7 @@ export function useStateActions(state:string) {
           if(!node.open)node.querySelector<HTMLElement>('summary')?.click();
         } else if(step.action==='collapse') { if(node.getAttribute('aria-expanded')==='true')node.click(); }
         else if(step.action==='focus')node.focus();
+        else if(step.action==='edit-cell'){node.focus();node.dispatchEvent(new KeyboardEvent('keydown',{key:'F2',code:'F2',bubbles:true,cancelable:true}));}
         else if(step.action==='menu'){node.focus();node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));}
         else if(step.action==='context'){const box=node.getBoundingClientRect();node.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:box.left+20,clientY:box.top+10}));}
         else if(step.action!=='reveal')node.click();

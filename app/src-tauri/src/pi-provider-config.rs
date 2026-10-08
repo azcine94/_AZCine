@@ -21,6 +21,25 @@ pub struct ProviderSettingsInput {
 }
 fn invalid() -> ConfigError { ConfigError { code: "pi_provider_invalid", message: "服务商配置无效：请添加1至200个模型，模型ID不能重复；输入与原配置保留。" } }
 const LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+#[derive(Clone, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+pub struct ProviderDeleteInput { pub provider:String, pub model_id:Option<String>, pub expected_models:Vec<String> }
+pub fn plan_provider_delete(documents:&[Value;3],input:&ProviderDeleteInput)->Result<[Value;3],ConfigError>{
+    let conflict=||ConfigError{code:"pi_provider_conflict",message:"服务商或模型已变化，请重新读取后删除；原配置保留。"};
+    let mut next=documents.clone();
+    let provider=next[0].get_mut("providers").and_then(Value::as_object_mut).and_then(|p|p.get_mut(&input.provider)).ok_or_else(conflict)?;
+    let rows=match provider.get("models"){Some(v)=>v.as_array().ok_or_else(conflict)?.as_slice(),None=>&[]};
+    let actual=rows.iter().map(|m|m["id"].as_str().map(str::to_owned).ok_or_else(conflict)).collect::<Result<Vec<_>,_>>()?;
+    if actual!=input.expected_models{return Err(conflict());}
+    if let Some(id)=&input.model_id {if !actual.contains(id){return Err(conflict());}provider.get_mut("models").and_then(Value::as_array_mut).ok_or_else(conflict)?.retain(|m|m["id"].as_str()!=Some(id.as_str()));}
+    else {next[0]["providers"].as_object_mut().ok_or_else(conflict)?.remove(&input.provider);next[1].as_object_mut().ok_or_else(conflict)?.remove(&input.provider);}
+    let matches=|id:&str|input.model_id.as_deref().is_none_or(|m|m==id);
+    if documents[2]["defaultProvider"]==input.provider && matches(documents[2]["defaultModel"].as_str().unwrap_or("")) {
+        let settings=next[2].as_object_mut().ok_or_else(conflict)?;settings.remove("defaultProvider");settings.remove("defaultModel");
+    }
+    if let Some(levels)=next[2].get_mut("modelThinkingLevels").and_then(Value::as_object_mut){let prefix=format!("{}/",input.provider);levels.retain(|key,_|!key.strip_prefix(&prefix).is_some_and(matches));}
+    Ok(next)
+}
 pub fn valid_thinking_map(value: &Value) -> bool {
     value.as_object().is_some_and(|map| map.iter().all(|(key, value)| LEVELS.contains(&key.as_str()) && (value.is_null() || value.as_str().is_some_and(|s| s.len() <= 100 && !s.chars().any(char::is_control)))))
 }

@@ -7,7 +7,7 @@ export interface ListColumn { id: string; name: string; kind: ColumnKind; width?
 export const LIST_MIN_WIDTH = 112;
 export const LIST_MAX_WIDTH = 640;
 export interface ProjectImage { id: string; name: string; mimeType: string; bytes: number; hash: string }
-export interface ListRow { id: string; cells: Record<string, string>; images?: Record<string, ProjectImage[]> }
+export interface ListRow { height?: number; id: string; cells: Record<string, string>; images?: Record<string, ProjectImage[]> }
 export interface TextBlock { id: string; kind: 'text'; title: string; body: string }
 export interface ChecklistItem { id: string; text: string; checked: boolean }
 export interface ChecklistBlock {
@@ -167,7 +167,8 @@ export function parseProjectContent(value: unknown): ProjectContent {
     const columnMap = new Map(columns.map(column => [column.id, column]));
     const rows = array(b.rows, 10000).map((rawRow): ListRow => {
       const row = object(rawRow);
-      object(row, Object.hasOwn(row, 'images') ? ['id', 'cells', 'images'] : ['id', 'cells']);
+      object(row, ['id', 'cells', ...(Object.hasOwn(row, 'images') ? ['images'] : []), ...(Object.hasOwn(row, 'height') ? ['height'] : [])]);
+      if (Object.hasOwn(row, 'height') && (!Number.isInteger(row.height) || Number(row.height) < 48 || Number(row.height) > 800)) return fail('行高需为 48–800 的整数。');
       const rowId = entityId(row.id, used);
       const cells: Record<string, string> = {};
       for (const [key, rawCell] of Object.entries(object(row.cells))) {
@@ -191,7 +192,7 @@ export function parseProjectContent(value: unknown): ProjectContent {
         images[key] = array(rawImages, 16).map(parseProjectImage);
         if (new Set(images[key].map(image => image.id)).size !== images[key].length) return fail('单元格图片编号重复。');
       }
-      return { id: rowId, cells, ...(Object.hasOwn(row, 'images') ? { images } : {}) };
+      return { id: rowId, cells, ...(Object.hasOwn(row, 'images') ? { images } : {}), ...(Object.hasOwn(row, 'height') ? { height: row.height as number } : {}) };
     });
     return { ...base, kind: 'list', included: b.included, columns, rows };
   });

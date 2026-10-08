@@ -35,13 +35,13 @@ struct BusinessInput{id:String,fingerprint:String,priority:u8}
 struct Core{
     generation:u64,seq:u64,connection:String,state:Value,models:Vec<Value>,commands:Vec<String>,
     projection:Projection,error:Option<PiError>,notice:Option<String>,
-    busy:bool,stopping:bool,sending:bool,session_changing:bool,exiting:bool,
+    queue_paused:bool,busy:bool,stopping:bool,sending:bool,session_changing:bool,exiting:bool,
     process:Option<Arc<RpcProcess>>,paths:Option<PiPaths>,cwd:Option<PathBuf>,runtime:Option<RuntimePaths>,
     redactor:Redactor,recovered:HashMap<String,Vec<String>>,
     session_lease:Option<crate::pi_session_lock::SessionLease>,extensions:crate::pi_extension_ui::ExtensionUi,rules:Value,
-    business_inputs:Vec<BusinessInput>,business_input:Option<(String,usize)>,
+    delivered_inputs:Vec<String>,business_inputs:Vec<BusinessInput>,business_input:Option<(String,usize)>,
 }
-impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,business_inputs:vec![],business_input:None}}}
+impl Default for Core{fn default()->Self{Self{generation:0,seq:0,connection:"disconnected".into(),state:Value::Null,models:vec![],commands:vec![],projection:Projection::default(),error:None,notice:None,queue_paused:false,busy:false,stopping:false,sending:false,session_changing:false,exiting:false,process:None,paths:None,cwd:None,runtime:None,redactor:Redactor::default(),recovered:HashMap::new(),session_lease:None,extensions:crate::pi_extension_ui::ExtensionUi::default(),rules:Value::Null,delivered_inputs:vec![],business_inputs:vec![],business_input:None}}}
 pub type BusinessEnvironment=Arc<dyn Fn(u64,&PiPaths,&RuntimePaths)->Result<Vec<(std::ffi::OsString,std::ffi::OsString)>,PiError>+Send+Sync>;
 pub struct PiManager{core:Arc<Mutex<Core>>,operation:Mutex<()>,business_environment:Mutex<Option<BusinessEnvironment>>}
 impl Default for PiManager{fn default()->Self{Self{core:Arc::new(Mutex::new(Core::default())),operation:Mutex::new(()),business_environment:Mutex::new(None)}}}
@@ -65,6 +65,7 @@ fn on_event(core:&Weak<Mutex<Core>>,generation:u64,event:Value,notify:&Notify){
                 let pending=c.business_inputs.iter().position(|input|input.fingerprint==fingerprint)
                     .or_else(||c.business_inputs.iter().enumerate().min_by_key(|(_,input)|input.priority).map(|(index,_)|index));
                 c.business_input=pending.map(|index|(c.business_inputs.remove(index).id,c.projection.messages.len()));
+                if let Some((id,_))=c.business_input.clone(){c.delivered_inputs.push(id);if c.delivered_inputs.len()>200{c.delivered_inputs.remove(0);}}
             }
             c.projection.event(&event);
             if kind=="session_info_changed" && c.state.is_object(){c.state["sessionName"]=event.get("name").filter(|v|v.is_string()).cloned().unwrap_or(Value::Null);}
@@ -186,14 +187,16 @@ impl PiManager{
         {let mut c=locked(&self.core)?;if c.generation==generation{if result.is_ok(){c.session_lease=None;}c.connection=if result.is_ok(){"disconnected"}else{"error"}.into();c.busy=false;c.stopping=false;c.sending=false;c.session_changing=false;c.projection.interrupted("连接已关闭，未完成内容不算成功。");c.error=result.as_ref().err().cloned();update_state_flags(&mut c);c.seq+=1;}}
         notify();result?;self.snapshot()
     }
-    pub fn send(&self,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(input,notify,None)}
-    pub fn send_business(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id))}
-    fn send_inner(&self,input:SendInput,notify:Notify,input_id:Option<String>)->Result<SendReceipt,PiError>{
+    pub fn send(&self,input:SendInput,notify:Notify)->Result<SendReceipt,PiError>{self.send_inner(input,notify,None,false)}
+    pub fn send_business(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id),false)}
+    pub fn pause_business_queue(&self,paused:bool)->Result<(),PiError>{locked(&self.core)?.queue_paused=paused;Ok(())}
+    pub fn send_queued(&self,input:SendInput,notify:Notify,input_id:String)->Result<SendReceipt,PiError>{self.send_inner(input,notify,Some(input_id),true)}
+    fn send_inner(&self,input:SendInput,notify:Notify,input_id:Option<String>,queued:bool)->Result<SendReceipt,PiError>{
         if input.message.chars().count()>100_000||(input.message.trim().is_empty()&&input.images.is_empty()){return Err(PiError::new("pi_message_invalid","请输入消息（最多 100000 字符），或选择图片；未发送。"));}
         let (mut request_fields,total)={let images=input.images.iter().map(|i|json!({"type":"image","data":i.data,"mimeType":i.mime_type})).collect::<Vec<_>>();(json!({"message":input.message,"images":images}),input.images.iter().fold(0usize,|n,i|n.saturating_add(i.data.len())))};
         if input.images.len()>crate::pi_image_limits::MAX_IMAGES||total>crate::pi_image_limits::MAX_IMAGE_BATCH_BASE64_BYTES||input.images.iter().any(|i|!matches!(i.mime_type.as_str(),"image/png"|"image/jpeg"|"image/webp"|"image/gif")||!crate::pi_image_limits::image_encoded_size_allowed(&i.data)||!valid_base64(&i.data)){return Err(PiError::new("pi_images_invalid","图片格式或大小不支持（最多4张，每张不超过50MB），附件与输入保留。"));}
         if let Some(behavior)=&input.behavior{if !matches!(behavior.as_str(),"steer"|"followUp"){return Err(PiError::new("pi_behavior_invalid","请选择有效的插入或排队方式。"));}request_fields["streamingBehavior"]=json!(behavior);}
-        let pending:RpcRequest={let mut c=locked(&self.core)?;check_session(&c,input.generation,&input.session_id)?;if c.exiting||c.busy||c.stopping||c.sending{return Err(busy());}let rpc=connected(&c)?;
+        let pending:RpcRequest={let mut c=locked(&self.core)?;if queued&&c.queue_paused{return Err(PiError::new("agent_queue_paused","队列已暂停，此消息未发送。"));}check_session(&c,input.generation,&input.session_id)?;if c.exiting||c.busy||c.stopping||c.sending{return Err(busy());}let rpc=connected(&c)?;
             let current=&c.state["model"];if current.is_null()||!c.models.iter().any(|m|m["id"]==current["id"]&&m["provider"]==current["provider"]){return Err(PiError::new("pi_model_required","请先配置并选择模型；消息和附件仍保留。"));}
             if !input.images.is_empty()&&!current["input"].as_array().is_some_and(|a|a.iter().any(|v|v=="image")){return Err(PiError::new("pi_images_unsupported","当前模型没有声明图片能力，请换模型或移除图片后发送；附件和文字仍保留。"));}
             if let Some(command)=input.message.trim().strip_prefix('/').and_then(|s|s.split_whitespace().next()){if matches!(command,"login"|"logout"|"settings"|"reload"|"model"|"resume"|"new"|"tree"|"fork"|"clone"|"share"|"export"|"quit")&&!c.commands.iter().any(|v|v==command){return Err(PiError::new("pi_tui_command","这是原版终端专用命令，不会在 RPC 中假装执行；模型和会话请用本页入口，完整终端交接在资源阶段接入。"));}}
@@ -267,6 +270,12 @@ impl PiManager{
         crate::pi_resources::update(&runtime,&paths,&index,&input)?;
         Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
     }
+    pub fn model_catalog(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
+        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
+        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let documents=ConfigStore::open(&paths.root)?.private_documents()?;
+        let models=crate::pi_resources::models(&runtime,&paths)?;lease.check()?;Ok(Redactor::from_documents(&documents[0],&documents[1]).value(models,false))
+    }
     pub fn providers(&self, root:&Path,resources:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
@@ -286,6 +295,9 @@ impl PiManager{
         crate::pi_provider_config::plan_provider_update(&[json!({}),json!({}),json!({})],&input)?;
         self.save_configuration(root,resources,notify,move|config|{config.save_provider(&input)?;Ok(json!({"provider":input.provider,"models":input.models.len()}))})
     }
+    pub fn delete_provider(&self,root:&Path,resources:&Path,input:crate::pi_provider_config::ProviderDeleteInput,notify:Notify)->Result<Value,PiError>{
+        self.save_configuration(root,resources,notify,move|config|{config.delete_provider(&input)?;Ok(json!({"provider":input.provider,"deleted":true}))})
+    }
     fn save_configuration(&self,root:&Path,resources:&Path,notify:Notify,save:impl FnOnce(&ConfigStore)->Result<Value,PiError>)->Result<Value,PiError>{
         let _operation=self.operation()?;
         if locked(&self.core)?.exiting{return Err(cancelled());}
@@ -304,7 +316,7 @@ impl PiManager{
         // bodies or creating a native process. The frontend owns the view cache.
         c.state=state;c.cwd=Some(PathBuf::from(cwd));c.seq+=1;Ok(true)
     }
-    pub fn summary(&self)->Result<Value,PiError>{let c=locked(&self.core)?;Ok(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"active":c.busy||c.sending||c.stopping||is_running(&c),"waiting":c.extensions.waiting(),"stopping":c.stopping,"sessionId":c.state["sessionId"],"sessionFile":c.state["sessionFile"],"name":c.state["sessionName"],"businessInputId":c.business_input.as_ref().map(|v|&v.0),"businessMessageIndex":c.business_input.as_ref().map(|v|v.1),"outcome":c.projection.outcome,"cwd":c.cwd}))}
+    pub fn summary(&self)->Result<Value,PiError>{let c=locked(&self.core)?;Ok(json!({"generation":c.generation,"seq":c.seq,"connection":c.connection,"active":c.busy||c.sending||c.stopping||is_running(&c),"waiting":c.extensions.waiting(),"stopping":c.stopping,"sessionId":c.state["sessionId"],"sessionFile":c.state["sessionFile"],"name":c.state["sessionName"],"deliveredInputIds":c.delivered_inputs,"businessInputId":c.business_input.as_ref().map(|v|&v.0),"businessMessageIndex":c.business_input.as_ref().map(|v|v.1),"outcome":c.projection.outcome,"cwd":c.cwd}))}
     pub fn expire_ui(&self,notify:&Notify)->Result<(),PiError>{let mut c=locked(&self.core)?;if c.extensions.expire(){c.seq+=1;drop(c);notify();}Ok(())}
     pub fn respond_ui(&self,input:crate::pi_extension_ui::UiResponse,notify:Notify)->Result<Value,PiError>{
         let mut c=locked(&self.core)?;check_session(&c,input.generation,&input.session_id)?;let rpc=connected(&c)?;

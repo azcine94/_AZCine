@@ -82,6 +82,7 @@ export function Conversation({items,choices,onChoice,onBeforeChange,afterMessage
       {item.role==='user'?<>
         {(item.parts.some(part=>part.kind==='image')||item.parts.some(part=>agentMessageAttachments(part.text).length))&&<div className="pi-sent-attachment-tray">{item.parts.flatMap((part,index)=>part.kind==='image'?[<AttachmentPreview key={`image-${index}`} value={{name:'图片.png',imageUrl:part.imageUrl}}/>]:agentMessageAttachments(part.text).map((file,i)=><AttachmentPreview key={`${index}-${file.id??i}`} value={file}/>))}</div>}
         {item.parts.some(part=>part.kind!=='image'&&agentMessageContent(part.text).text.trim())&&<div className="pi-user-bubble">{item.parts.filter(part=>part.kind!=='image').map((part,index)=><MessageText key={index} text={part.text} user finished={false} showAttachments={false}/>)}</div>}
+        {item.parts.some(part=>part.imageNote)&&<Disclosure className="pi-image-metadata"><summary>图片尺寸信息</summary><pre>{item.parts.map(part=>part.imageNote).filter(Boolean).join('\n')}</pre></Disclosure>}
       </>:item.role==='assistant'?<>
         <MessageText text={item.parts.filter(part=>part.kind==='text').map(part=>part.text).join('\n\n')} user={false} finished={item.status==='success'}/>
         {item.parts.filter(part=>part.kind!=='text').map((part,index)=><MessageText key={index} text={part.text} user={false} finished={false}/>)}

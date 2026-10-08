@@ -1,8 +1,8 @@
-import { notifyOperation, useOperationNotice } from './components/ui/operation-toast.tsx';
+import { useOperationNotice } from './components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from './desktop-api.ts';
-import { localDate, millisecondsToNextDay, parseTodo, parseWorkspace, sameInput, validateTodo, workspaceError } from './workspace-contract.ts';
-import type { Todo, TodoFilter, TodoInput, Workspace } from './workspace-contract.ts';
+import { parseWorkspace, workspaceError } from './workspace-contract.ts';
+import type { Workspace } from './workspace-contract.ts';
 
 // Kept in App, never in a routed panel: navigating/theme changes do not discard drafts or pending IPC.
 export function useWorkspace() {
@@ -20,39 +20,10 @@ export function useWorkspace() {
   const [rootChangeMode, setRootChangeMode] = useState<'migrate' | 'switch'>('migrate');
   const [rootChangeScheduled, setRootChangeScheduled] = useState(false);
   const rootTouched = useRef(false);
-  const [draft, setDraft] = useState({ title: '', dueDate: '', projectId: '' });
-  const draftRef = useRef(draft);
-  const [pendingCreate, setPendingCreate] = useState<TodoInput | null>(null);
-  const requestRef = useRef<TodoInput | null>(null);
-  const [filter, setFilter] = useState<TodoFilter>('incomplete');
-  const [today, setToday] = useState(localDate);
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const update = () => {
-      const now = new Date(); setToday(localDate(now));
-      clearTimeout(timer); timer = setTimeout(update, millisecondsToNextDay(now));
-    };
-    const onVisible = () => { if (document.visibilityState === 'visible') update(); };
-    update(); window.addEventListener('focus', update); document.addEventListener('visibilitychange', onVisible);
-    return () => { clearTimeout(timer); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', onVisible); };
-  }, []);
-  const [undo, setUndo] = useState<{ todo: Todo; completed: boolean } | null>(null);
-  const [deletedTodo,setDeletedTodo]=useState<Todo|null>(null);
-  const deletionRoot=useRef<string|null>(null);
   const started = useRef(false);
 
   function acceptWorkspace(next: Workspace) {
-    if(deletionRoot.current!==next.root){setDeletedTodo(null);deletionRoot.current=next.root;}
     setWorkspace(next); setLoadError('');
-    // A failed operation on another row must not consume a still-valid undo.
-    // Re-reading can invalidate it only when its saved identity/state changed.
-    setUndo(current => {
-      if (!current) return null;
-      const row = next.todos.find(todo => todo.id === current.todo.id);
-      if (!row || row.revision !== current.todo.revision || row.completed !== current.todo.completed
-        || !sameInput(row, current.todo) || row.createdAt !== current.todo.createdAt) return null;
-      return { ...current, todo: row };
-    });
     if (!rootTouched.current) setRootDraft(next.defaultRoot);
     return next;
   }
@@ -77,10 +48,6 @@ export function useWorkspace() {
     finally { setBusy(''); busyRef.current = false; }
   }
   function changeRoot(value: string) { rootTouched.current = true; setRootDraft(value); }
-  function changeDraft(field: 'title' | 'dueDate' | 'projectId', value: string) {
-    if (busyRef.current || requestRef.current) return;
-    draftRef.current = { ...draftRef.current, [field]: value }; setDraft(draftRef.current);
-  }
   const pickRoot = () => action('pick-root', async () => {
     const chosen = await invoke<unknown>('pick_data_root');
     if (chosen === null) { setNotice('已取消选择，原输入保持不变。'); return; }
@@ -116,61 +83,8 @@ export function useWorkspace() {
     await invoke('cancel_data_root_change'); setRootChangeScheduled(false);
     setNotice('已取消目录更改，继续使用当前目录。');
   });
-  function acceptTodo(todo: Todo) {
-    setWorkspace(previous => previous && ({ ...previous, todos: [...previous.todos.filter(t => t.id !== todo.id), todo] }));
-  }
-  function clearRequest() {
-    requestRef.current = null; setPendingCreate(null);
-    draftRef.current = { title: '', dueDate: '', projectId: '' }; setDraft(draftRef.current);
-  }
-  const saveTodo = () => action('save-todo', async () => {
-    const problem = validateTodo(draftRef.current.title, draftRef.current.dueDate);
-    if (problem) throw new Error(problem);
-    const input = requestRef.current ?? { id: crypto.randomUUID(), title: draftRef.current.title.trim(), dueDate: draftRef.current.dueDate || null, projectId: draftRef.current.projectId || null };
-    requestRef.current = input;
-    try {
-      const saved = parseTodo(await invoke<unknown>('create_todo', { input }));
-      if (!sameInput(saved, input)) throw new Error('保存响应不对应本次输入，请重新读取并核对。');
-      acceptTodo(saved); clearRequest(); setNotice('待办已保存。');
-    } catch (e) {
-      // Only uncertain results show reconciliation UI; the in-flight request is
-      // already guarded by busyRef and retains its ID across route changes.
-      setPendingCreate(input); throw e;
-    }
-  });
-  // An uncertain save keeps the immutable request. Reconcile against Rust before allowing edits/new IDs.
-  const reconcileCreate = () => action('reconcile', async () => {
-    const input = requestRef.current;
-    if (!input) return;
-    const next = await readWorkspace();
-    const saved = next.todos.find(t => t.id === input.id);
-    if (saved) {
-      if (!sameInput(saved, input)) throw new Error('相同编号已有不同记录，请保留输入并核对，不会覆盖。');
-      clearRequest(); setNotice('已确认这条待办保存成功，没有重复创建。');
-    } else { requestRef.current = null; setPendingCreate(null); setNotice('已确认未保存，可以修改输入后重试。'); }
-  });
-  const changeCompletion = (todo: Todo, completed: boolean, consumingUndo = false) => action(`todo:${todo.id}`, async () => {
-    try {
-      const saved = parseTodo(await invoke<unknown>('complete_todo', { id: todo.id, revision: todo.revision, completed }));
-      if (!sameInput(saved, todo) || saved.createdAt !== todo.createdAt || saved.completed !== completed || saved.revision !== todo.revision + 1) throw new Error('待办操作响应不匹配，请重新读取核对。');
-      acceptTodo(saved); setUndo(consumingUndo ? null : { todo: saved, completed: todo.completed });
-      setNotice(consumingUndo ? '已撤销最近一次状态修改。' : completed ? '已完成待办，可撤销。' : '已恢复为未完成。');
-      if (!consumingUndo) notifyOperation(completed ? '待办已完成' : '待办已恢复为未完成', { tone: 'success', action: { label: '撤销', run: () => changeCompletion(saved, todo.completed, true) } });
-    } catch (e) {
-      try { await readWorkspace(); } catch (readError) { setLoadError(workspaceError(readError)); }
-      throw e;
-    }
-  });
-  async function changeDeletion(todo:Todo,deleted:boolean){let success=false;await action(`todo-delete:${todo.id}`,async()=>{
-    const receipt=await invoke<{todo:unknown;deleted:boolean}>('set_todo_deleted',{id:todo.id,revision:todo.revision,deleted});
-    const saved=parseTodo(receipt.todo);
-    if(receipt.deleted!==deleted||!sameInput(saved,todo)||saved.createdAt!==todo.createdAt||saved.completed!==todo.completed||saved.revision!==todo.revision+1)throw new Error('待办删除响应不匹配，请重新读取核对。');
-    if(deleted){setWorkspace(previous=>previous&&({...previous,todos:previous.todos.filter(row=>row.id!==todo.id)}));setDeletedTodo(saved);setUndo(before=>before?.todo.id===todo.id?null:before);notifyOperation('待办已删除，原记录保留。',{action:{label:'撤销',run:()=>changeDeletion(saved,false)}});}
-    else{acceptTodo(saved);setDeletedTodo(null);setNotice('已撤销删除待办。');}
-    success=true;
-  });return success;}
-  return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot, draft, changeDraft,deletedTodo,changeDeletion,
+  return { connected, workspace, loading, busy, loadError, errorScope, error, notice, rootDraft, changeRoot,
     rootChangePath, setRootChangePath, rootChangeMode, setRootChangeMode, rootChangeScheduled, pickRootChange, scheduleRootChange, cancelRootChange,
-    pendingCreate, filter, setFilter, today, undo, refresh, pickRoot, selectRoot, openRoot, saveTodo, reconcileCreate, changeCompletion };
+    refresh, pickRoot, selectRoot, openRoot };
 }
 export type WorkspaceController = ReturnType<typeof useWorkspace>;

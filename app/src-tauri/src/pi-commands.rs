@@ -71,7 +71,20 @@ pub async fn pi_switch_session(app:tauri::AppHandle,window:tauri::WebviewWindow,
 #[tauri::command]
 pub async fn pi_name_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,name:String,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,move|m,n|m.session_action(generation,&session_id,"set_session_name",json!({"name":name}),n)).await}
 #[tauri::command]
-pub async fn pi_select_model(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,provider:String,id:String,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,move|m,n|m.session_action(generation,&session_id,"set_model",json!({"provider":provider,"modelId":id}),n)).await}
+pub async fn pi_select_model(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,provider:String,id:String,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位运行资源。"))?;
+    tauri::async_runtime::spawn_blocking(move||{let key=conversation_key.as_deref().unwrap_or("default");let runtime=app.state::<crate::agent_runtime::AgentRuntime>();let manager=runtime.manager(key)?;let before=manager.summary()?;
+        if before["generation"]!=generation||before["sessionId"]!=session_id{return Err(PiError::new("pi_stale_session","会话已变化，请重新选择模型。"));}
+        if before["active"]==true||before["waiting"]==true{return Err(PiError::new("pi_busy","请等待当前任务结束后切换模型。"));}
+        let catalog=manager.model_catalog(&root,&resources)?;if !catalog.as_array().is_some_and(|rows|rows.iter().any(|m|m["provider"]==provider&&m["id"]==id)){return Err(PiError::new("pi_model_unavailable","模型已移除或不可用，请重新选择。"));}
+        let native=manager.snapshot()?;
+        // Native set_model preserves an unsaved session and its draft identity.
+        // Newly configured models become available after an explicit reconnect.
+        if !native["models"].as_array().is_some_and(|rows|rows.iter().any(|m|m["provider"]==provider&&m["id"]==id)) {
+            return Err(PiError::new("pi_model_reconnect_required","该模型尚未载入此会话，请重连后选择；当前草稿保留。"));
+        }
+        let snapshot=native;
+        manager.session_action(snapshot["generation"].as_u64().ok_or_else(||PiError::new("pi_state_invalid","会话状态不完整。"))?,snapshot["state"]["sessionId"].as_str().ok_or_else(||PiError::new("pi_state_invalid","会话状态不完整。"))?,"set_model",json!({"provider":provider,"modelId":id}),notify_for(&app,key))
+    }).await.map_err(|_|PiError::new("pi_worker_interrupted","模型切换中断，输入保留。"))?}
 #[tauri::command]
 pub async fn pi_save_model(app:tauri::AppHandle,window:tauri::WebviewWindow,input:ModelSettingsInput,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;work(app,conversation_key,move|m,n|m.save_model(&root,&resources,input,n)).await}
 
@@ -115,8 +128,8 @@ pub fn start_reaper(app:tauri::AppHandle){let _=std::thread::Builder::new().name
 pub fn stop_for_update(app:&tauri::AppHandle)->Result<(),PiError>{
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);
     app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
-    let active=app.state::<crate::news_ai::AiControl>().active.lock().ok().and_then(|v|v.clone());
-    if let Some(active)=active{active.shutdown(std::time::Duration::ZERO)?;}
+    let active=app.state::<crate::news_ai::AiControl>().active.lock().map(|v|v.iter().filter_map(std::sync::Weak::upgrade).collect::<Vec<_>>()).unwrap_or_default();
+    for active in active{active.shutdown(std::time::Duration::ZERO)?;}
     crate::agent_jobs::shutdown(app).map_err(|e|PiError::new(e.code,&e.message))?;
     app.state::<crate::agent_runtime::AgentRuntime>().shutdown(notify(app))?;
     app.state::<crate::agent_mcp::BusinessMcp>().shutdown();
@@ -132,8 +145,8 @@ fn begin_exit(app:&tauri::AppHandle){
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);
     app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
     let app=app.clone();tauri::async_runtime::spawn_blocking(move||{
-        let active=app.state::<crate::news_ai::AiControl>().active.lock().ok().and_then(|v|v.clone());
-        if let Some(active)=active { if active.shutdown(std::time::Duration::ZERO).is_err(){app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(false);app.state::<crate::agent_jobs::BackgroundSlots>().set_exiting(false);app.state::<PiExit>().0.store(0,Ordering::Release);return;} }
+        let active=app.state::<crate::news_ai::AiControl>().active.lock().map(|v|v.iter().filter_map(std::sync::Weak::upgrade).collect::<Vec<_>>()).unwrap_or_default();
+        for active in active { if active.shutdown(std::time::Duration::ZERO).is_err(){app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(false);app.state::<crate::agent_jobs::BackgroundSlots>().set_exiting(false);app.state::<PiExit>().0.store(0,Ordering::Release);return;} }
         let result=crate::agent_jobs::shutdown(&app).map_err(|e|PiError::new(e.code,&e.message)).and_then(|_|app.state::<crate::agent_runtime::AgentRuntime>().shutdown(notify(&app)));
         match result{
             Ok(())=>{app.state::<crate::agent_mcp::BusinessMcp>().shutdown();app.state::<PiExit>().0.store(2,Ordering::Release);app.exit(0);},
@@ -151,4 +164,19 @@ pub fn on_run_event(app:&tauri::AppHandle,event:tauri::RunEvent){
         },
         _=>{},
     }
+}
+
+#[tauri::command]
+pub async fn pi_model_catalog(app:tauri::AppHandle,window:tauri::WebviewWindow,conversation_key:Option<String>)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位运行资源。"))?;
+    work(app,conversation_key,move|m,_|m.model_catalog(&root,&resources)).await
+}
+#[tauri::command]
+pub async fn pi_delete_provider(app:tauri::AppHandle,window:tauri::WebviewWindow,input:crate::pi_provider_config::ProviderDeleteInput,conversation_key:Option<String>)->Result<Value,PiError>{
+    allowed(&app,&window)?;
+    let check=input.clone();let root=crate::with_storage(app.clone(),move|m|{let s=m.store()?;if crate::agent_queue::references(s,&check.provider,check.model_id.as_deref())?{return Err(crate::storage::StorageError::new("pi_model_referenced","待发送消息仍引用此模型，请先处理或移除相关队列消息。"));}let prefs=s.news_preferences()?.config;
+        if prefs.model.iter().chain(prefs.pipeline.models.values()).any(|model|model.provider==check.provider&&check.model_id.as_ref().is_none_or(|id|id==&model.id)){return Err(crate::storage::StorageError::new("pi_model_referenced","资讯默认模型或处理阶段仍在使用此配置，请先在资讯设置中更换模型。"));}Ok(s.root.clone())
+    }).await.map_err(|e|PiError::new(e.code,&e.message))?;
+    let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位运行资源。"))?;
+    work(app,conversation_key,move|m,n|m.delete_provider(&root,&resources,input,n)).await
 }

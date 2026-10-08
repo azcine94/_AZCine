@@ -16,7 +16,8 @@ const target=process.env.CARGO_TARGET_DIR;if(!target)throw Error('Explicit relea
 const name=`AZCine_${version}_x64-setup.exe`,setup=path.join(target,'release/bundle/nsis',name);
 const signature=fs.readFileSync(setup+'.sig','utf8').trim();if(!signature||fs.statSync(setup).size<1_000_000)throw Error('Missing signed installer');
 const readme=fs.readFileSync(path.join(root,'README.md'),'utf8');
-const notes=readme.split(`<!-- release-notes:${version} -->`)[1]?.split('<!-- release-notes:end -->')[0]?.trim();
+const versionNotes=path.join(root,'.github/release-notes',`${version}.md`);
+const notes=fs.existsSync(versionNotes)?fs.readFileSync(versionNotes,'utf8').trim():readme.split(`<!-- release-notes:${version} -->`)[1]?.split('<!-- release-notes:end -->')[0]?.trim();
 if(!notes)throw Error('Missing reviewed release notes');
 const out=path.join(root,'artifacts/release');fs.mkdirSync(out,{recursive:true});
 for(const file of [name,name+'.sig'])fs.copyFileSync(path.join(path.dirname(setup),file),path.join(out,file),fs.constants.COPYFILE_EXCL);

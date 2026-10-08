@@ -96,3 +96,12 @@ test('a resource under an ancestor junction cannot masquerade as an independent 
   assert.throws(() => prepareEnvironment(root), /上级目录是链接/);
   assert.equal(realpathSync(path.join(root, '.tooling/rustup')), realpathSync(path.join(foreign, 'rustup')));
 });
+
+test('release-only version changes reuse identical dependencies',()=>{
+  const root=fixture('release-version',false);
+  for(const file of ['app/package.json','app/package-lock.json']){
+    const target=path.join(root,file),value=JSON.parse(readFileSync(target,'utf8'));value.version='0.9.9';if(value.packages?.[''])value.packages[''].version='0.9.9';writeFileSync(target,JSON.stringify(value));
+  }
+  const cargo=path.join(root,'app/src-tauri/Cargo.lock');writeFileSync(cargo,readFileSync(cargo,'utf8').replace(/(name = "azcine"\r?\nversion = )"[^"\n]+"/,'$1"0.9.9"'));
+  prepareEnvironment(root);assert.equal(lstatSync(path.join(root,'app/node_modules')).isSymbolicLink(),true);
+});

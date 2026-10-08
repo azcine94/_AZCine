@@ -16,7 +16,7 @@ function ModelSelect({ label, choice, models, inherited, onChange }: {
     else { const [provider, id] = JSON.parse(event.target.value) as [string, string]; onChange({ provider, id }); }
   }}>
     <option value="">{inherited}</option>
-    {choice && !models.some(model => model.provider === choice.provider && model.id === choice.id) && <option value={JSON.stringify([choice.provider, choice.id])}>{choice.provider} / {choice.id}（运行时核对）</option>}
+    {choice && !models.some(model => model.provider === choice.provider && model.id === choice.id) && <option value={JSON.stringify([choice.provider, choice.id])}>{choice.provider} / {choice.id}（当前清单中不可用，请重新选择）</option>}
     {models.map(model => <option key={JSON.stringify([model.provider, model.id])} value={JSON.stringify([model.provider, model.id])}>{model.name} · {model.provider}</option>)}
   </NativeSelect></label>;
 }

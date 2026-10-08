@@ -1,10 +1,10 @@
 import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
-import { ExpandableTextCell } from './components/ui/expandable-text-cell.tsx';
+import { SpreadsheetTextCell } from './components/ui/spreadsheet-text-cell.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Button } from './components/ui/button.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DragEvent, FocusEvent, KeyboardEvent, PointerEvent } from 'react';
-import type { ListBlock, ListColumn, ProjectContent } from './projects-contract.ts';
+import type { ListBlock, ListColumn, ListRow, ProjectContent } from './projects-contract.ts';
 import { LIST_MAX_WIDTH, LIST_MIN_WIDTH } from './projects-contract.ts';
 import { includeList } from './project-operations.ts';
 import { columnWidth, clampColumnWidth, fitColumnWidths, insertListColumn, insertListRow, LIST_PAGE_SIZE, LIST_ROW_HEADER_WIDTH, reorderList } from './project-table-operations.ts';
@@ -40,6 +40,19 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const resize = useRef<{ columnId: string; start: number; original: number; width: number; pointerId: number; element: HTMLElement } | null>(null);
   const [preview, setPreview] = useState<{ columnId: string; width: number } | null>(null);
+  const rowResize = useRef<{id:string;start:number;original:number;height:number;pointerId:number;element:HTMLElement}|null>(null);
+  const [rowPreview,setRowPreview] = useState<{id:string;height:number}|null>(null);
+  const defaultRowHeight = (row:ListRow) => Object.values(row.images??{}).some(images=>images.length) ? 240 : 48;
+  const rowHeight = (row:ListRow) => rowPreview?.id===row.id ? rowPreview.height : row.height??defaultRowHeight(row);
+  function saveRowHeight(id:string,height:number) {
+    if(!disabled)update(current=>({...current,rows:current.rows.map(row=>row.id===id?{...row,height:Math.round(Math.max(48,Math.min(800,height)))}:row)}),true);
+  }
+  function endRowResize(save:boolean) {
+    const state=rowResize.current;if(!state)return;
+    rowResize.current=null;setRowPreview(null);
+    if(state.element.hasPointerCapture(state.pointerId))state.element.releasePointerCapture(state.pointerId);
+    if(save&&state.height!==state.original)saveRowHeight(state.id,state.height);
+  }
   const [containerWidth, setContainerWidth] = useState(0);
   const widths = fitColumnWidths(block.columns, Math.max(0, containerWidth - 2), preview);
   const widthOf = (column: ListColumn) => widths[block.columns.findIndex(item => item.id === column.id)] ?? columnWidth(column);
@@ -72,7 +85,7 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
     if (save && state.width !== state.original && !disabled) update(current => ({ ...current, columns: current.columns.map(column => column.id === state.columnId ? { ...column, width: state.width } : column) }), true);
   }
   useEffect(() => {
-    if (disabled) { dragRef.current = null; setDropTarget(null); endResize(false); }
+    if (disabled) { dragRef.current = null; setDropTarget(null); endResize(false); endRowResize(false); }
   }, [disabled]);
   function cell(rowId: string, columnId: string, value: string, save = false) {
     update(current => ({ ...current, rows: current.rows.map(row => row.id === rowId ? { ...row, cells: { ...row.cells, [columnId]: value } } : row) }), save);
@@ -92,15 +105,23 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
     if (!rowId || !columnId) return;
     const row = block.rows.findIndex(item => item.id === rowId), column = block.columns.findIndex(item => item.id === columnId);
     const input = event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement && event.target.type === 'text' ? event.target : null;
-    if (event.key === 'F2' && input) { event.preventDefault(); input.setSelectionRange(input.value.length, input.value.length); return; }
+    const spreadsheet = !!input?.hasAttribute('data-cell-control');
     let nextRow = row, nextColumn = column;
     if (event.key === 'Enter' && input) nextRow += event.shiftKey ? -1 : 1;
+    else if (event.key === 'Tab') {
+      nextColumn += event.shiftKey ? -1 : 1;
+      if (nextColumn >= block.columns.length) { nextColumn = 0; nextRow++; }
+      if (nextColumn < 0) { nextColumn = block.columns.length - 1; nextRow--; }
+      // At either end, let Tab leave the table normally.
+      if (!block.rows[nextRow]) return;
+    }
     else if (event.key === 'ArrowDown') nextRow++;
     else if (event.key === 'ArrowUp') nextRow--;
-    else if (event.key === 'ArrowLeft' && input?.selectionStart === 0 && input.selectionEnd === 0) nextColumn--;
-    else if (event.key === 'ArrowRight' && input && input.selectionStart === input.value.length && input.selectionEnd === input.value.length) nextColumn++;
+    else if (event.key === 'ArrowLeft' && (spreadsheet || input?.selectionStart === 0 && input.selectionEnd === 0)) nextColumn--;
+    else if (event.key === 'ArrowRight' && (spreadsheet || input && input.selectionStart === input.value.length && input.selectionEnd === input.value.length)) nextColumn++;
     else return;
-    if (block.rows[nextRow] && block.columns[nextColumn]) { event.preventDefault(); focusCell(block.rows[nextRow].id, block.columns[nextColumn].id); }
+    event.preventDefault();
+    if (block.rows[nextRow] && block.columns[nextColumn]) focusCell(block.rows[nextRow].id, block.columns[nextColumn].id);
   }
   function revealControl(event: FocusEvent<HTMLDivElement>) {
     const target = event.target;
@@ -155,7 +176,7 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
   function startResize(event: PointerEvent<HTMLElement>, column: ListColumn) {
     if (disabled || event.button !== 0) return;
     event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); event.currentTarget.setPointerCapture(event.pointerId);
-    resize.current = { columnId: column.id, start: event.clientX, original: columnWidth(column), width: columnWidth(column), pointerId: event.pointerId, element: event.currentTarget };
+    resize.current = { columnId: column.id, start: event.clientX, original: widthOf(column), width: widthOf(column), pointerId: event.pointerId, element: event.currentTarget };
   }
   const dropClass = (kind: DragItem['kind'], id: string) => dropTarget?.kind === kind && dropTarget.id === id ? ` table-drop-${dropTarget.after ? 'after' : 'before'}` : '';
   return <>
@@ -175,13 +196,18 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
         event.preventDefault(); const width = clampColumnWidth(columnWidth(column) + (event.key === 'ArrowLeft' ? -8 : 8));
         update(current => ({ ...current, columns: current.columns.map(item => item.id === column.id ? { ...item, width } : item) }), true);
       }} />
-    </th></RecordContextMenu>)}</tr></thead><tbody>{shownRows.map((row, index) => <RecordContextMenu key={row.id} copyText={block.columns.map(column=>row.cells[column.id]??'').join('\t')} actions={[{label:'上方插入行',disabled,run:()=>insertRow(row.id,false)},{label:'下方插入行',disabled,run:()=>insertRow(row.id)},{label:'删除行',destructive:true,disabled,run:()=>deleteRow(row.id)}]}><tr data-row-id={row.id} id={`row-${block.id}-${row.id}`} tabIndex={-1} className={dropClass('row', row.id)} onDragOver={event => over(event, 'row', row.id)} onDrop={event => drop(event, 'row', row.id)}><th scope="row" className={`table-row-heading${selection?.rowId === row.id ? ' table-selected-header' : ''}`}><Button variant="app-control" type="button" className="table-drag" data-project-commit draggable={!disabled} aria-disabled={disabled} aria-label={`拖动行：${startIndex + index + 1}`} onDragStart={event => startDrag(event, 'row', row.id)} onDragEnd={clearDrag}>⠿</Button><TableMenu label={`行操作：${startIndex + index + 1}`} disabled={disabled} actions={[
+    </th></RecordContextMenu>)}</tr></thead><tbody>{shownRows.map((row, index) => <RecordContextMenu key={row.id} copyText={block.columns.map(column=>row.cells[column.id]??'').join('\t')} actions={[{label:'上方插入行',disabled,run:()=>insertRow(row.id,false)},{label:'下方插入行',disabled,run:()=>insertRow(row.id)},{label:'删除行',destructive:true,disabled,run:()=>deleteRow(row.id)}]}><tr style={{height:rowHeight(row)}} data-row-id={row.id} id={`row-${block.id}-${row.id}`} tabIndex={-1} className={dropClass('row', row.id)} onDragOver={event => over(event, 'row', row.id)} onDrop={event => drop(event, 'row', row.id)}><th scope="row" className={`table-row-heading${selection?.rowId === row.id ? ' table-selected-header' : ''}`}><Button variant="app-control" type="button" className="table-drag" data-project-commit draggable={!disabled} aria-disabled={disabled} aria-label={`拖动行：${startIndex + index + 1}`} onDragStart={event => startDrag(event, 'row', row.id)} onDragEnd={clearDrag}>⠿</Button><TableMenu label={`行操作：${startIndex + index + 1}`} disabled={disabled} actions={[
       { name: '上方插入行', run: () => insertRow(row.id, false) }, { name: '下方插入行', run: () => insertRow(row.id) },
       { name: '向上移动行', disabled: startIndex + index === 0, run: () => move('row', row.id, -1) }, { name: '向下移动行', disabled: startIndex + index === block.rows.length - 1, run: () => move('row', row.id, 1) },
       { name: '删除行', run: () => deleteRow(row.id) },
-    ]}>{startIndex + index + 1}</TableMenu></th>{block.columns.map(column => <td key={column.id} data-column-kind={column.kind} data-column-id={column.id} data-selected={selection?.rowId === row.id && selection.columnId === column.id || undefined}><ProjectCellImages importDraft={imageImportDraft(`${block.id}:${row.id}:${column.id}`)} images={row.images?.[column.id] ?? []} disabled={disabled || editingDisabled} label={`${block.title}，第${startIndex + index + 1}行，${column.name}`} change={transform => update(current => ({ ...current, rows: current.rows.map(item => item.id === row.id ? { ...item, images: { ...item.images, [column.id]: transform(item.images?.[column.id] ?? []) } } : item) }), true)}>{column.kind === 'stage' ? <ProjectStagePicker labels={labels} labelActions={{ ...labelActions, create: name => labelActions.create(name, row.id, column.id) }} currentId={row.cells[column.id] || null} onChange={value => cell(row.id, column.id, value || '', true)} disabled={disabled} label={`${block.title}，${column.name}`} /> : column.kind === 'delivered' ? <label className="check-label"><Input variant="inline" type="checkbox" data-project-commit checked={row.cells[column.id] === 'true'} disabled={locked} aria-disabled={disabled} onChange={event => cell(row.id, column.id, String(event.target.checked), true)} />已交完</label> : column.kind === 'date' ? <DateInput label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} selectionDisabled={disabled} onChange={(value, selected) => cell(row.id, column.id, value, !!selected)} onBlur={blurSave} /> : <ExpandableTextCell label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} onChange={value => cell(row.id, column.id, value)} onBlur={blurSave} onCommit={commit} />}</ProjectCellImages></td>)}</tr></RecordContextMenu>)}</tbody></table></div>
+    ]}>{startIndex + index + 1}</TableMenu><span className="table-row-resize" data-project-commit role="separator" aria-orientation="horizontal" aria-label={`调整行高：${startIndex+index+1}`} aria-valuenow={rowHeight(row)} aria-valuemin={48} aria-valuemax={800} aria-disabled={disabled} tabIndex={0}
+      onPointerDown={event=>{if(disabled||event.button!==0)return;event.preventDefault();event.stopPropagation();event.currentTarget.focus({preventScroll:true});event.currentTarget.setPointerCapture(event.pointerId);const height=rowHeight(row);rowResize.current={id:row.id,start:event.clientY,original:height,height,pointerId:event.pointerId,element:event.currentTarget};}}
+      onPointerMove={event=>{const state=rowResize.current;if(!state||state.id!==row.id)return;state.height=Math.round(Math.max(48,Math.min(800,state.original+event.clientY-state.start)));setRowPreview({id:state.id,height:state.height});}}
+      onPointerUp={()=>endRowResize(true)} onPointerCancel={()=>endRowResize(false)} onLostPointerCapture={()=>endRowResize(false)}
+      onKeyDown={event=>{if(disabled)return;if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();event.stopPropagation();saveRowHeight(row.id,rowHeight(row)+(event.key==='ArrowDown'?10:-10));}if(event.key==='Escape'){event.preventDefault();endRowResize(false);}}}/>
+</th>{block.columns.map(column => <td key={column.id} data-column-kind={column.kind} data-column-id={column.id} data-selected={selection?.rowId === row.id && selection.columnId === column.id || undefined}><ProjectCellImages emptyText={!['stage','delivered','date'].includes(column.kind) && !(row.cells[column.id] || '').trim()} height={rowHeight(row)} importDraft={imageImportDraft(`${block.id}:${row.id}:${column.id}`)} images={row.images?.[column.id] ?? []} disabled={disabled || editingDisabled} label={`${block.title}，第${startIndex + index + 1}行，${column.name}`} change={transform => update(current => ({ ...current, rows: current.rows.map(item => item.id === row.id ? { ...item, images: { ...item.images, [column.id]: transform(item.images?.[column.id] ?? []) } } : item) }), true)}>{column.kind === 'stage' ? <ProjectStagePicker labels={labels} labelActions={{ ...labelActions, create: name => labelActions.create(name, row.id, column.id) }} currentId={row.cells[column.id] || null} onChange={value => cell(row.id, column.id, value || '', true)} disabled={disabled} label={`${block.title}，${column.name}`} /> : column.kind === 'delivered' ? <label className="check-label"><Input variant="inline" type="checkbox" data-project-commit checked={row.cells[column.id] === 'true'} disabled={locked} aria-disabled={disabled} onChange={event => cell(row.id, column.id, String(event.target.checked), true)} />已交完</label> : column.kind === 'date' ? <DateInput label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} selectionDisabled={disabled} onChange={(value, selected) => cell(row.id, column.id, value, !!selected)} onBlur={blurSave} /> : <SpreadsheetTextCell label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} onChange={value => cell(row.id, column.id, value)} onBlur={blurSave} onCommit={commit} />}</ProjectCellImages></td>)}</tr></RecordContextMenu>)}</tbody></table></div>
     {!block.rows.length && <p className="project-empty">此 list 暂无内容，添加一行开始记录。</p>}
     {overflow && <p className="meta list-width-note">列较多时仅在表格容器内横向查看，不会撑开文档；可拖窄或删除不需要的列。</p>}
-    <div className="list-footer"><Button variant="app-document" ref={addRowRef} type="button" className="doc-button doc-add-row" data-project-commit disabled={locked} aria-disabled={disabled} onClick={() => insertRow()}><span aria-hidden="true">＋</span>添加行</Button><span className="meta">拖动 ⠿ 排序 · 列边调宽 · Enter 下一行 · Shift+Enter 换行 · F2 展开编辑</span></div>
+    <div className="list-footer"><Button variant="app-document" ref={addRowRef} type="button" className="doc-button doc-add-row" data-project-commit disabled={locked} aria-disabled={disabled} onClick={() => insertRow()}><span aria-hidden="true">＋</span>添加行</Button></div>
   </>;
 }

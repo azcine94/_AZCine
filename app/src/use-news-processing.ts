@@ -27,7 +27,7 @@ export function useNewsProcessing(root:string|null,enabled:boolean,active:boolea
   const filters=useRef({query,source,range});filters.current={query,source,range};rootRef.current=root;
   const previousQuery=useRef(query);
   const refresh=useCallback(async(page=0)=>{const target=rootRef.current;if(!target||!isTauri())return;const seq=++readSeq.current;const filter={...filters.current};setLoading(true);setError('');
-    setRangeSnapshot(null);
+    // Preserve the same-filter snapshot while refreshing; loading still blocks mutations.
     const current=()=>mounted.current&&seq===readSeq.current&&rootRef.current===target&&JSON.stringify(filters.current)===JSON.stringify(filter);
     try{const value=parsePendingPage(await invoke('news_pending_materials',{page,sourceId:filter.source||null,query:filter.query,range:newsRangeRequest(filter.range)}));if(current()){setPending(value.page);setDailyCount({total:value.dailyTotal,at:value.at});setRangeSnapshot(value.scope?{scope:value.scope,ids:value.ids,key:JSON.stringify(filter)}:null);}}
     catch(e){if(current())setError(workspaceError(e));}finally{if(current())setLoading(false);}

@@ -15,6 +15,19 @@ function fixture(offset=0):ProjectContent {
 function list(content:ProjectContent,blockId=id(10)):ListBlock { const block=content.blocks.find(item=>item.id===blockId);assert.ok(block?.kind==='list');return block; }
 const document=(content=fixture())=>({...content,revision:1,createdAt:'2026-10-03T00:00:00.000Z'});
 const columnIds=()=>({shot:id(101),stage:id(102),date:id(103),delivered:id(104)});
+
+test('Given旧表格和调整过行高的表格 When读取 Then兼容旧记录并保留合法行高',()=>{
+  const content=fixture();
+  assert.equal(list(parseProjectContent(content)).rows[0].height,undefined);
+  for(const height of [48,240,800]) {
+    list(content).rows[0].height=height;
+    assert.equal(list(parseProjectContent(JSON.parse(JSON.stringify(content)))).rows[0].height,height);
+  }
+  for(const height of [47,801,120.5,NaN]) {
+    list(content).rows[0].height=height;
+    assert.throws(()=>parseProjectContent(content));
+  }
+});
 function frozen<T>(value:T):T { if(value&&typeof value==='object'){Object.values(value).forEach(frozen);Object.freeze(value);}return value; }
 
 test('Given完整自由文档 When解析 Then返回独立副本且空项目不暗建标签',()=>{

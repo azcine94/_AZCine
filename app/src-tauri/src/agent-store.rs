@@ -64,10 +64,10 @@ impl Providers{
     pub fn module(&self,module:&str)->Result<&Arc<dyn ModuleProvider>,StorageError>{self.0.get(module).ok_or_else(||StorageError::new("agent_module_unavailable","此模块尚未接入正式业务操作；没有更新记录。"))}
     pub fn catalog(&self,tx:&Transaction<'_>,query:&str)->Result<Value,StorageError>{
         if query.chars().count()>200{return Err(invalid("对象搜索最多200字。"));}let query=query.trim().to_lowercase();let mut modules=Vec::new();
-        let mut names=self.0.keys().collect::<Vec<_>>();names.sort_by_key(|name|(["projects","today","ideas","news","bookkeeping","models","jobs"].iter().position(|module|*module==name.as_str()).unwrap_or(99),name.as_str()));
+        let mut names=self.0.keys().collect::<Vec<_>>();names.sort_by_key(|name|(["projects","ideas","news","bookkeeping","models","jobs"].iter().position(|module|*module==name.as_str()).unwrap_or(99),name.as_str()));
         for module in names{let mut objects=self.0[module].list(tx)?;for object in &objects{let source:Source=serde_json::from_value(object["source"].clone()).map_err(|_|invalid("模块对象来源无效。"))?;source.validate()?;if source.module!=*module||source.object_id.is_none()||!object["title"].is_string(){return Err(invalid("模块返回无效对象标识，未附加。"));}}
             objects.retain(|o|query.is_empty()||o["title"].as_str().unwrap_or("").to_lowercase().contains(&query));let total=objects.len();objects.truncate(200);
-            modules.push(json!({"id":module,"label":match module.as_str(){"projects"=>"公司项目","today"=>"待办","ideas"=>"灵感","bookkeeping"=>"记账","news"=>"资讯与信源","models"=>"模型榜","jobs"=>"后台任务",_=>module.as_str()},"objects":objects,"total":total,"hasMore":total>200}));
+            modules.push(json!({"id":module,"label":match module.as_str(){"projects"=>"公司项目","ideas"=>"灵感","bookkeeping"=>"记账","news"=>"资讯与信源","models"=>"模型榜","jobs"=>"后台任务",_=>module.as_str()},"objects":objects,"total":total,"hasMore":total>200}));
         }Ok(json!({"modules":modules}))
     }
 }
@@ -104,6 +104,7 @@ impl Store{
             tx.execute("DELETE FROM agent_bindings WHERE conversation_id=?",[key]).map_err(db)?;
         }
         if let Some(path)=path{tx.execute("INSERT INTO agent_deleted_sessions(path,session_id,deleted_at) VALUES(?,?,?) ON CONFLICT(path) DO NOTHING",params![session_path_key(path),session_id,at]).map_err(db)?;}
+        crate::agent_queue::retire_conversation(&tx,&removed,session_id)?;
         tx.commit().map_err(db)?;Ok(json!({"deleted":true,"conversationKeys":removed,"sessionPath":path,"sessionId":session_id}))
     }
     pub fn agent_prepare_input(&mut self,key:&str,session:&str,generation:u64,message_count:usize,objects:&[Source],attachments:&[String],providers:&Providers)->Result<(String,Value),StorageError>{
