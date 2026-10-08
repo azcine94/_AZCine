@@ -1,0 +1,68 @@
+import { useOperationNotice } from './components/ui/operation-toast.tsx';
+import { useEffect, useRef, useState } from 'react';
+import { invoke, isTauri } from './desktop-api.ts';
+import { listen } from './desktop-api.ts';
+import { equalEditorial, parseEditorialSnapshot, parseEvent, parsePreferences } from './news-editorial-contract.ts';
+import type { Domain } from './news-contract.ts';
+import type { EditorialConfig, EditorialSnapshot, Preferences, ReadingTab, SavePreferences } from './news-editorial-contract.ts';
+import { workspaceError } from './workspace-contract.ts';
+export function useNewsEditorial(root: string | null) {
+  const connected = isTauri();
+  const [snapshot, setSnapshot] = useState<EditorialSnapshot | null>(null); const snapshotRef = useRef(snapshot);
+  const [draft, setDraft] = useState<Preferences | null>(null); const draftRef = useRef(draft);
+  const [pending, setPending] = useState<SavePreferences | null>(null); const pendingRef = useRef(pending);
+  const [tab, setTab] = useState<ReadingTab>('featured'); const [domain, setDomain] = useState<Domain | ''>('');
+  const [editionId, setEditionId] = useState(''); const [limit, setLimit] = useState(50);
+  const [loading, setLoading] = useState(false); const [busy, setBusy] = useState(''); const busyRef = useRef('');
+  const [error, setError] = useState(''); const [notice, setNotice] = useOperationNotice(''); const [loadError, setLoadError] = useState('');
+  const [copyText, setCopyText] = useState(''); const [copyEditionId, setCopyEditionId] = useState(''); const reads = useRef(0); const loadedRoot = useRef<string | null>(null);
+  const [readingNotice, setReadingNotice] = useOperationNotice(''); const [readingError, setReadingError] = useState('');
+  function putDraft(p: Preferences) { draftRef.current = p; setDraft(p); }
+  function putPending(p: SavePreferences | null) { pendingRef.current = p; setPending(p); }
+  function acceptPreferences(p: Preferences, request?: SavePreferences) {
+    const old = snapshotRef.current?.preferences;
+    const latest = old && old.revision > p.revision ? old : p;
+    if (snapshotRef.current) { snapshotRef.current = { ...snapshotRef.current, preferences: latest }; setSnapshot(snapshotRef.current); }
+    const edited = draftRef.current;
+    if (!edited || request && equalEditorial(edited.config, request.config) || !request && old && equalEditorial(edited.config, old.config) && !pendingRef.current) putDraft(structuredClone(latest));
+    else if (request && edited.revision === request.expectedRevision) putDraft({ ...edited, revision: latest.revision });
+  }
+  function accept(s: EditorialSnapshot) {
+    const old = snapshotRef.current; const p = old && old.preferences.revision > s.preferences.revision ? old.preferences : s.preferences;
+    const edited = draftRef.current;
+    if (!edited || old && equalEditorial(edited.config, old.preferences.config) && !pendingRef.current) putDraft(structuredClone(p));
+    snapshotRef.current = { ...s, preferences: p }; setSnapshot(snapshotRef.current); setLoadError('');
+  }
+  async function refresh() { if (!connected || !root) return; const seq = ++reads.current; setLoading(true); try { const s = parseEditorialSnapshot(await invoke('news_editorial_snapshot')); if (seq === reads.current) accept(s); } catch (e) { if (seq === reads.current) setLoadError(workspaceError(e)); } finally { if (seq === reads.current) setLoading(false); } }
+  useEffect(() => { if (root && loadedRoot.current !== root) { loadedRoot.current = root; void refresh(); } });
+  useEffect(() => { if (!root || !connected) return; let disposed = false; let stop: (() => void) | undefined;
+    void listen('news-editorial-changed', () => { if (!disposed) void refresh(); }).then(unlisten => { if (disposed) unlisten(); else stop = unlisten; }).catch(e => { if (!disposed) setLoadError(workspaceError(e)); });
+    return () => { disposed = true; stop?.(); }; }, [root, connected]);
+  async function action<T>(name: string, work: () => Promise<T>) { if (!connected || !root || busyRef.current) return; busyRef.current = name; setBusy(name); setError(''); setNotice(''); try { return await work(); } catch (e) { setError(workspaceError(e)); } finally { busyRef.current = ''; setBusy(''); } }
+  function changeConfig(config: EditorialConfig) { if (draftRef.current) putDraft({ ...draftRef.current, config }); }
+  function requireSavedPreferences() {
+    const preferences=snapshotRef.current?.preferences;
+    if(!preferences)throw new Error('资讯正式配置尚未读取，未开始处理；请先刷新配置。');
+    if(pendingRef.current)throw new Error('资讯配置保存结果尚未确认，未开始处理；请先核对上次保存。');
+    if(draftRef.current&&!equalEditorial(draftRef.current.config,preferences.config))throw new Error('资讯配置有未保存的改动，未开始处理；请到“AI处理”保存资讯配置，再发起新任务。');
+  }
+  useEffect(()=>{if(!root||!connected)return;let disposed=false,off:(()=>void)|undefined;void listen('news-data-reset',()=>{if(disposed)return;setError('');setNotice('');setReadingError('');setReadingNotice('');setEditionId('');setCopyText('');setCopyEditionId('');}).then(stop=>{if(disposed)stop();else off=stop;}).catch(e=>{if(!disposed)setLoadError(workspaceError(e));});return()=>{disposed=true;off?.();};},[root,connected]);
+  function rebase() { if (draftRef.current && snapshotRef.current && !pendingRef.current) { putDraft({ ...draftRef.current, revision: snapshotRef.current.preferences.revision }); setNotice('已对照最新配置版本，草稿保留；确认后保存。'); } }
+  const save = () => action('save', async () => {
+    if (!draftRef.current) return; const request = pendingRef.current ?? { requestId: crypto.randomUUID(), expectedRevision: draftRef.current.revision, config: structuredClone(draftRef.current.config) }; putPending(request);
+    try { const p = parsePreferences(await invoke('save_news_preferences', { input: request })); ++reads.current; acceptPreferences(p, request); putPending(null); setNotice(`配置 v${p.revision} 已保存，下次任务生效；当前任务和旧刊保持原版本。`); }
+    catch (e) { throw e; }
+    await refresh();
+  });
+  const reconcile = () => action('save', async () => { const request = pendingRef.current; if (!request) return; const value = await invoke('news_preference_request', { requestId: request.requestId }); ++reads.current;
+    if (value !== null) acceptPreferences(parsePreferences(value), request); putPending(null); setNotice(value !== null ? '已核对保存成功，后续手改仍保留。' : '已确认上次未保存，草稿保留，可以调整后保存。'); await refresh(); });
+  const organize = (kind: 'organize' | 'daily' | 'analysis', runId?: string, selection?: {scope:'single'|'all';materialId:string|null;batchSize:number;filter?:import('./news-scope.ts').FrozenNewsScope;expectedIds?:string[]}) => action(kind, async () => { if(!runId)requireSavedPreferences();try { const id=runId??crypto.randomUUID();const result=parseEditorialSnapshot(await invoke(runId ? 'retry_news_editorial' : 'organize_news', runId ? { runId } : { requestId:id, kind, selection:selection??{scope:'single',materialId:null,batchSize:1} }));const run=result.runs.find(value=>value.id===id);setNotice(!run?'本轮处理已结束，请在任务记录中查看结果。':run.status==='pendingMaterials'?(run.error??'本轮已结束，有资料待补充。'):kind === 'daily' ? '固定日报已保存为独立版本，可阅读、复制或导出整期。' : '逐条处理完成，文章、事件关系与出处可阅读。'); return run; } finally { await refresh(); } });
+  const analyze = (id: string, revision: number) => action('analysis', async () => { requireSavedPreferences();try { parseEvent(await invoke('analyze_news_event', { id, revision })); setNotice('事件分析已保存；判断与未验证项单独展示。'); } finally { await refresh(); } });
+  async function cancel() { try { await invoke('cancel_news_editorial'); setNotice('已请求取消；终态以任务记录为准，已完成结果保留。'); await refresh(); } catch (e) { setError(workspaceError(e)); } }
+  const exportPdf = (id: string) => action('export', async () => { setReadingError(''); setReadingNotice(''); try { const path = await invoke<string | null>('export_news_edition', { id }); setReadingNotice(path === null ? '已取消导出，刊期保留。' : `整期PDF已导出：${path}`); } catch(e) { setReadingError(workspaceError(e)); } });
+  const copy = (id: string) => action('copy', async () => { setReadingError(''); setReadingNotice(''); try { const edition = snapshotRef.current?.editions.find(e => e.id === id); const label = edition ? `${edition.date} 第${edition.version}版` : '刚才所选刊期'; const text = await invoke<string>('news_edition_text', { id }); setCopyEditionId(id); setCopyText(text); try { await navigator.clipboard.writeText(text); setReadingNotice(`已复制${label}的完整内容，与该版PDF一致。`); } catch { setReadingNotice(`剪贴板受限，选回${label}可手动全选复制。`); } } catch(e) { setReadingError(workspaceError(e)); } });
+  const active = !!busy && ['organize', 'daily', 'analysis'].includes(busy) || !!snapshot?.runs.some(r => ['running', 'saving'].includes(r.status));
+  const readEditionText = (id: string) => invoke<string>('news_edition_text', { id });
+  return { connected, snapshot, draft, pending, loading, busy, active, error, notice, loadError, readingNotice, readingError, tab, setTab, domain, setDomain, editionId, setEditionId, limit, setLimit, copyText, copyEditionId, setCopyText, changeConfig, rebase, save, reconcile, refresh, organize, cancel, analyze, exportPdf, copy, readEditionText };
+}
+export type EditorialController = ReturnType<typeof useNewsEditorial>;

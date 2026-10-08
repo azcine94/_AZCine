@@ -5,12 +5,29 @@ use std::{ffi::OsString, fs, path::{Path, PathBuf}};
 
 fn error(code: &'static str, message: &'static str) -> ConfigError { ConfigError { code, message } }
 fn io_error(_: std::io::Error) -> ConfigError { error("pi_path_io", "Pi 自有目录不可读写，请检查路径、权限与空间；没有改用其他 Pi。") }
+pub(crate) fn linked_path(path: &Path, meta: &fs::Metadata) -> Result<bool, ConfigError> {
+    if meta.file_type().is_symlink() { return Ok(true); }
+    #[cfg(windows)] {
+        use std::os::windows::{fs::{MetadataExt, OpenOptionsExt}, io::AsRawHandle};
+        use windows::Win32::{Foundation::HANDLE, Storage::FileSystem::{GetFileInformationByHandleEx, FileAttributeTagInfo, FILE_ATTRIBUTE_TAG_INFO}};
+        if meta.file_attributes() & 0x400 != 0 {
+            let file = fs::OpenOptions::new().access_mode(0x80).share_mode(7)
+                .custom_flags(0x0220_0000).open(path).map_err(io_error)?;
+            let mut info = FILE_ATTRIBUTE_TAG_INFO::default();
+            unsafe { GetFileInformationByHandleEx(HANDLE(file.as_raw_handle()), FileAttributeTagInfo,
+                (&mut info as *mut FILE_ATTRIBUTE_TAG_INFO).cast(), std::mem::size_of_val(&info) as u32) }.map_err(|_| error("pi_path_io", "无法核对数据目录属性。"))?;
+            // Cloud Files tags represent in-place OneDrive files, not another
+            // pathname. Continue rejecting junctions, symlinks and unknown tags.
+            return Ok((info.ReparseTag & !0x0000_f000) != 0x9000_001a);
+        }
+    }
+    let _ = path;
+    Ok(false)
+}
 pub fn no_link(path: &Path) -> Result<(), ConfigError> {
     match fs::symlink_metadata(path) {
         Ok(meta) => {
-            #[cfg(windows)]
-            { use std::os::windows::fs::MetadataExt; if meta.file_attributes() & 0x400 != 0 { return Err(error("pi_path_link", "Pi 目录含链接或重解析路径，已停止以免读写其他环境。")); } }
-            if meta.file_type().is_symlink() { return Err(error("pi_path_link", "Pi 目录含链接，已停止以免读写其他环境。")); }
+            if linked_path(path, &meta)? { return Err(error("pi_path_link", "Pi 目录含链接或不支持的重解析路径，已停止以免读写其他环境。")); }
             Ok(())
         },
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -50,10 +67,29 @@ pub struct PiPaths {
 }
 impl PiPaths {
     pub fn prepare(root: &Path) -> Result<Self, ConfigError> {
+        // Normal development shares main's native Pi configuration/resources
+        // and sessions. Release and isolated validation keep their own root.
+        // Unit tests must never inherit the shared development root.
+        #[cfg(all(debug_assertions,not(test)))]
+        let shared_root = if std::env::var_os("AZCINE_DEV_USE_MAIN_DATA").as_deref() == Some(std::ffi::OsStr::new("1"))
+            && std::env::var_os("AZCINE_TEST_CONFIG_DIR").is_none()
+            && std::env::var_os("AZCINE_TEST_DEFAULT_ROOT").is_none() {
+            let data = std::env::var_os("AZCINE_DEV_PI_DATA_DIR").map(PathBuf::from)
+                .ok_or_else(|| error("pi_root_required", "共享 Pi 启动参数缺失，请结束当前开发进程，再在本目录运行 npm run dev；未回退分支目录。"))?;
+            if !data.is_absolute() { return Err(error("pi_root_required", "main 的共享 Pi 数据目录必须为绝对路径。")); }
+            no_link(&data)?;
+            fs::create_dir_all(&data).map_err(io_error)?;
+            Some(fs::canonicalize(data).map_err(io_error)?)
+        } else { None };
+        #[cfg(all(debug_assertions,not(test)))]
+        let root = shared_root.as_deref().unwrap_or(root);
         if !root.is_absolute() || !root.is_dir() { return Err(error("pi_root_required", "请先选择有效的 AZCine 数据目录。")); }
         let root = fs::canonicalize(root).map_err(io_error)?;
         let pi_root = owned_dir(&root, "pi")?;
         let agent = owned_dir(&pi_root, "agent")?; let sessions = owned_dir(&pi_root, "sessions")?;
+        owned_dir(&agent, "skills")?; owned_dir(&agent, "extensions")?;
+        crate::pi_session_title::provision(&pi_root,&agent)?;
+        crate::pi_resources::provision_task_refinement(&pi_root,&agent)?;
         let home = owned_dir(&pi_root, "home")?; let appdata = owned_dir(&pi_root, "appdata")?; let localappdata = owned_dir(&pi_root, "localappdata")?; let temp = owned_dir(&pi_root, "temp")?;
         let workspaces = owned_dir(&pi_root, "workspaces")?; let default_cwd = owned_dir(&workspaces, "default")?;
         Ok(Self { root, pi_root, agent, sessions, home, appdata, localappdata, temp, default_cwd })
@@ -66,7 +102,7 @@ impl PiPaths {
             return Err(error("pi_cwd_private", "不能把 Pi 认证、会话或私有配置目录作为工作目录。"));
         }
         let project = cwd.join(".pi"); no_link(&project)?;
-        // 0.99.1 runs migrations before trust. Metadata-only preflight; never
+        // Upstream Pi runs migrations before trust. Metadata-only preflight; never
         // read foreign settings/auth and never rename the external directory.
         for name in ["commands", "hooks", "tools"] {
             if project.join(name).try_exists().map_err(io_error)? {

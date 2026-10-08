@@ -91,7 +91,7 @@ function assertViewShape(view: MessageView): void {
     assert.equal(typeof part.text, 'string');
     assert.ok(
       Object.keys(part).every(
-        key => key === 'kind' || key === 'text' || key === 'title',
+        key => key === 'kind' || key === 'text' || key === 'title' || (key === 'callId' && part.kind === 'toolCall'),
       ),
     );
   }
@@ -313,7 +313,7 @@ test('Given 已遮蔽 thinking，When 投影，Then 标记遮蔽且不展示签�
   assert.deepEqual(view.parts, [{
     kind: 'thinking',
     title: '思考（已遮蔽）',
-    text: '',
+    text: '思考内容已遮蔽。',
   }]);
   assertNoHidden(view);
 });
@@ -337,6 +337,7 @@ test('Given 复杂工具参数，When 投影，Then 只用 JSON 数据字符串�
   assert.deepEqual(view.parts, [{
     kind: 'toolCall',
     title: 'bash',
+    callId: 'call-1',
     text: JSON.stringify(args),
   }]);
   assert.deepEqual(JSON.parse(view.parts[0].text), args);

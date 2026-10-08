@@ -1,0 +1,74 @@
+/* AZCine 公共控件。业务变体由组件显式选择，主题只引用 tokens。 */
+/* 尺寸各有用途；这里统一焦点与操作排列，不改变已确认的页面布局。 */
+.ui-button:focus-visible,.ui-link:focus-visible,.ui-disclosure>summary:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.ui-action-group { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-2); }
+.ui-action-group[data-direction="column"] { flex-direction:column; align-items:stretch; }
+.ui-menu-item { display:flex; align-items:center; gap:var(--s-2); width:100%; min-height:var(--control-h); padding:var(--s-2) var(--s-3); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; text-align:left; text-decoration:none; overflow-wrap:anywhere; }
+.ui-menu-item:hover { background:var(--island-2); text-decoration:none; }
+.ui-menu-item[aria-pressed="true"] { background:var(--accent); color:var(--accent-foreground); }
+.ui-menu-item:disabled { color:var(--t2); cursor:default; }
+.ui-button:is([data-variant="app-quiet"],[data-variant="app-primary"]) { display:inline-flex; align-items:center; justify-content:center; gap:var(--s-2); min-height:32px; padding:6px 10px; border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:500 13px/20px var(--font); }
+.ui-button[data-variant="app-quiet"]:hover:not(:disabled) { background:var(--island-2); }
+.ui-button[data-variant="app-primary"] { background:var(--ink); color:var(--ink-fg); }
+.ui-button[data-variant="app-primary"]:disabled { background:var(--island-3); color:var(--t2); }
+.pi-options-actions { margin-top:var(--s-3); padding-top:var(--s-2); border-top:1px solid var(--line); }
+.ui-feedback[data-tone="conflict"] { border-left:3px solid var(--warn); }
+.ui-status-badge[data-tone="success"] { color:var(--ok); }
+.ui-status-badge[data-tone="error"] { color:var(--bad); }
+.ui-status-badge[data-tone="warning"] { color:var(--warn); }
+.ui-status-dot { display:inline-block; flex:none; width:8px; height:8px; border-radius:var(--r-pill); background:var(--muted-foreground); }
+.ui-status-dot[data-tone="success"] { background:var(--ok); }
+.ui-status-dot[data-tone="warning"] { background:var(--warn); }
+.ui-status-dot[data-tone="error"] { background:var(--bad); }
+.ui-status-dot[data-tone="active"] { background:var(--foreground); }
+/* 按钮：实底一屏一个；描边是常规；危险红字描边；文字动作不当按钮。三个高度 32 / 28 / 24，字 14 / 13 / 12 */
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); height: var(--h-2); padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--line-2); background: transparent; color: var(--t2); font: 500 var(--fs-s)/1 var(--font); white-space: nowrap; cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.pill:is(:hover, .is-hover) { background: var(--island-2); color: var(--text); }
+.pill:active { transform: scale(0.97); }
+.pill.on { background: var(--ink); color: var(--ink-fg); border-color: var(--ink); }
+.pill.on:is(:hover, .is-hover) { background: var(--ink); color: var(--ink-fg); opacity: 0.88; }
+.pill.soft { background: var(--island-3); border-color: transparent; color: var(--text); }
+.pill.danger { color: var(--bad); } .pill.danger:is(:hover, .is-hover) { background: var(--bad-soft); color: var(--bad); }
+.pill.lg { height: var(--h-3); padding: 0 18px; font-size: var(--fs-body); }
+.pill.sm { height: var(--h-1); padding: 0 10px; font-size: var(--fs-xs); }
+.pill:disabled, .pill[aria-disabled="true"] { opacity: 0.45; cursor: default; transform: none; }
+.pill:disabled:hover { background: transparent; color: var(--t2); } .pill.on:disabled:hover { background: var(--ink); color: var(--ink-fg); }
+.pill.is-loading { color: transparent; position: relative; pointer-events: none; }
+.pill.is-loading::after { content: ""; position: absolute; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--t3); border-top-color: transparent; animation: spin .8s linear infinite; }
+.pill.on.is-loading::after { border-color: var(--ink-fg); border-top-color: transparent; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.icon-btn { width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: var(--r-xs); border: 0; background: transparent; color: var(--t3); cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
+.icon-btn:is(:hover, .is-hover) { background: var(--island-2); color: var(--text); } .icon-btn:active { background: var(--island-3); }
+.icon-btn:is(.on, [aria-pressed="true"]) { background: var(--island-3); color: var(--text); }
+.icon-btn:disabled { opacity: 0.45; cursor: default; } .icon-btn:disabled:hover { background: transparent; color: var(--t3); }
+.icon-btn svg { width: 16px; height: 16px; }
+.link { color: var(--acc); cursor: pointer; background: none; border: 0; padding: 0; font: inherit; } .link:hover { text-decoration: underline; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--t2); animation: spin .8s linear infinite; display: inline-block; vertical-align: middle; }
+.spin.lg { width: 24px; height: 24px; }
+
+/* 输入：岛里升一级的底，一根细线；焦点强调环；出错红环加一句说明 */
+.input, .select, .textarea { width: 100%; height: var(--h-3); padding: 0 var(--s-3); border-radius: var(--r-ctl); border: 1px solid var(--line-2); background: var(--island-2); color: var(--text); font: 400 var(--fs-body)/1 var(--font); transition: border-color var(--dur) var(--ease); }
+.island .input, .island .select, .island .textarea { background: var(--island-3); }
+.textarea { height: auto; min-height: 88px; padding: var(--s-2) var(--s-3); line-height: var(--lh-body); resize: vertical; }
+.input::placeholder, .textarea::placeholder { color: var(--t3); }
+.input:is(:focus, .is-focus), .select:is(:focus, .is-focus), .textarea:is(:focus, .is-focus) { outline: none; border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+.input:is(.is-error, [aria-invalid="true"]), .select:is(.is-error, [aria-invalid="true"]), .textarea:is(.is-error, [aria-invalid="true"]) { border-color: var(--bad); }
+.input:is(.is-error, [aria-invalid="true"]):focus { box-shadow: 0 0 0 3px var(--bad-soft); }
+.input:disabled, .select:disabled, .textarea:disabled, .input.is-disabled { opacity: 0.5; cursor: default; }
+.input:read-only:not(:disabled) { background: transparent; border-color: transparent; padding-left: 0; }
+.err { color: var(--bad); font-size: var(--fs-s); line-height: var(--lh-s); }
+.select { appearance: none; padding-right: 32px; background-image: var(--chevron); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+.search { display: flex; align-items: center; gap: var(--s-2); height: 30px; padding: 0 var(--s-3); border-radius: var(--r-pill); background: var(--island-2); color: var(--t3); font-size: var(--fs-s); width: 240px; max-width: 100%; border: 1px solid transparent; }
+.search:focus-within { border-color: var(--acc); color: var(--t2); }
+.search input { border: 0; background: transparent; color: var(--text); font: inherit; width: 100%; outline: none; min-width: 0; }
+.search input::placeholder { color: var(--t3); }
+
+.pill { min-height:var(--control-h); padding-inline:var(--s-4); border-radius:var(--r-ctl); color:var(--text); background:var(--background); border-color:var(--border); box-shadow:var(--shadow-card); }
+.pill:active { transform:none; }
+.pill:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.input,.select,.textarea { background:var(--background); box-shadow:var(--shadow-card); }
+:root[data-theme="dark"] :is(.input,.select,.textarea) { background:color-mix(in srgb,var(--input) 30%,var(--background)); }
+.input:is(:focus,.is-focus),.select:is(:focus,.is-focus),.textarea:is(:focus,.is-focus) { border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 40%,transparent); }
+.ui-status-badge { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:var(--r-xs); padding:2px 8px; font:500 12px/18px var(--font); background:var(--muted); }
+.ui-loading-status { min-height:var(--lh-s); margin:0; color:var(--t2); font:400 var(--fs-s)/var(--lh-s) var(--font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ui-loading-status[data-loading="false"] { visibility:hidden; }

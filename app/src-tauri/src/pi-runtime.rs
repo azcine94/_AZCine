@@ -4,14 +4,18 @@ use serde_json::Value;
 use sha2::{Digest,Sha256};
 use std::{fs::File,io::Read,path::{Path,PathBuf}};
 const LOCK:&str=include_str!("../../resources/runtime-lock.json");
+pub fn versions()->Value {
+    let lock:Value=serde_json::from_str(LOCK).unwrap_or(Value::Null);
+    serde_json::json!({"piVersion":lock["piVersion"],"nodeVersion":lock["nodeVersion"]})
+}
 fn invalid()->ConfigError{ConfigError{code:"pi_runtime_incomplete",message:"本应用的独立原版 Pi 运行资源缺失或校验不符，未调用系统其他 Pi。请完成应用运行资源准备后重试；输入仍保留。"}}
 fn checksum(path:&Path)->Result<String,ConfigError>{let mut file=File::open(path).map_err(|_|invalid())?;let mut hash=Sha256::new();let mut buffer=[0u8;65536];loop{let n=file.read(&mut buffer).map_err(|_|invalid())?;if n==0{break;}hash.update(&buffer[..n]);}Ok(format!("{:x}",hash.finalize()))}
 pub fn resolve(resource_dir:&Path)->Result<RuntimePaths,ConfigError>{
     let lock:Value=serde_json::from_str(LOCK).map_err(|_|invalid())?;
     let directory=lock["directory"].as_str().ok_or_else(invalid)?;
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, test))]
     let root=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../resources/runtime").join(directory);
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(any(debug_assertions, test)))]
     let root=resource_dir.join("runtime").join(directory);
     let _=resource_dir;
     no_link(&root)?;

@@ -1,5 +1,13 @@
 use super::*;
 #[test]
+fn shared_reply_limit_rejects_fourth_without_queue_or_process_request(){let pool=crate::agent_runtime::AgentRuntime::default();for key in ["one","two","three"]{let m=pool.manager(key).unwrap();let mut c=m.core.lock().unwrap();c.projection.activity="running".into();}let input=SendInput{generation:0,session_id:"fourth".into(),message:"保留输入".into(),images:vec![],behavior:None};assert_eq!(pool.send("fourth",input,Arc::new(||{})).err().unwrap().code,"pi_reply_limit");assert_eq!(pool.summary().unwrap()["active"],3);assert_eq!(pool.manager("fourth").unwrap().snapshot().unwrap()["projection"]["followUp"],json!([]));}
+#[test]
+fn news_configuration_does_not_race_connect_or_save(){
+    let manager=PiManager::default();let _owned=manager.operation.lock().unwrap();
+    // A busy operation is rejected before reading or creating any path.
+    assert_eq!(manager.news_documents(Path::new("unused-explicit-fixture"),Path::new("unused-explicit-runtime")).unwrap_err().code,"pi_busy");
+}
+#[test]
 fn given_no_connection_when_snapshot_then_no_model_reply_or_fake_ready(){
     let m=PiManager::default();let v=m.snapshot().unwrap();assert_eq!(v["connection"],"disconnected");assert_eq!(v["state"],Value::Null);assert_eq!(v["models"],json!([]));assert_eq!(v["projection"]["messages"],json!([]));assert_eq!(v["projection"]["outcome"],"none");
 }

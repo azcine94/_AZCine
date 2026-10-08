@@ -1,0 +1,19 @@
+/* 项目表格菜单与添加内容菜单的公共外观和弹层布局。 */
+
+
+
+
+
+
+.table-menu__trigger { display:flex; align-items:center; justify-content:space-between; gap:var(--s-1); min-width:0; width:100%; min-height:40px; padding:var(--s-1); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; text-align:left; overflow-wrap:anywhere; }
+.table-menu__trigger>span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.table-row-heading .table-menu__trigger { justify-content:center; }
+.table-menu__trigger:hover { background:var(--island-3); }
+.table-menu__trigger:focus-visible { outline:2px solid var(--acc); outline-offset:-2px; }
+.table-menu__panel { position:fixed; inset:auto; margin:0; padding:var(--s-2); border:0; border-radius:var(--r-panel); background:var(--island); color:var(--text); box-shadow:var(--shadow-pop); overflow:auto; overscroll-behavior:contain; }
+.table-menu__panel:popover-open { display:grid; gap:var(--s-1); }
+.table-menu__panel [role=menuitem] { display:block; width:100%; min-height:40px; padding:var(--s-2); border:0; border-radius:var(--r-xs); background:transparent; color:var(--text); font:inherit; text-align:left; }
+.table-menu__panel [role=menuitem]:hover { background:var(--island-2); }
+.table-menu__panel [role=menuitem]:focus-visible { outline:2px solid var(--acc); outline-offset:-2px; }
+.table-menu__panel [role=menuitem]:disabled { color:var(--t2); cursor:default; }
+.table-menu__rename { display:grid; gap:var(--s-1); padding:var(--s-2); color:var(--t2); font-size:var(--fs-xs); }

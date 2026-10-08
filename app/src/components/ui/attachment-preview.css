@@ -1,0 +1,13 @@
+.ui-attachment-preview{position:relative;flex:none;max-width:100%;color:var(--foreground)}
+.ui-attachment-tile[data-slot=button]{display:flex;gap:10px;align-items:center;white-space:normal;text-align:left;max-width:240px;min-height:80px;height:auto;padding:8px;border:1px solid var(--border);border-radius:var(--r-panel);background:var(--card);color:var(--foreground);opacity:1}
+.ui-attachment-thumbnail{width:56px;height:64px;display:flex;flex:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-radius:var(--r-ctl);background:var(--muted);font:10px/14px var(--font);color:var(--muted-foreground);overflow:hidden}
+.ui-attachment-thumbnail svg{width:24px;height:24px}
+.ui-attachment-thumbnail img{width:100%;height:100%;object-fit:cover}
+.ui-attachment-filename{min-width:0;overflow-wrap:anywhere;font:12px/18px var(--font)}
+.ui-attachment-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.ui-attachment-filename small{display:block;color:var(--muted-foreground);font:11px/18px var(--font)}
+.ui-attachment-preview--image .ui-attachment-tile[data-slot=button]{width:92px;height:92px;padding:0;overflow:hidden;position:relative}
+.ui-attachment-preview--image .ui-attachment-thumbnail{width:100%;height:100%;border-radius:inherit}
+.ui-attachment-remove[data-slot=button]{position:absolute;top:4px;right:4px;box-shadow:var(--shadow-card)}
+.ui-attachment-unavailable{position:absolute;bottom:0;left:0;right:0;text-align:center;font:10px/16px var(--font);background:var(--card)}
+.ui-attachment-preview--cell .ui-attachment-tile[data-slot=button]{width:72px;height:56px;border-radius:var(--r-xs)}

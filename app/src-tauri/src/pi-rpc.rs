@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::{collections::HashMap, ffi::OsString, io::{Read, Write}, path::Path,
     sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64, Ordering}, mpsc::{self, SyncSender, Sender}}, thread, time::{Duration, Instant}};
 
-const MAX_RECORD: usize = 16 * 1024 * 1024;
+const MAX_RECORD: usize = crate::pi_image_limits::MAX_IMAGE_RPC_BYTES;
 const MAX_PENDING: usize = 64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RpcError { pub code: &'static str, pub message: &'static str }
@@ -64,13 +64,20 @@ pub struct RpcProcess { inner: Arc<Inner> }
 pub struct RpcRequest { inner: Arc<Inner>, result: mpsc::Receiver<Result<Value, RpcError>> }
 impl RpcRequest {
     pub fn wait(self, timeout: Duration) -> Result<Value, RpcError> {
-        match self.result.recv_timeout(timeout) {
-            Ok(result) => result,
-            Err(mpsc::RecvTimeoutError::Disconnected) => Err(disconnected()),
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                let reason = error("pi_timeout", "Pi 响应超时，已停止本应用进程树；请求可能已被处理，不会自动重发，输入和原生会话仍保留。");
-                self.inner.fault(reason.clone()); Err(reason)
+        self.wait_paused(timeout,||false)
+    }
+    // An extension question pauses prompt acceptance in upstream RPC. User
+    // thinking time must not consume the transport's response deadline.
+    pub fn wait_paused(self,timeout:Duration,paused:impl Fn()->bool)->Result<Value,RpcError>{
+        let mut remaining=timeout;let mut previous=Instant::now();
+        loop{
+            match self.result.recv_timeout(remaining.min(Duration::from_millis(100))){
+                Ok(result)=>return result,
+                Err(mpsc::RecvTimeoutError::Disconnected)=>return Err(disconnected()),
+                Err(mpsc::RecvTimeoutError::Timeout)=>{},
             }
+            let now=Instant::now();if !paused(){remaining=remaining.saturating_sub(now.duration_since(previous));}previous=now;
+            if remaining.is_zero(){let reason=error("pi_timeout","Pi 响应超时，已停止本应用进程树；请求可能已被处理，不会自动重发，输入和原生会话仍保留。");self.inner.fault(reason.clone());return Err(reason);}
         }
     }
 }

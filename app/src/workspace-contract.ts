@@ -2,7 +2,7 @@ export interface Todo {
   id: string; title: string; dueDate: string | null; projectId: string | null;
   completed: boolean; revision: number; createdAt: string;
 }
-export interface Workspace { root: string | null; defaultRoot: string; todos: Todo[] }
+export interface Workspace { root: string | null; defaultRoot: string; todos: Todo[]; rootChangeNotice?: string | null }
 export interface TodoInput { id: string; title: string; dueDate: string | null; projectId: string | null }
 export type TodoFilter = 'incomplete' | 'today' | 'completed';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,7 +30,8 @@ export function parseWorkspace(value: unknown): Workspace {
   if (!(w.root === null || typeof w.root === 'string' && w.root.length > 0) || typeof w.defaultRoot !== 'string' || !Array.isArray(w.todos)) return invalid();
   const todos = w.todos.map(parseTodo);
   if (new Set(todos.map(t => t.id)).size !== todos.length || w.root === null && todos.length !== 0) return invalid();
-  return { root: w.root, defaultRoot: w.defaultRoot, todos };
+  if (w.rootChangeNotice != null && typeof w.rootChangeNotice !== 'string') return invalid();
+  return { root: w.root, defaultRoot: w.defaultRoot, todos, ...(w.rootChangeNotice === undefined ? {} : { rootChangeNotice: w.rootChangeNotice as string | null }) };
 }
 export function validateTodo(title: string, date: string): string | null {
   if (!title.trim() || [...title.trim()].length > 500) return '请填写 1–500 字的待办标题。';

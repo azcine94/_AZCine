@@ -1,7 +1,6 @@
 {
   "version": 1,
-  "directory": "pi-0.99.1-node-24.21.0",
-  "piVersion": "0.99.1",
+  "piVersion": "1.0.4",
   "nodeVersion": "24.21.0",
   "node": "node-v24.21.0-win-x64/node.exe",
   "pi": "pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
@@ -9,11 +8,12 @@
   "entrySha256": {
     "node": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32",
     "pi": "e79626f2dd6f94aa45d30f3fa63cd84319a6eefcd150b353cfaf274366926774",
-    "packageLock": "bdf82b8aaf1c9cf0963a6fa8cd87b0bd2a535bdaa59a87fb45bca1ce32ae62e6"
+    "packageLock": "35fd666029cb44d3cceb5a372cbacd2aecc478c69daa14898f006af291d4d869"
   },
+  "directory": "pi-1.0.4-node-24.21.0",
   "sources": {
-    "pi": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.99.1.tgz",
-    "piArchiveSha256": "6686592adaea19092c85c94f5d40323dbf3db141e90eb3ede9e9e87302abdd1d",
+    "pi": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.0.4.tgz",
+    "piArchiveSha256": "04910bdae661a6529e9d6869b04006f6aad01186398b04a16c6d9793667b96c5",
     "node": "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip",
     "nodeArchiveSha256": "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541"
   }

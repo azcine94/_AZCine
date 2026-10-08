@@ -1,15 +1,16 @@
 {
   "name": "azcine-workspace",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "AZCine local desktop development workspace",
   "scripts": {
     "dev": "node scripts/run-desktop.mjs dev",
     "dev:web": "npm --prefix app run dev:web",
     "check": "npm --prefix app run check",
-    "test": "node --test tests/dev-scripts.test.mjs && npm --prefix app test",
+    "test": "node --test tests/dev-scripts.test.mjs tests/dev-environment.test.mjs && npm --prefix app test",
     "test:rust": "node scripts/run-desktop.mjs test:rust",
-    "build:web": "npm --prefix app run build:web"
+    "build:web": "npm --prefix app run build:web",
+    "build:desktop": "node scripts/build-desktop.mjs"
   },
   "engines": { "node": ">=24.18.0 <25" }
 }

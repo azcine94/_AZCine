@@ -1,6 +1,10 @@
 // Evaluated inside an already loaded page. Alpha-composites ancestors before WCAG ratios.
 (() => {
-  const rgb = value => { const values = (value.match(/[\d.]+/g) || []).map(Number); return values.length > 2 ? [values[0], values[1], values[2], values[3] ?? 1] : [0, 0, 0, 0]; };
+  // Chromium may return oklch()/color() for the shared theme. Canvas converts
+  // those CSS colors to sRGB pixels; parsing their numbers as RGB gives 1:1.
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+  const context=canvas.getContext('2d',{willReadFrequently:true}),colors=new Map();
+  const rgb=value=>{if(colors.has(value))return colors.get(value);context.clearRect(0,0,1,1);context.fillStyle=value;context.fillRect(0,0,1,1);const pixel=context.getImageData(0,0,1,1).data,result=[pixel[0],pixel[1],pixel[2],pixel[3]/255];colors.set(value,result);return result;};
   const mix = (front, back) => [...front.slice(0, 3).map((v, index) => v * front[3] + back[index] * (1 - front[3])), 1];
   const background = element => element ? mix(rgb(getComputedStyle(element).backgroundColor), background(element.parentElement)) : [255, 255, 255, 1];
   const luminance = color => color.slice(0, 3).map(value => { const n = value / 255; return n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4; }).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
@@ -10,7 +14,9 @@
     const style = getComputedStyle(element), rect = element.getBoundingClientRect();
     // Closed <details> descendants may retain layout rectangles in Chromium but
     // are not painted. checkVisibility also accounts for those hidden subtrees.
-    if (!rect.width || !rect.height || !element.checkVisibility({ visibilityProperty: true, opacityProperty: true }) || style.visibility === 'hidden' || style.display === 'none' || element.disabled) continue;
+    if (!rect.width || !rect.height || !element.checkVisibility({ visibilityProperty: true, opacityProperty: true }) || style.visibility === 'hidden' || style.display === 'none' || element.closest(':disabled')) continue;
+    // aria-hidden marks decorative content; its visible functional label is checked separately.
+    if (element.closest('[aria-hidden="true"]')) continue;
     if ([...element.childNodes].some(node => node.nodeType === 3 && node.textContent.trim())) {
       const bg = background(element);
       const contrast = ratio(mix(rgb(style.color), bg), bg);

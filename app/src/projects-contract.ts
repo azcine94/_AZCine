@@ -6,7 +6,8 @@ export type ColumnKind = 'text' | 'shot' | 'stage' | 'date' | 'delivered';
 export interface ListColumn { id: string; name: string; kind: ColumnKind; width?: number }
 export const LIST_MIN_WIDTH = 112;
 export const LIST_MAX_WIDTH = 640;
-export interface ListRow { id: string; cells: Record<string, string> }
+export interface ProjectImage { id: string; name: string; mimeType: string; bytes: number; hash: string }
+export interface ListRow { id: string; cells: Record<string, string>; images?: Record<string, ProjectImage[]> }
 export interface TextBlock { id: string; kind: 'text'; title: string; body: string }
 export interface ChecklistItem { id: string; text: string; checked: boolean }
 export interface ChecklistBlock {
@@ -23,6 +24,13 @@ export interface ProjectContent {
 export interface ProjectDocument extends ProjectContent {
   revision: number; createdAt: string;
 }
+export interface ProjectDeletionRequest {
+  requestId: string; projectId: string; expectedRevision: number; deleted: boolean;
+}
+export interface ProjectDeletionReceipt {
+  requestId: string; deleted: boolean; project: ProjectDocument;
+}
+export interface ProjectCatalog { projects: ProjectDocument[]; removed: ProjectDocument[] }
 export interface ProjectSaveInput {
   requestId: string; expectedRevision: number | null; document: ProjectContent;
 }
@@ -46,6 +54,7 @@ export type ProjectUndo =
   | (UndoBase & {
       kind: 'column'; blockId: string; column: ListColumn;
       cells: Record<string, string>;
+      images?: Record<string, ProjectImage[]>;
     });
 export interface ProjectDeletion { content: ProjectContent; undo: ProjectUndo }
 
@@ -157,7 +166,8 @@ export function parseProjectContent(value: unknown): ProjectContent {
     });
     const columnMap = new Map(columns.map(column => [column.id, column]));
     const rows = array(b.rows, 10000).map((rawRow): ListRow => {
-      const row = object(rawRow, ['id', 'cells']);
+      const row = object(rawRow);
+      object(row, Object.hasOwn(row, 'images') ? ['id', 'cells', 'images'] : ['id', 'cells']);
       const rowId = entityId(row.id, used);
       const cells: Record<string, string> = {};
       for (const [key, rawCell] of Object.entries(object(row.cells))) {
@@ -175,11 +185,24 @@ export function parseProjectContent(value: unknown): ProjectContent {
         }
         cells[key] = cell;
       }
-      return { id: rowId, cells };
+      const images: Record<string, ProjectImage[]> = {};
+      if (Object.hasOwn(row, 'images')) for (const [key, rawImages] of Object.entries(object(row.images))) {
+        if (!columnMap.has(key)) return fail('图片引用了不存在的列。');
+        images[key] = array(rawImages, 16).map(parseProjectImage);
+        if (new Set(images[key].map(image => image.id)).size !== images[key].length) return fail('单元格图片编号重复。');
+      }
+      return { id: rowId, cells, ...(Object.hasOwn(row, 'images') ? { images } : {}) };
     });
     return { ...base, kind: 'list', included: b.included, columns, rows };
   });
   return withinSize({ id, name, labels, blocks });
+}
+
+export function parseProjectImage(value: unknown): ProjectImage {
+  const image = object(value, ['id', 'name', 'mimeType', 'bytes', 'hash']);
+  const id = entityId(image.id), name = text(image.name, 200, true);
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(String(image.mimeType)) || typeof image.bytes !== 'number' || !Number.isInteger(image.bytes) || image.bytes < 1 || image.bytes > 50 * 1024 * 1024 || typeof image.hash !== 'string' || !/^[0-9a-f]{64}$/.test(image.hash)) return fail('图片附件格式或大小无效。');
+  return { id, name, mimeType: image.mimeType as string, bytes: image.bytes, hash: image.hash };
 }
 
 export function parseProject(value: unknown): ProjectDocument {
@@ -239,7 +262,7 @@ export function ensureDeliveryColumns(block: ListBlock, ids: DeliveryColumnIds):
   return {
     ...block, included: true,
     columns: [...block.columns.map(column => ({ ...column })), ...additions],
-    rows: block.rows.map(row => ({ id: row.id, cells: { ...row.cells } })),
+    rows: block.rows.map(row => ({ ...row, cells: { ...row.cells } })),
   };
 }
 
@@ -291,7 +314,7 @@ export function deleteChecklistItem(content: ProjectContent, blockId: string, it
 export function deleteRow(content: ProjectContent, blockId: string, rowId: string): ProjectDeletion {
   const next = copyContent(content), block = list(next, blockId);
   const { item, position } = take(block.rows, rowId);
-  const columns = block.columns.filter(column => Object.hasOwn(item.cells, column.id))
+  const columns = block.columns.filter(column => Object.hasOwn(item.cells, column.id) || Object.hasOwn(item.images ?? {}, column.id))
     .map(({ id, kind }) => ({ id, kind }));
   return {
     content: next,
@@ -302,13 +325,15 @@ export function deleteColumn(content: ProjectContent, blockId: string, columnId:
   const next = copyContent(content), block = list(next, blockId);
   const { item, position } = take(block.columns, columnId);
   const cells: Record<string, string> = {};
+  const images: Record<string, ProjectImage[]> = {};
   for (const row of block.rows) {
     if (Object.hasOwn(row.cells, columnId)) cells[row.id] = row.cells[columnId];
     delete row.cells[columnId];
+    if (row.images && Object.hasOwn(row.images, columnId)) { images[row.id] = row.images[columnId]; delete row.images[columnId]; }
   }
   return {
     content: next,
-    undo: { kind: 'column', projectId: next.id, blockId, position, column: item, cells },
+    undo: { kind: 'column', projectId: next.id, blockId, position, column: item, cells, images },
   };
 }
 export function restoreUndo(content: ProjectContent, undo: ProjectUndo): ProjectContent {
@@ -333,19 +358,33 @@ export function restoreUndo(content: ProjectContent, undo: ProjectUndo): Project
       const replacement = undo.column.kind === 'text' ? undefined
         : block.columns.find(column => column.kind === undo.column.kind);
       if (replacement) {
-        if (block.rows.some(row => (row.cells[replacement.id] ?? '') !== '')) {
+        if (block.rows.some(row => (row.cells[replacement.id] ?? '') !== '' || row.images?.[replacement.id]?.length)) {
           return fail('补回的语义列已有新值，未覆盖；清空冲突值后可再次撤销。');
         }
         block.columns = block.columns.filter(column => column.id !== replacement.id);
-        for (const row of block.rows) delete row.cells[replacement.id];
+        for (const row of block.rows) { delete row.cells[replacement.id]; if (row.images) delete row.images[replacement.id]; }
       }
       insert(block.columns, undo.column, undo.position);
       for (const row of block.rows) {
         if (Object.hasOwn(undo.cells, row.id)) row.cells[undo.column.id] = undo.cells[row.id];
+        if (undo.images?.[row.id]) row.images = { ...row.images, [undo.column.id]: undo.images[row.id] };
       }
     }
   }
   // Recheck nested ID collisions, references, limits and restored cell values.
   // Parsing also detaches the result from the retained undo snapshot.
   return parseProjectContent(next);
+}
+
+export function parseProjectCatalog(value: unknown): ProjectCatalog {
+  const catalog = object(value, ['projects', 'removed']);
+  const projects = parseProjects(catalog.projects), removed = parseProjects(catalog.removed);
+  const used = new Set<string>();
+  for (const project of [...projects, ...removed]) entityId(project.id, used);
+  return { projects, removed };
+}
+export function parseProjectDeletionReceipt(value: unknown): ProjectDeletionReceipt {
+  const receipt = object(value, ['requestId', 'deleted', 'project']);
+  if (typeof receipt.deleted !== 'boolean') return fail();
+  return { requestId: entityId(receipt.requestId), deleted: receipt.deleted, project: parseProject(receipt.project) };
 }

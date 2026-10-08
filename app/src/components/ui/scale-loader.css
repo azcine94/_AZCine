@@ -1,0 +1,8 @@
+@keyframes azcine-scale-loader {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-scale-loader > span { animation: none !important; }
+}

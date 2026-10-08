@@ -2,6 +2,7 @@
 //! ownership while opening, recovering or saving. No credentials go into errors,
 //! IPC views or logs. Private transaction files must be excluded from backups.
 use crate::pi_model_config::{ConfigError, ModelSettingsInput, ModelSettingsView, plan_model_update};
+use crate::pi_provider_config::{ProviderSettingsInput, plan_provider_update, provider_views};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{fs::{self, File, OpenOptions}, io::{Read, Write}, path::{Path, PathBuf}};
@@ -16,16 +17,7 @@ fn changed() -> ConfigError { failure("pi_config_changed", "未完成的配置�
 // Checking every owned segment before use also refuses Windows directory junctions.
 // This is an ownership check, not an OS sandbox against simultaneous hostile changes.
 fn reject_link(path: &Path) -> Result<(), ConfigError> {
-    match fs::symlink_metadata(path) {
-        Ok(meta) => {
-            #[cfg(windows)]
-            { use std::os::windows::fs::MetadataExt; if meta.file_attributes() & 0x400 != 0 { return Err(failure("pi_path_link", "Pi 自有目录中发现链接或重解析路径，已停止以免读写其他环境。")); } }
-            if meta.file_type().is_symlink() { return Err(failure("pi_path_link", "Pi 自有目录中发现链接，已停止以免读写其他环境。")); }
-            Ok(())
-        },
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(io_error(e)),
-    }
+    crate::pi_launch_plan::no_link(path)
 }
 fn directory(path: &Path) -> Result<(), ConfigError> {
     reject_link(path)?;
@@ -162,7 +154,46 @@ impl ConfigStore {
         };
         let settings = parse_document(before[2].as_deref())?;
         let update = plan_model_update(&models, &auth, &settings, input)?;
-        let next = [update.models, update.auth, update.settings];
+        self.publish_documents(&before, [update.models, update.auth, update.settings], hook)?;
+        Ok(update.view)
+    }
+    pub fn providers(&self) -> Result<Value, ConfigError> {
+        let documents = self.private_documents()?;
+        let view = provider_views(&documents)?;
+        Ok(crate::pi_redactor::Redactor::from_documents(&documents[0], &documents[1]).value(view, false))
+    }
+    pub fn model_list_key(&self, provider: &str, base_url: &str) -> Result<Option<String>, ConfigError> {
+        let docs = self.private_documents()?;
+        let service = docs[0].get("providers").and_then(|v|v.get(provider));
+        if service.is_none() { return Ok(None); }
+        let same_url = |value: &Value| value.as_str().is_some_and(|s|s.trim_end_matches('/') == base_url.trim_end_matches('/'));
+        let known_address = service.is_some_and(|s|s.get("baseUrl").is_some_and(same_url)
+            || s.get("models").and_then(Value::as_array).is_some_and(|rows|rows.iter().any(|m|m.get("baseUrl").is_some_and(same_url))));
+        if !known_address { return Err(failure("pi_key_address", "此地址尚未保存，请填写它的Key；不会向新地址发送已有服务商的认证。")); }
+        let auth = docs[1].get(provider);
+        if auth.is_some_and(|a|a.get("type").and_then(Value::as_str)==Some("oauth")) {
+            return Err(failure("pi_list_key_required", "获取模型暂不支持OAuth认证，请填写用于模型列表接口的Key；原认证保留。"));
+        }
+        let key = auth.and_then(|a|a.get("key")).and_then(Value::as_str).or_else(||service.and_then(|s|s.get("apiKey")).and_then(Value::as_str));
+        let Some(key) = key.filter(|s|!s.is_empty()) else { return Ok(None); };
+        if key.starts_with('!') { return Err(failure("pi_list_key_required", "现有认证不是直接填写的Key，请重新填写；不执行命令或读取外部环境。")); }
+        let mut literal=String::new(); let mut chars=key.chars();
+        while let Some(ch)=chars.next() {
+            if ch=='$' { if chars.next()!=Some('$') { return Err(failure("pi_list_key_required", "现有认证包含环境引用，请直接填写Key；不读取外部环境。")); } literal.push('$'); }
+            else { literal.push(ch); }
+        }
+        Ok(Some(literal))
+    }
+    pub fn save_provider(&self, input: &ProviderSettingsInput) -> Result<(), ConfigError> {
+        self.recover()?;
+        let before = self.originals()?;
+        let documents = self.private_documents()?;
+        // The plan and publication must refer to the same native file snapshot.
+        if self.originals()? != before { return Err(changed()); }
+        let next = plan_provider_update(&documents, input)?;
+        self.publish_documents(&before, next, |_| Ok(()))
+    }
+    fn publish_documents(&self, before: &[Option<Vec<u8>>; 3], next: [Value; 3], hook: impl FnMut(usize) -> Result<(), ConfigError>) -> Result<(), ConfigError> {
         let encoded: Vec<Vec<u8>> = next.iter().map(|v| serde_json::to_vec_pretty(v).map_err(|_| broken())).collect::<Result<_,_>>()?;
         if encoded.iter().any(|bytes| bytes.len() as u64 > LIMIT) { return Err(failure("pi_config_limit", "保存后的原生配置超过 2 MiB，未修改原配置。")); }
         let txn = tempfile::Builder::new().prefix("native-").tempdir_in(&self.transactions).map_err(io_error)?.keep();
@@ -173,9 +204,9 @@ impl ConfigStore {
         let descriptor = Transaction { version: 1, existed: std::array::from_fn(|i| before[i].is_some()) };
         fresh_file(&txn.join("manifest.json"), &serde_json::to_vec(&descriptor).map_err(|_| broken())?)?;
         // Check again just before enabling recovery, avoiding known external changes.
-        if self.originals()? != before { return Err(changed()); }
+        if &self.originals()? != before { return Err(changed()); }
         fs::create_dir(txn.join("prepared")).map_err(io_error)?;
-        self.finish(&txn, hook)?; Ok(update.view)
+        self.finish(&txn, hook)
     }
     /// Initial no-model settings: no background cache calls or automatic paid retries.
     /// Existing native settings are not overwritten by initialization.

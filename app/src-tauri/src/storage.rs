@@ -7,12 +7,18 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const APPLICATION_ID: i64 = 0x415A4349;
-const SCHEMA_VERSION: i64 = 2;
+pub(crate) const SCHEMA_VERSION: i64 = 16;
 const DATABASE: &str = "db/azcine.sqlite3";
+#[path = "storage-branch-schema.rs"]
+mod branch_schema;
 // An atomically created directory claims an unfinished first initialization before
 // any lock/database file is created. Failed candidates stay here; never rebuild
 // an arbitrary database found at the final DATABASE path.
 const INITIALIZING: &str = ".azcine-initializing-v1";
+
+#[cfg(test)]
+#[path = "storage-integration-tests.rs"]
+pub(crate) mod integration_tests;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,15 +61,21 @@ pub struct Workspace {
     pub root: Option<String>,
     pub default_root: String,
     pub todos: Vec<Todo>,
+    pub root_change_notice: Option<String>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Locator { version: u32, root: PathBuf, identity: String }
 
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct RootChange { source: PathBuf, identity: String, destination: PathBuf, mode: String }
+
 pub struct Store {
     pub root: PathBuf,
     pub db: Connection,
     identity: String,
+    pub(crate) task_workspace: Option<PathBuf>,
     _lock: File,
 }
 pub struct Manager {
@@ -72,6 +84,7 @@ pub struct Manager {
     store: Option<Store>,
     // Lock the locating config too: two application instances cannot select different roots.
     _instance_lock: File,
+    root_change_notice: Option<String>,
 }
 #[derive(Default)]
 pub struct StorageState(pub Mutex<Option<Manager>>);
@@ -99,7 +112,64 @@ impl Manager {
     pub fn new(config_dir: PathBuf, default_root: PathBuf) -> Result<Self, StorageError> {
         fs::create_dir_all(&config_dir).map_err(io_error)?;
         let lock = lock_file(&config_dir.join("instance.lock"))?;
-        Ok(Self { locator: config_dir.join("data-root.json"), default_root, store: None, _instance_lock: lock })
+        let mut manager = Self { locator: config_dir.join("data-root.json"), default_root, store: None, _instance_lock: lock, root_change_notice: None };
+        let pending = config_dir.join("pending-data-root.json");
+        if pending.is_file() {
+            let result = manager.apply_root_change(&pending);
+            manager.root_change_notice = Some(match &result {
+                Ok(()) => "数据目录已更改，旧目录仍保留。".into(),
+                Err(error) => format!("更改未完成，仍使用原目录：{}", error.message),
+            });
+            // Keep the request as a receipt; a failed copy is never retried onto
+            // its partial destination or silently promoted on a later start.
+            let receipt = config_dir.join(format!("data-root-change-{}-{}.json", if result.is_ok() { "done" } else { "failed" }, chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()));
+            fs::rename(&pending, receipt).map_err(io_error)?;
+        }
+        Ok(manager)
+    }
+    pub fn schedule_root_change(&mut self, destination: &Path, mode: &str) -> Result<(), StorageError> {
+        if !["migrate", "switch"].contains(&mode) { return Err(StorageError::new("root_change_mode", "请选择迁移或切换。")); }
+        let store = self.store()?;
+        let destination = crate::data_root_change::target(&store.root, destination, mode == "migrate")?;
+        let request = RootChange { source: store.root.clone(), identity: store.identity.clone(), destination, mode: mode.into() };
+        let file = self.locator.with_file_name("pending-data-root.json");
+        if file.exists() { return Err(StorageError::new("root_change_pending", "已有目录更改等待下次启动处理，请先正常退出并重新打开。")); }
+        let mut pending = tempfile::NamedTempFile::new_in(file.parent().unwrap()).map_err(io_error)?;
+        pending.disable_cleanup(true);
+        pending.write_all(&serde_json::to_vec(&request).map_err(|_| io_error(std::io::ErrorKind::InvalidData.into()))?).map_err(io_error)?;
+        pending.as_file().sync_all().map_err(io_error)?;
+        pending.persist_noclobber(file).map_err(|_| StorageError::new("root_change_pending", "目录更改计划未保存，原目录仍在使用。"))?;
+        self.root_change_notice = Some("已安排更改数据目录；请正常退出并重新打开，旧目录会保留。".into());
+        Ok(())
+    }
+    pub fn cancel_root_change(&mut self) -> Result<(), StorageError> {
+        let pending = self.locator.with_file_name("pending-data-root.json");
+        if pending.exists() {
+            fs::rename(&pending, pending.with_file_name(format!("data-root-change-cancelled-{}.json", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()))).map_err(io_error)?;
+        }
+        self.root_change_notice = None;
+        Ok(())
+    }
+    fn apply_root_change(&mut self, pending: &Path) -> Result<(), StorageError> {
+        let bytes = fs::read(pending).map_err(io_error)?;
+        if bytes.len() > 32768 { return Err(StorageError::new("root_change_invalid", "目录更改计划无效。")); }
+        let request: RootChange = serde_json::from_slice(&bytes).map_err(|_| StorageError::new("root_change_invalid", "目录更改计划无法读取，原定位保留。"))?;
+        if !["migrate", "switch"].contains(&request.mode.as_str()) { return Err(StorageError::new("root_change_invalid", "目录更改方式无效。")); }
+        let store = self.store()?;
+        if store.root != request.source || store.identity != request.identity { return Err(StorageError::new("root_changed", "原数据目录已变化，未执行旧的更改计划。")); }
+        let target = crate::data_root_change::target(&store.root, &request.destination, request.mode == "migrate")?;
+        if request.mode == "migrate" { crate::data_root_change::copy(&store.root, &target, &store.db)?; }
+        let next = Store::open(&target, false)?;
+        let locator = Locator { version: 1, root: next.root.clone(), identity: next.identity.clone() };
+        let mut backup = tempfile::Builder::new().prefix("data-root-before-").suffix(".json").tempfile_in(self.locator.parent().unwrap()).map_err(io_error)?;
+        backup.disable_cleanup(true); backup.write_all(&fs::read(&self.locator).map_err(io_error)?).map_err(io_error)?; backup.as_file().sync_all().map_err(io_error)?;
+        let mut replacement = tempfile::NamedTempFile::new_in(self.locator.parent().unwrap()).map_err(io_error)?;
+        replacement.disable_cleanup(true);
+        replacement.write_all(&serde_json::to_vec(&locator).map_err(|_| StorageError::new("locator_invalid", "数据目录定位无法保存。"))?).map_err(io_error)?;
+        replacement.as_file().sync_all().map_err(io_error)?;
+        replacement.persist(&self.locator).map_err(|_| StorageError::new("locator_save_failed", "新目录已核对，但定位保存失败，仍使用原目录。"))?;
+        self.store = Some(next);
+        Ok(())
     }
     pub fn workspace(&mut self) -> Result<Workspace, StorageError> {
         if self.store.is_none() && self.locator.try_exists().map_err(io_error)? {
@@ -118,11 +188,12 @@ impl Manager {
             root: self.store.as_ref().map(|s| s.root.to_string_lossy().into_owned()),
             default_root: self.default_root.to_string_lossy().into_owned(),
             todos: match &self.store { Some(s) => s.todos()?, None => vec![] },
+            root_change_notice: self.root_change_notice.clone(),
         })
     }
     pub fn select_root(&mut self, root: &Path) -> Result<Workspace, StorageError> {
         if self.store.is_some() || self.locator.try_exists().map_err(io_error)? {
-            return Err(StorageError::new("root_already_selected", "已有数据目录；完整迁移与切换将在数据保障阶段接入，不会直接改为新空库。"));
+            return Err(StorageError::new("root_already_selected", "已有数据目录，请在设置 → 数据目录 → 更改数据目录中迁移或切换。"));
         }
         let store = Store::open(root, true)?;
         let locator = Locator { version: 1, root: store.root.clone(), identity: store.identity.clone() };
@@ -162,14 +233,67 @@ fn initialize_schema(db: &mut Connection) -> Result<(), StorageError> {
         INSERT INTO app_meta VALUES ('identity', lower(hex(randomblob(16))));
         CREATE TABLE todos (id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 500), due_date TEXT,
             project_id TEXT, completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)), revision INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))) STRICT;").map_err(db_error)?;
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1))) STRICT;").map_err(db_error)?;
     crate::projects::create_schema(&tx)?;
+    crate::ideas::create_schema(&tx)?;
+    crate::news_store::create_schema(&tx)?;
+    crate::news_editorial_store::create_schema(&tx)?;
+    crate::news_reader_store::create_schema(&tx)?;
+    crate::news_scope::create_schema(&tx)?;
+    crate::news_reset::create_schema(&tx)?;
+    crate::bookkeeping::create_schema(&tx)?;
+    crate::agent_store::create_schema(&tx)?;
+    crate::task_panel_store::create_schema(&tx)?;
+    crate::task_panel_projects::create_schema(&tx)?;
+    tx.execute("INSERT INTO app_meta(key,value) VALUES('task_panel_schema','14')", []).map_err(db_error)?;
     tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(db_error)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
     tx.commit().map_err(db_error)
 }
 
+// The two independent branches both shipped version 3 with different schemas.
+// Recognize each complete legacy layout before any migration; never reinterpret
+// a version number, rebuild partial tables, or lower a database version.
+fn legacy_modules(db: &Connection, version: i64) -> Result<(bool, bool, bool), StorageError> {
+    let incompatible = || StorageError::new("incompatible_database", "数据库版本与模块结构不一致，未迁移或覆盖。请保留原目录并核对来源版本。");
+    let group = |names: &[&str]| -> Result<bool, StorageError> {
+        let mut count = 0;
+        for name in names {
+            if db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?1)", [name], |r| r.get::<_, bool>(0)).map_err(db_error)? { count += 1; }
+        }
+        if count == 0 { Ok(false) } else if count == names.len() { Ok(true) } else { Err(incompatible()) }
+    };
+    let ideas = group(&["ideas", "idea_requests"])?;
+    let news = group(&["news_sources", "news_source_requests", "news_batches", "news_runs", "news_materials", "news_material_keys"])?;
+    let editorial = group(&["news_preferences", "news_preference_requests", "news_editorial_runs", "news_events", "news_event_versions", "news_processed", "news_editions", "news_automation_sources"])?;
+    let recognized = match version {
+        1 | 2 => !ideas && !news && !editorial,
+        3 => ideas != news && !editorial,
+        4 => !ideas && news && editorial,
+        5..=branch_schema::AGENT_SCHEMA_VERSION => ideas && news && editorial,
+        _ => false,
+    };
+    if !recognized { return Err(incompatible()); }
+    if ideas { crate::ideas::validate_schema(db)?; }
+    if news { crate::news_store::validate_schema(db)?; }
+    if editorial { crate::news_editorial_store::validate_schema(db)?; }
+    if version>=6 {crate::news_reader_store::validate_schema(db)?;}else{
+        let present:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name IN ('news_bodies','news_articles','news_step_receipts','news_story_digests','news_reader_editions'))",[],|r|r.get(0)).map_err(db_error)?;
+        if present{return Err(incompatible());}
+    }
+    if version>=7{crate::news_scope::validate_schema(db)?;}
+    if version>=8{crate::news_reset::validate_schema(db)?;}
+    if version>=12{crate::news_reset::validate_history_schema(db)?;}
+    let has_bookkeeping=group(&["bookkeeping_expenses","bookkeeping_receipts","bookkeeping_requests"])?;
+    if has_bookkeeping!=(version>=9){return Err(incompatible());}
+    if has_bookkeeping{if version>=10{crate::bookkeeping::validate_schema(db)?;}else{crate::bookkeeping::validate_legacy_schema(db)?;}}
+    Ok((ideas, news, editorial))
+}
+
 impl Store {
+    pub(crate) fn from_task_workspace(root:PathBuf,db:Connection,identity:String,lock:File,workspace:PathBuf)->Self {
+        Self { root, db, identity, task_workspace:Some(workspace), _lock:lock }
+    }
     pub fn open(root: &Path, allow_create: bool) -> Result<Self, StorageError> {
         Self::open_with_initializer(root, allow_create, initialize_schema)
     }
@@ -225,7 +349,10 @@ impl Store {
         db.busy_timeout(Duration::from_secs(5)).map_err(db_error)?;
         let id: i64 = db.pragma_query_value(None, "application_id", |r| r.get(0)).map_err(db_error)?;
         let version: i64 = db.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(db_error)?;
-        if id != APPLICATION_ID || !(1..=SCHEMA_VERSION).contains(&version) { return Err(StorageError::new("incompatible_database", "所选数据库不是受支持的 AZCine 数据版本，未迁移或覆盖。")); }
+        if id != APPLICATION_ID { return Err(StorageError::new("incompatible_database", "所选数据库不是 AZCine 数据库，未迁移或覆盖。")); }
+        if !branch_schema::supports(version) {
+            return Err(StorageError::new("incompatible_database", &format!("数据库版本为 {version}，当前程序支持已识别的业务 1–16 版及任务面板旧分支结构。请使用兼容版本打开；未迁移或覆盖。")));
+        }
         let integrity: String = db.query_row("PRAGMA quick_check", [], |r| r.get(0)).map_err(db_error)?;
         if integrity != "ok" { return Err(StorageError::new("damaged_database", "数据库完整性检查失败，请保留原目录并使用有效备份恢复。")); }
         let identity: String = db.query_row("SELECT value FROM app_meta WHERE key='identity'", [], |r| r.get(0)).map_err(db_error)?;
@@ -234,57 +361,81 @@ impl Store {
         }
         // Validate required schema before a first selection can persist its locator.
         db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos LIMIT 0").map_err(db_error)?;
+        let (has_ideas, has_news, has_editorial) = legacy_modules(&db, version)?;
+        let branch = branch_schema::inspect(&db, version)?;
         // Retain the journal file instead of deleting test artifacts after each commit.
         // S13 exports a consistent snapshot, not a copy of an active journal.
         configure_journal(&db)?;
         db.pragma_update(None, "foreign_keys", true).map_err(db_error)?;
-        if version == 1 {
-            // Only the recognized S01 version is upgraded. DDL, triggers and version
-            // advance atomically; existing identity/todos are never rebuilt.
+        if version < SCHEMA_VERSION || branch.task_panel_version < branch_schema::TASK_PANEL_SCHEMA_VERSION || branch.needs_marker {
+            // All additions and the version advance commit together. Existing
+            // identity, records, request receipts and ranking snapshots stay intact.
             let tx = db.transaction().map_err(db_error)?;
-            let invalid_links: i64 = tx.query_row("SELECT count(*) FROM todos WHERE project_id IS NOT NULL", [], |row| row.get(0)).map_err(db_error)?;
-            if invalid_links != 0 { return Err(StorageError::new("incompatible_database", "旧数据库已有未知项目关联，未迁移或丢弃记录，请先核对。")); }
-            crate::projects::create_schema(&tx)?;
+            if version == 1 {
+                let invalid_links: i64 = tx.query_row("SELECT count(*) FROM todos WHERE project_id IS NOT NULL", [], |row| row.get(0)).map_err(db_error)?;
+                if invalid_links != 0 { return Err(StorageError::new("incompatible_database", "旧数据库已有未知项目关联，未迁移或丢弃记录，请先核对。")); }
+                crate::projects::create_schema(&tx)?;
+            }
+            tx.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
+            tx.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
+            if !has_ideas { crate::ideas::create_schema(&tx)?; }
+            if !has_news { crate::news_store::create_schema(&tx)?; }
+            if !has_editorial { crate::news_editorial_store::create_schema(&tx)?; }
+            if version<6{crate::news_reader_store::create_schema(&tx)?;}
+            if version<7{crate::news_scope::create_schema(&tx)?;}
+            if version<8{crate::news_reset::create_schema(&tx)?;}
+            if version<9{crate::bookkeeping::create_schema(&tx)?;}
+            if version==9{tx.execute_batch("ALTER TABLE bookkeeping_expenses ADD COLUMN exchange TEXT;").map_err(db_error)?;}
+            if version<11{crate::projects::create_deletion_schema(&tx)?;}
+            if version<12{crate::news_reset::create_history_schema(&tx)?;}
+            if branch.agent_version<13{crate::agent_store::create_schema(&tx)?;}else if branch.agent_version<14{crate::agent_store::upgrade_schema13(&tx)?;}
+            if (13..15).contains(&branch.agent_version){crate::agent_store::create_deletion_schema(&tx)?;}
+            if branch.agent_version<16{tx.execute_batch("ALTER TABLE todos ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1));").map_err(db_error)?;}
             tx.pragma_update(None, "user_version", SCHEMA_VERSION).map_err(db_error)?;
+            if branch.task_panel_version<13{crate::task_panel_store::create_schema(&tx)?;}
+            if branch.task_panel_version<14{crate::task_panel_projects::create_schema(&tx)?;}
+            crate::task_panel_store::validate_schema(&tx)?;
+            crate::task_panel_projects::validate_schema(&tx)?;
+            tx.execute("INSERT INTO app_meta(key,value) VALUES('task_panel_schema','14') ON CONFLICT(key) DO UPDATE SET value=excluded.value", []).map_err(db_error)?;
             tx.commit().map_err(db_error)?;
         }
+        db.prepare("SELECT deleted FROM todos LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,name,content,revision,created_at FROM projects LIMIT 0").map_err(db_error)?;
         db.prepare("SELECT id,input,result FROM project_requests LIMIT 0").map_err(db_error)?;
+        crate::projects::validate_deletion_schema(&db)?;
+        crate::ideas::validate_schema(&db)?;
+        crate::news_store::validate_schema(&db)?;
+        crate::news_editorial_store::validate_schema(&db)?;
+        crate::news_reader_store::validate_schema(&db)?;
+        crate::news_scope::validate_schema(&db)?;
+        crate::news_reset::validate_schema(&db)?;
+        crate::news_reset::validate_history_schema(&db)?;
+        crate::bookkeeping::validate_schema(&db)?;
+        crate::agent_store::validate_schema(&db)?;
+        crate::task_panel_store::validate_schema(&db)?;
+        crate::task_panel_projects::validate_schema(&db)?;
+        crate::portable_data::prepare(&mut db, &root)?;
+        crate::news_reset::recover_files(&root,&db)?;
+        crate::news_store::recover_runs(&db, &root)?;
+        crate::news_editorial_store::recover(&db)?;
+        crate::news_reader_store::recover(&db)?;
         for dir in ["attachments", "snapshots", "pi/agent", "pi/sessions", "config", "logs", "backups"] { fs::create_dir_all(root.join(dir)).map_err(io_error)?; }
-        Ok(Self { root, db, identity, _lock: lock })
+        Ok(Self { root, db, identity, task_workspace: None, _lock: lock })
     }
     pub fn todos(&self) -> Result<Vec<Todo>, StorageError> {
-        let mut query = self.db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos ORDER BY completed, due_date IS NULL, due_date,created_at,id").map_err(db_error)?;
+        let mut query = self.db.prepare("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE deleted=0 ORDER BY completed, due_date IS NULL, due_date,created_at,id").map_err(db_error)?;
         query.query_map([], todo_row).map_err(db_error)?.collect::<Result<Vec<_>, _>>().map_err(db_error)
     }
     fn todo(&self, id: &str) -> Result<Option<Todo>, StorageError> {
         self.db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?1", [id], todo_row).optional().map_err(db_error)
     }
-    pub fn create_todo(&mut self, input: CreateTodo) -> Result<Todo, StorageError> {
-        let title = input.title.trim();
-        if title.is_empty() || title.chars().count() > 500 { return Err(StorageError::new("invalid_title", "请填写 1–500 字的待办标题。")); }
-        validate_id(&input.id)?;
-        if let Some(date) = &input.due_date { if !valid_date(date) { return Err(StorageError::new("invalid_date", "日期需为有效的完整年月日（YYYY-MM-DD）；也可不填。")); } }
-        if let Some(project_id) = &input.project_id {
-            if validate_id(project_id).is_err() || !self.db.query_row("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?1)", [project_id], |row| row.get::<_, bool>(0)).map_err(db_error)? {
-                return Err(StorageError::new("invalid_project", "关联的公司项目不存在，请重新选择；不会创建虚构项目。"));
-            }
-        }
-        if let Some(existing) = self.todo(&input.id)? {
-            if existing.title == title && existing.due_date == input.due_date && existing.project_id == input.project_id { return Ok(existing); }
-            return Err(StorageError::new("request_conflict", "此保存请求已经用于另一条记录，请重新核对，不会重复创建或覆盖。"));
-        }
-        self.db.execute("INSERT INTO todos(id,title,due_date,project_id) VALUES (?1,?2,?3,?4)", params![input.id, title, input.due_date, input.project_id]).map_err(db_error)?;
-        self.todo(&input.id)?.ok_or_else(|| StorageError::new("save_uncertain", "保存结果尚未确认，请重试同一请求，不会重复建项。"))
-    }
+    pub fn create_todo(&mut self, input: CreateTodo) -> Result<Todo, StorageError> { create_todo_in(&self.db,input) }
     pub fn complete_todo(&mut self, id: &str, revision: i64, completed: bool) -> Result<Todo, StorageError> {
-        validate_id(id)?;
-        let changed = self.db.execute("UPDATE todos SET completed=?1,revision=revision+1 WHERE id=?2 AND revision=?3", params![completed, id, revision]).map_err(db_error)?;
-        if changed != 1 { return Err(StorageError::new("stale_record", "这条待办已改变，请刷新列表后再操作；没有覆盖新状态。")); }
-        self.todo(id)?.ok_or_else(|| StorageError::new("record_missing", "待办不存在，请刷新列表。"))
+        complete_todo_in(&self.db,id,revision,completed)
     }
+    pub fn set_todo_deleted(&mut self,id:&str,revision:i64,deleted:bool)->Result<serde_json::Value,StorageError>{let tx=self.db.transaction().map_err(db_error)?;let result=set_todo_deleted_in(&tx,id,revision,deleted)?;tx.commit().map_err(db_error)?;Ok(result)}
 }
-fn todo_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
+pub(crate) fn todo_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     Ok(Todo { id: row.get(0)?, title: row.get(1)?, due_date: row.get(2)?, project_id: row.get(3)?, completed: row.get(4)?, revision: row.get(5)?, created_at: row.get(6)? })
 }
 fn validate_id(id: &str) -> Result<(), StorageError> {
@@ -458,3 +609,43 @@ mod tests {
         let mut m=Manager::new(local,root.clone()).unwrap();assert_eq!(m.workspace().unwrap_err().code,"root_missing");assert!(!root.exists());
     }
 }
+
+
+pub(crate) fn complete_todo_in(db:&Connection,id:&str,revision:i64,completed:bool)->Result<Todo,StorageError>{
+        validate_id(id)?;
+        let changed = db.execute("UPDATE todos SET completed=?1,revision=revision+1 WHERE id=?2 AND revision=?3 AND deleted=0", params![completed, id, revision]).map_err(db_error)?;
+        if changed != 1 { return Err(StorageError::new("stale_record", "这条待办已改变，请刷新列表后再操作；没有覆盖新状态。")); }
+        db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?", [id], todo_row).optional().map_err(db_error)?.ok_or_else(|| StorageError::new("record_missing", "待办不存在，请刷新列表。"))
+}
+
+pub(crate) fn todo_in(db:&Connection,id:&str)->Result<Option<Todo>,StorageError>{db.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?",[id],todo_row).optional().map_err(db_error)}
+pub(crate) fn create_todo_in(db:&Connection,input:CreateTodo)->Result<Todo,StorageError>{
+        validate_todo_creation(db,&input)?;let title=input.title.trim();
+        if let Some(existing) = todo_in(db,&input.id)? {
+            if db.query_row("SELECT deleted FROM todos WHERE id=?",[&input.id],|row|row.get::<_,bool>(0)).map_err(db_error)?{return Err(StorageError::new("record_deleted","这条待办已删除，未重复创建或恢复。"));}
+            if existing.title == title && existing.due_date == input.due_date && existing.project_id == input.project_id { return Ok(existing); }
+            return Err(StorageError::new("request_conflict", "此保存请求已经用于另一条记录，请重新核对，不会重复创建或覆盖。"));
+        }
+        db.execute("INSERT INTO todos(id,title,due_date,project_id) VALUES (?1,?2,?3,?4)", params![input.id, title, input.due_date, input.project_id]).map_err(db_error)?;
+        todo_in(db,&input.id)?.ok_or_else(|| StorageError::new("save_uncertain", "保存结果尚未确认，请重试同一请求，不会重复建项。"))
+}
+pub(crate) fn set_todo_deleted_in(tx:&Connection,id:&str,revision:i64,deleted:bool)->Result<serde_json::Value,StorageError>{
+        validate_id(id)?;
+        let (actual,state):(i64,bool)=tx.query_row("SELECT revision,deleted FROM todos WHERE id=?",[id],|row|Ok((row.get(0)?,row.get(1)?))).optional().map_err(db_error)?.ok_or_else(||StorageError::new("record_missing","待办不存在，请重新读取。"))?;
+        if actual!=revision&&!(revision.checked_add(1)==Some(actual)&&state==deleted){return Err(StorageError::new("record_conflict","待办已变化，未删除或恢复；请重新读取核对。"));}
+        if actual==revision&&state!=deleted{tx.execute("UPDATE todos SET deleted=?,revision=revision+1 WHERE id=? AND revision=?",params![deleted,id,revision]).map_err(db_error)?;}
+        let todo=tx.query_row("SELECT id,title,due_date,project_id,completed,revision,created_at FROM todos WHERE id=?",[id],todo_row).map_err(db_error)?;
+        Ok(serde_json::json!({"todo":todo,"deleted":deleted}))
+}
+
+pub(crate) fn validate_todo_creation(db:&Connection,input:&CreateTodo)->Result<(),StorageError>{
+        let title = input.title.trim();
+        if title.is_empty() || title.chars().count() > 500 { return Err(StorageError::new("invalid_title", "请填写 1–500 字的待办标题。")); }
+        validate_id(&input.id)?;
+        if let Some(date) = &input.due_date { if !valid_date(date) { return Err(StorageError::new("invalid_date", "日期需为有效的完整年月日（YYYY-MM-DD）；也可不填。")); } }
+        if let Some(project_id) = &input.project_id {
+            if validate_id(project_id).is_err() || !db.query_row("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?1)", [project_id], |row| row.get::<_, bool>(0)).map_err(db_error)? {
+                return Err(StorageError::new("invalid_project", "关联的公司项目不存在，请重新选择；不会创建虚构项目。"));
+            }
+        }
+Ok(())}

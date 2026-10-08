@@ -1,13 +1,14 @@
-//! Read-only index of application-owned Pi v3 session JSONL files.
+//! Read-only indexes and display views of application-owned Pi v3 JSONL files.
 //!
-//! This module never writes JSONL, migrates sessions, reconstructs conversation
-//! context, starts Pi, or retains message bodies in returned summaries.
+//! This module never writes JSONL, migrates sessions, rebuilds Pi's model
+//! context or starts Pi. Summaries contain no message bodies; display views
+//! contain projected messages on the last native branch.
 //!
 //! Bounds:
 //! - at most four directories below the sessions root;
 //! - at most 5,000 regular JSONL file candidates are opened per listing;
-//! - at most 64 MiB per file;
-//! - at most 16 MiB per physical line, excluding LF, including CR/BOM.
+//! - per-file and per-line bounds account for four 50 MiB images plus overhead;
+//! - physical line bounds exclude LF and include CR/BOM.
 //!
 //! `unreadable` counts rejected files and skipped/unreadable filesystem entries
 //! or subtrees. A skipped subtree counts once; its contents are not enumerated.
@@ -25,8 +26,8 @@ use std::path::{Component, Path};
 
 const MAX_DIRECTORY_DEPTH: usize = 4;
 const MAX_FILE_CANDIDATES: usize = 5_000;
-const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_FILE_BYTES: u64 = crate::pi_image_limits::MAX_IMAGE_HISTORY_BYTES as u64;
+const MAX_LINE_BYTES: usize = crate::pi_image_limits::MAX_IMAGE_RPC_BYTES;
 
 const MAX_ID_BYTES: usize = 1_024;
 const MAX_NAME_BYTES: usize = 4_096;
@@ -99,20 +100,8 @@ fn changed_error() -> ConfigError {
     )
 }
 
-fn linked(metadata: &Metadata) -> bool {
-    if metadata.file_type().is_symlink() {
-        return true;
-    }
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        if metadata.file_attributes() & 0x400 != 0 {
-            return true;
-        }
-    }
-
-    false
+fn linked(path: &Path, metadata: &Metadata) -> bool {
+    crate::pi_launch_plan::linked_path(path, metadata).unwrap_or(true)
 }
 
 /// PiPaths::prepare produces canonical owned paths. Recheck the root and every
@@ -137,14 +126,14 @@ fn check_sessions_root(paths: &PiPaths) -> Result<(), ConfigError> {
 
     let mut current = paths.root.clone();
     let metadata = fs::symlink_metadata(&current).map_err(|_| root_error())?;
-    if linked(&metadata) || !metadata.is_dir() {
+    if linked(&current, &metadata) || !metadata.is_dir() {
         return Err(root_error());
     }
 
     for part in relative.components() {
         current.push(part);
         let metadata = fs::symlink_metadata(&current).map_err(|_| root_error())?;
-        if linked(&metadata) || !metadata.is_dir() {
+        if linked(&current, &metadata) || !metadata.is_dir() {
             return Err(root_error());
         }
     }
@@ -188,7 +177,7 @@ fn check_session_depth(paths: &PiPaths, path: &Path) -> Result<(), ConfigError> 
 
 fn regular_file_metadata(path: &Path) -> Result<Metadata, ConfigError> {
     let metadata = fs::symlink_metadata(path).map_err(|_| read_error())?;
-    if linked(&metadata) || !metadata.is_file() {
+    if linked(path, &metadata) || !metadata.is_file() {
         return Err(read_error());
     }
     if metadata.len() > MAX_FILE_BYTES {
@@ -213,7 +202,7 @@ fn open_read_only(path: &Path) -> Result<File, ConfigError> {
 }
 
 fn same_observed_file(before: &Metadata, after: &Metadata) -> Result<(), ConfigError> {
-    if linked(after)
+    if after.file_type().is_symlink()
         || !after.is_file()
         || before.len() != after.len()
         || before.modified().map_err(|_| read_error())?
@@ -227,6 +216,14 @@ fn same_observed_file(before: &Metadata, after: &Metadata) -> Result<(), ConfigE
 pub fn validate_session(
     paths: &PiPaths,
     path: &Path,
+) -> Result<SessionSummary, ConfigError> {
+    validate_session_observed(paths,path,|_|Ok(()))
+}
+
+fn validate_session_observed(
+    paths: &PiPaths,
+    path: &Path,
+    observe: impl FnMut(&Map<String,Value>)->Result<(),ConfigError>,
 ) -> Result<SessionSummary, ConfigError> {
     check_sessions_root(paths)?;
     // Pi can return a normal DOS path while our root is canonical \\?\ form.
@@ -243,7 +240,7 @@ pub fn validate_session(
     same_observed_file(&before, &opened)?;
 
     let mut reader = BufReader::new(file);
-    let (mut summary, bytes_read) = parse_session(&mut reader)?;
+    let (mut summary, bytes_read) = parse_session_observed(&mut reader,observe)?;
 
     let after = reader.get_ref().metadata().map_err(|_| read_error())?;
     same_observed_file(&opened, &after)?;
@@ -266,6 +263,30 @@ pub fn validate_session(
 
     summary.path = display_path;
     Ok(summary)
+}
+
+/// Display the last native branch without starting Pi or rebuilding its model
+/// context. Native JSONL stays unchanged; only whitelisted message fields leave
+/// this reader. Live/resumed context continues to come from official RPC.
+pub fn read_message_view(paths:&PiPaths,path:&Path)->Result<(SessionSummary,Value),ConfigError>{
+    let mut entries=std::collections::HashMap::<String,(Option<String>,Option<Value>)>::new();
+    let mut leaf=None;
+    let summary=validate_session_observed(paths,path,|entry|{
+        let is_message=entry.get("type").and_then(Value::as_str)==Some("message");
+        let Some(id)=entry.get("id").and_then(Value::as_str)else{return if is_message{Err(format_error())}else{Ok(())};};
+        if id.is_empty()||id.len()>MAX_ID_BYTES||entries.len()>=100_000{return Err(limit_error());}
+        let parent=match entry.get("parentId"){None|Some(Value::Null)=>None,Some(Value::String(value))if value.len()<=MAX_ID_BYTES=>Some(value.clone()),_=>return Err(format_error())};
+        let message=if is_message{Some(crate::pi_projection::message(entry.get("message").ok_or_else(format_error)?))}else{None};
+        if entries.insert(id.to_owned(),(parent,message)).is_some(){return Err(format_error());}
+        leaf=Some(id.to_owned());Ok(())
+    })?;
+    let mut messages=Vec::new();
+    while let Some(id)=leaf{
+        let (parent,message)=entries.remove(&id).ok_or_else(format_error)?;
+        if let Some(message)=message{if messages.len()>=20_000{return Err(limit_error());}messages.push(message);}
+        leaf=parent;
+    }
+    messages.reverse();Ok((summary,Value::Array(messages)))
 }
 
 pub fn list_sessions(paths: &PiPaths) -> Result<SessionList, ConfigError> {
@@ -323,7 +344,7 @@ fn walk(
             }
         };
 
-        if linked(&metadata) {
+        if linked(&path, &metadata) {
             count_unreadable(result);
             continue;
         }
@@ -337,7 +358,7 @@ fn walk(
             // Recheck immediately before entering, without following a known
             // junction or symbolic link.
             let checked = fs::symlink_metadata(&path);
-            if !matches!(checked, Ok(ref meta) if meta.is_dir() && !linked(meta)) {
+            if !matches!(checked, Ok(ref meta) if meta.is_dir() && !linked(&path, meta)) {
                 count_unreadable(result);
                 continue;
             }
@@ -450,6 +471,10 @@ fn parse_object(line: &[u8], first: bool) -> Result<Map<String, Value>, ConfigEr
 fn parse_session<R: BufRead>(
     reader: &mut R,
 ) -> Result<(SessionSummary, u64), ConfigError> {
+    parse_session_observed(reader,|_|Ok(()))
+}
+
+fn parse_session_observed<R:BufRead>(reader:&mut R,mut observe:impl FnMut(&Map<String,Value>)->Result<(),ConfigError>)->Result<(SessionSummary,u64),ConfigError>{
     let mut line = Vec::new();
     let mut total = 0u64;
 
@@ -511,8 +536,9 @@ fn parse_session<R: BufRead>(
                     _ => return Err(format_error()),
                 };
             }
-            // Unknown entry types are compatible. We neither interpret their
-            // content nor reconstruct any branch/context from their fields.
+            // Unknown entries remain compatible with the metadata index. The
+            // display observer follows their parent links without using their
+            // contents to rebuild Pi's model context.
             _ => {}
         }
 
@@ -524,6 +550,7 @@ fn parse_session<R: BufRead>(
             // Last valid timestamp in physical file order, not the maximum.
             summary.updated_at = timestamp.to_owned();
         }
+        observe(&entry)?;
     }
 
     Ok((summary, total))
