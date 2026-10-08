@@ -11,6 +11,7 @@ export const pages = [
   { id: 'agent', title: 'Agent', icon: 'agent' },
   { id: 'task-panel', title: '任务面板', icon: 'task-panel' },
   { id: 'jobs', title: '后台任务', icon: 'jobs' },
+  { id: 'dev-environment', title: '开发环境', icon: 'dev-environment' },
   { id: 'resources', title: '规则与资源', icon: 'resources' },
   { id: 'settings', title: '设置', icon: 'settings' },
 ] as const;

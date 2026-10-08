@@ -7,6 +7,11 @@
   ],
   "permissions": [
     "core:default",
+    "allow-dev-environment-inspect",
+    "allow-dev-environment-status",
+    "allow-dev-environment-export",
+    "allow-dev-environment-cancel",
+    "allow-dev-environment-open",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",

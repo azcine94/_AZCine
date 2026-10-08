@@ -1,6 +1,7 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "dev_environment_inspect", "dev_environment_status", "dev_environment_export", "dev_environment_cancel", "dev_environment_open",
             "task_panel_launch", "task_panel_worktree", "task_panel_workspace_forget",
         "task_panel_workspace_open", "task_panel_workspaces", "task_panel_agent_access", "task_panel_agent_accesses", "task_panel_agent_revoke", "task_panel_validation_identity", "task_panel_list", "task_panel_mutate", "task_panel_graph", "task_panel_changes", "task_panel_context", "task_panel_context_get", "task_panel_imports", "task_panel_import_preview", "task_panel_import_apply", "task_panel_herdr_config", "task_panel_herdr_config_save", "task_panel_herdr_status", "task_panel_herdr_sessions", "task_panel_bind", "task_panel_focus", "task_panel_dispatch", "task_panel_execution_action", "task_panel_create_execution", "task_panel_result", "task_panel_check", "task_panel_accept", "task_panel_index", "task_panel_recovery", "task_panel_goal", "task_panel_analysis",
             "check_desktop", "storage_workspace", "select_data_root", "create_todo", "complete_todo", "set_todo_deleted", "pick_data_root", "open_data_root", "list_projects", "save_project", "project_request", "project_catalog", "set_project_deleted", "project_deletion_request",
