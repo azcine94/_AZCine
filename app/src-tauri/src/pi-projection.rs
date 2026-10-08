@@ -110,6 +110,7 @@ pub fn model(value:&Value)->Option<Value> {
     for name in ["id","name","provider","api"] {let v=key(value,name)?;if v.trim().is_empty(){return None;}out[name]=json!(v);}
     for name in ["contextWindow","maxTokens"] {let n=value.get(name)?.as_u64()?;if n==0 || n>9_007_199_254_740_991{return None;}out[name]=json!(n);}
     out["reasoning"]=json!(value.get("reasoning")?.as_bool()?);
+    if let Some(mapping)=value.get("thinkingLevelMap") { if !crate::pi_provider_config::valid_thinking_map(mapping){return None;} out["thinkingLevelMap"]=mapping.clone(); }
     let input=value.get("input")?.as_array()?;if !input.iter().all(|v|matches!(v.as_str(),Some("text"|"image"))){return None;}out["input"]=json!(input);Some(out)
 }
 pub fn state(value:&Value)->Option<Value> {

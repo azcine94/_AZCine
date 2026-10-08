@@ -70,6 +70,9 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
   const initialBinding=useRef<Promise<AgentBinding>|null>(null);
   const pendingConversation=useRef<AgentBinding|null>(null);
   const initialRoot=useRef(root);
+  const connectionRoot=useRef<string|null>(null);
+  const automaticAttempts=useRef(new Map<string,number>());
+  const pausedConnections=useRef(new Set<string>());
   const [sessions,setSessions]=useState<PiSession[]>([]),[unreadable,setUnreadable]=useState(0),[sessionError,setSessionError]=useState<string|null>(null);
   const [cwd,setCwd]=useState(''),[notice,setNotice]=useOperationNotice<string|null>(null);
   const [modelForm,setModelForm]=useState({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
@@ -111,7 +114,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     if(!desktopPi()||!rootRef.current)return;
     if(pulling.current){again.current=true;return;}
     pulling.current=true;let requestingKey=keyRef.current;
-    try{do{again.current=false;const key=keyRef.current;requestingKey=key;if(deletedKeys.current.has(key))return;const target=rootRef.current;let v=parseSnapshot(await callPi('pi_snapshot',{},key));if(v.historyReleased&&!snapshots.current[key]?.projection.messages.length)v=parseSnapshot(await callPi('agent_view_conversation',{},key));if(!mounted.current||target!==rootRef.current)return;acceptSnapshot(v,key);}while(again.current);}
+    try{do{again.current=false;const key=keyRef.current;requestingKey=key;if(deletedKeys.current.has(key))return;const target:string|null=rootRef.current;let v=parseSnapshot(await callPi('pi_snapshot',{},key));if(v.historyReleased&&!snapshots.current[key]?.projection.messages.length)v=parseSnapshot(await callPi('agent_view_conversation',{},key));if(!mounted.current||target!==rootRef.current)return;acceptSnapshot(v,key);}while(again.current);}
     catch(e){if(mounted.current&&!deletedKeys.current.has(requestingKey)&&requestingKey===keyRef.current)setError(piError(e));}
     finally{pulling.current=false;}
   },[]);
@@ -134,15 +137,32 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     sessionsReading.current=complete;return complete;
   },[]);
   useEffect(()=>{
-    mounted.current=true;let disposed=false;let unlisten:(()=>void)|undefined;
+    mounted.current=true;connectionRoot.current=null;automaticAttempts.current.clear();pausedConnections.current.clear();let disposed=false;let unlisten:(()=>void)|undefined;
     let bodyTimer:ReturnType<typeof setTimeout>|undefined,metadataTimer:ReturnType<typeof setTimeout>|undefined;
     if(root&&desktopPi())void listen<{conversationKey?:string;metadata?:boolean}>('azcine-pi-changed',event=>{
       if((!event.payload?.conversationKey||event.payload.conversationKey===keyRef.current)&&!bodyTimer)bodyTimer=setTimeout(()=>{bodyTimer=undefined;void refresh();},80);
       if(event.payload?.metadata!==false&&!metadataTimer)metadataTimer=setTimeout(()=>{metadataTimer=undefined;void refreshRuntime();},100);
     }).then(off=>{if(disposed){off();return;}unlisten=off;
-      void (async()=>{const epoch=navigationEpoch.current;beginView(epoch);try{const binding=await defaultBinding();if(disposed||rootRef.current!==root)return;transferConversation('default',binding.conversationKey);if(!binding.sessionPath)pendingConversation.current=binding;if(epoch!==navigationEpoch.current)return;await viewBinding(binding,epoch);if(!disposed){await reloadSessions();await refreshRuntime();}}finally{finishView(epoch);}})().catch(e=>{if(!disposed)setError(piError(e));});}).catch(e=>{if(!disposed)setError(piError(e));});
+      void (async()=>{const epoch=navigationEpoch.current;beginView(epoch);try{const binding=await defaultBinding();if(disposed||rootRef.current!==root)return;transferConversation('default',binding.conversationKey);if(!binding.sessionPath)pendingConversation.current=binding;if(epoch!==navigationEpoch.current)return;await viewBinding(binding,epoch);if(!disposed&&rootRef.current===root){connectionRoot.current=root;await reloadSessions();await refreshRuntime();}}finally{finishView(epoch);}})().catch(e=>{if(!disposed)setError(piError(e));});}).catch(e=>{if(!disposed)setError(piError(e));});
     return()=>{disposed=true;mounted.current=false;unlisten?.();clearTimeout(bodyTimer);clearTimeout(metadataTimer);};
   },[root,refresh,reloadSessions]);
+  useEffect(()=>{
+    if(!root||!desktopPi()||connectionRoot.current!==root||!snapshot)return;
+    const key=conversationKey;
+    if(snapshot.connection==='ready'){automaticAttempts.current.delete(key);return;}
+    if(viewing||action||snapshot.connection==='connecting'||snapshot.busy||snapshot.stopping||snapshot.sending||snapshot.projection.activity!=='idle'||pausedConnections.current.has(key))return;
+    // Connect only the selected conversation. Never replay a prompt, and keep
+    // explicit disconnect/cancel choices until the user connects or sends again.
+    const attempts=automaticAttempts.current.get(key)??0;
+    if(attempts>=3||!bindings.current[key])return;
+    const epoch=navigationEpoch.current;
+    const timer=window.setTimeout(()=>{
+      if(!mounted.current||rootRef.current!==root||connectionRoot.current!==root||keyRef.current!==key||navigationEpoch.current!==epoch||pausedConnections.current.has(key)||actionRef.current||viewingEpoch.current!==null||stopRef.current||snap.current?.connection==='ready'||snap.current?.connection==='connecting')return;
+      automaticAttempts.current.set(key,attempts+1);
+      void connect(undefined,false,true);
+    },[0,1000,3000][attempts]);
+    return()=>window.clearTimeout(timer);
+  },[root,conversationKey,viewing,action,snapshot?.connection,snapshot?.busy,snapshot?.stopping,snapshot?.sending,snapshot?.projection.activity]);
   useEffect(()=>{if(snapshot)resources.invalidate();},[snapshot?.generation,snapshot?.connection]);
   const draftKey=snapshot?.state?.sessionId??`unconnected:${conversationKey}`;const draft=drafts[draftKey]??emptyDraft();
   function updateDraft(key:string,transform:(d:ChatDraft)=>ChatDraft){while(transferred.current[key])key=transferred.current[key];setDrafts(before=>{const next={...before,[key]:transform(before[key]??emptyDraft())};draftRef.current=next;return next;});}
@@ -179,20 +199,30 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     if(!mounted.current||targetRoot!==rootRef.current||epoch!==navigationEpoch.current||deletedKeys.current.has(key))return;
     if(value.state)bindings.current[key]={...binding,sessionId:value.state.sessionId,sessionPath:value.state.sessionFile,cwd:value.cwd??binding.cwd,title:value.state.sessionName??binding.title};
     else if(!binding.sessionPath)pendingConversation.current=binding;
+    connectionRoot.current=targetRoot;
     acceptSnapshot(value,key);
   }
   async function connectBinding(binding:AgentBinding,session?:PiSession,reconnect=false){
+    const targetRoot=rootRef.current;
     const key=binding.conversationKey,pendingKey=`unconnected:${key}`;
     if(keyRef.current==='default')transferConversation('default',key);
     chooseKey(key);
     await operate('连接',async()=>{const v=parseSnapshot(await callPi('pi_connect',{cwd:session?.cwd??binding.cwd??(cwd.trim()||null),sessionPath:session?.path??binding.sessionPath,reconnect},key));
+      if(!mounted.current||rootRef.current!==targetRoot)return;
       if(v.state)transferDraft(pendingKey,v.state.sessionId);
       acceptSnapshot(v,key);if(v.state){bindings.current[key]={...binding,sessionId:v.state.sessionId,sessionPath:v.state.sessionFile,cwd:v.cwd??binding.cwd,title:v.state.sessionName??binding.title};if(pendingConversation.current?.conversationKey===key)pendingConversation.current=null;}await invokePi('agent_remember',{conversationKey:key});resources.invalidate();await reloadSessions();await refreshRuntime();});
   }
-  async function connect(session?:PiSession,reconnect=false){
+  async function connect(session?:PiSession,reconnect=false,automatic=false){
     if(actionRef.current||viewingEpoch.current!==null)return;
     const epoch=navigationEpoch.current;
-    try{if(session){await selectSession(session);if(navigationEpoch.current!==epoch+1||bindings.current[keyRef.current]?.sessionId!==session.id)return;}const binding=bindings.current[keyRef.current]??(keyRef.current==='default'?await defaultBinding():null);if(!binding)throw new Error('会话尚未读取成功，请重新选择；输入仍保留。');if(!session&&epoch!==navigationEpoch.current)return;await connectBinding(binding,session,reconnect);}catch(e){setError(piError(e));}
+    try{
+      if(session){await selectSession(session);if(navigationEpoch.current!==epoch+1||bindings.current[keyRef.current]?.sessionId!==session.id)return;}
+      const binding=bindings.current[keyRef.current]??(keyRef.current==='default'?await defaultBinding():null);
+      if(!binding)throw new Error('会话尚未读取成功，请重新选择；输入仍保留。');
+      if(!session&&epoch!==navigationEpoch.current)return;
+      if(!automatic){pausedConnections.current.delete(binding.conversationKey);automaticAttempts.current.delete(binding.conversationKey);}
+      await connectBinding(binding,session,reconnect);
+    }catch(e){setError(piError(e));}
   }
   async function openSource(target:AgentSource){sourceRef.current=target;setSource(target);}
   async function selectConversation(key:string){
@@ -235,14 +265,36 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     await reloadSessions();await refreshRuntime();return result;
   }
   async function deleteConversation(target:ConversationDeleteTarget):Promise<{deleted:boolean;error?:string}>{const result=await deleteConversations([target]);return{deleted:result.deleted.includes(target.sessionId),error:result.errors[0]?.error};}
-  async function disconnect(){await operate('断开',async()=>{await callPi('pi_disconnect');await reloadSessions();});}
+  async function renameConversation(target:ConversationDeleteTarget,name:string):Promise<void>{
+    const clean=name.trim();if(!clean||Array.from(clean).length>200)throw new Error('请填写 1–200 字的会话名称。');
+    if(actionRef.current||viewingEpoch.current!==null)throw new Error('正在处理其他会话操作，请稍后再试。');
+    const targetRoot=rootRef.current;actionRef.current='重命名会话';setAction('重命名会话');
+    try{
+      const history=sessions.find(row=>row.id===target.sessionId&&row.path===target.sessionPath);
+      const binding=target.conversationKey?bindings.current[target.conversationKey]??await invokePi<AgentBinding>('agent_conversation',{conversationKey:target.conversationKey}):await ensureBinding({module:'agent',page:'agent',objectId:target.sessionId});
+      const key=binding.conversationKey;
+      let state=parseSnapshot(await invokePi('pi_snapshot',{conversationKey:key}));
+      const wasReady=state.connection==='ready';
+      if(state.connection!=='ready'){
+        if(!history)throw new Error('会话记录已变化，请刷新后重试。');
+        state=parseSnapshot(await invokePi('pi_connect',{conversationKey:key,cwd:history.cwd,sessionPath:history.path,reconnect:false}));
+      }
+      if(rootRef.current!==targetRoot||state.state?.sessionId!==target.sessionId||state.state.sessionFile!==target.sessionPath)throw new Error('会话或数据目录已变化，未修改其他会话。');
+      if(wasReady&&target.generation!==null&&state.generation!==target.generation)throw new Error('会话连接已变化，请重新打开重命名。');
+      const receipt=parseSnapshot(await invokePi('pi_name_session',{conversationKey:key,generation:state.generation,sessionId:target.sessionId,name:clean}));
+      if(receipt.state?.sessionId!==target.sessionId||receipt.state.sessionName!==clean)throw new Error('重命名回执未能核对，请刷新列表确认。');
+      if(rootRef.current===targetRoot){acceptSnapshot(receipt,key);bindings.current[key]={...binding,title:clean};setSessions(before=>before.map(row=>row.id===target.sessionId?{...row,name:clean}:row));setRuntimeSummary(before=>before?{...before,conversations:before.conversations.map(row=>row.sessionId===target.sessionId?{...row,name:clean}:row)}:before);setNotice('会话已重命名。');}
+      await invokePi('agent_remember',{conversationKey:key});
+    }finally{actionRef.current=null;setAction(null);await reloadSessions();await refreshRuntime();}
+  }
+  async function disconnect(){pausedConnections.current.add(keyRef.current);await operate('断开',async()=>{await callPi('pi_disconnect');await reloadSessions();});}
   async function send(behavior:string|null){
     if(actionRef.current||viewingEpoch.current!==null)return;
     const targetRoot=rootRef.current,epoch=navigationEpoch.current,origin=keyRef.current,sentSource={...sourceRef.current};
     const current=draftRef.current[snap.current?.state?.sessionId??`unconnected:${origin}`]??emptyDraft();
     const before={text:current.text,images:[...current.images]},files=[...(fileRef.current[origin]??[])],sentObjects=[...objects.objects];
     if(!before.text.trim()&&!before.images.length&&!files.length&&!sentObjects.length)return;
-    if(snap.current?.connection!=='ready'){try{const binding=bindings.current[origin]??(origin==='default'?await defaultBinding():null);if(!binding)throw new Error('会话尚未读取成功，请重新选择；输入仍保留。');if(targetRoot!==rootRef.current||epoch!==navigationEpoch.current)return;await connectBinding(binding);}catch(e){setError(piError(e));return;}}
+    if(snap.current?.connection!=='ready'){pausedConnections.current.delete(origin);automaticAttempts.current.delete(origin);try{const binding=bindings.current[origin]??(origin==='default'?await defaultBinding():null);if(!binding)throw new Error('会话尚未读取成功，请重新选择；输入仍保留。');if(targetRoot!==rootRef.current||epoch!==navigationEpoch.current)return;await connectBinding(binding);}catch(e){setError(piError(e));return;}}
     const s=snap.current,key=s?.state?.sessionId,conversation=keyRef.current;
     if(targetRoot!==rootRef.current||epoch!==navigationEpoch.current)return;
     if(!s?.state||s.connection!=='ready'||!key){return;}
@@ -257,7 +309,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
       setNotice(disposition==='handled'?'原生命令已处理，不代表任务完成。':disposition==='queued'?'消息已排队，尚未执行完成。':'原版已接受消息，等待实际回复与终态。');
     });
   }
-  async function stop(){if(stopRef.current)return;stopRef.current=true;const s=snap.current;setError(null);try{if(s?.connection==='connecting'||s?.busy)await callPi('pi_disconnect');else if(s?.state)await callPi('pi_stop',{generation:s.generation,sessionId:s.state.sessionId});else await callPi('pi_disconnect');}catch(e){setError(piError(e));}finally{stopRef.current=false;await refresh();await reloadSessions();}}
+  async function stop(){if(stopRef.current)return;stopRef.current=true;const s=snap.current,connecting=actionRef.current==='连接'||s?.connection==='connecting';if(connecting||s?.busy||!s?.state)pausedConnections.current.add(keyRef.current);setError(null);try{if(connecting||s?.busy)await callPi('pi_disconnect');else if(s?.state)await callPi('pi_stop',{generation:s.generation,sessionId:s.state.sessionId});else await callPi('pi_disconnect');}catch(e){setError(piError(e));}finally{stopRef.current=false;await refresh();await reloadSessions();}}
   async function sessionAction(command:string,fields:Record<string,unknown>={}){if(command==='pi_new_session'){await newConversation();return;}if(command==='pi_switch_session'){const session=sessions.find(row=>row.path===fields.path);if(session)await selectSession(session);return;}const s=snap.current;if(!s?.state)return;await operate('会话操作',async()=>{await callPi(command,{generation:s.generation,sessionId:s.state!.sessionId,...fields});if(command==='pi_name_session')setSessionName('');await reloadSessions();});}
   async function saveConfiguration(command:'pi_save_model'|'pi_save_provider',input:unknown):Promise<{saved:boolean;connected:boolean;message:string}|null>{if(actionRef.current)return null;let receipt:{saved:boolean;connected:boolean;message:string}|null=null;const oldKey=draftKey;await operate('保存模型',async()=>{const result=await callPi<{saved:boolean;connected:boolean;message:string}>(command,{input});if(result.saved!==true||typeof result.connected!=='boolean'||typeof result.message!=='string')throw new Error('模型保存结果不完整，输入保留。');receipt=result;setNotice(result.message);resources.invalidate();await refresh();const id=snap.current?.state?.sessionId;if(id&&id!==oldKey)setDrafts(before=>{const next={...before};if(before[oldKey]&&!before[id])next[id]=before[oldKey];draftRef.current=next;return next;});await reloadSessions();});return receipt;}
   async function saveModel(input:ModelInput){return (await saveConfiguration('pi_save_model',input))?.saved===true;}
@@ -269,6 +321,6 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
   async function refreshStats(){const s=snap.current;if(!s?.state)return;const key=keyRef.current;try{const value=await callPi('pi_stats',{generation:s.generation,sessionId:s.state.sessionId},key);if(key===keyRef.current)setStats(value);}catch(e){setError(piError(e));}}
   async function saveLimit(replyLimit:number){try{if(!runtimeSummary)return;setRuntimeSummary(await invokePi<RuntimeSummary>('pi_save_runtime',{replyLimit,revision:runtimeSummary.revision}));setNotice('同时回复上限已保存，运行中的会话继续完成。');}catch(e){setError(piError(e));}}
   function takeEditor(){const text=snapshot?.extensions?.editor?.text;if(text===undefined)return;updateDraft(draftKey,d=>({...d,text:d.text?`${d.text}\n${text}`:text}));}
-  return {sessionPins,setSessionPinned,viewing,uiAnswers:Object.fromEntries(Object.entries(uiAnswers).filter(([key])=>key.startsWith(`${conversationKey}:`)).map(([key,value])=>[key.slice(conversationKey.length+1),value])),setUiAnswer,prepareRedo,conversationKey,source,openSource,newConversation,deleteConversation,deleteConversations,selectConversation,selectSession,runtimeSummary,refreshRuntime,saveLimit,objects,files:fileDrafts[conversationKey]??[],attachFile,removeFile,respondUi,stats,refreshStats,takeEditor,snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,saveConfiguration,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName,processChoices,chooseProcess,rememberChatScroll,readChatScroll,displayRunStart,resources};
+  return {sessionPins,setSessionPinned,viewing,uiAnswers:Object.fromEntries(Object.entries(uiAnswers).filter(([key])=>key.startsWith(`${conversationKey}:`)).map(([key,value])=>[key.slice(conversationKey.length+1),value])),setUiAnswer,prepareRedo,conversationKey,source,openSource,newConversation,deleteConversation,deleteConversations,renameConversation,selectConversation,selectSession,runtimeSummary,refreshRuntime,saveLimit,objects,files:fileDrafts[conversationKey]??[],attachFile,removeFile,respondUi,stats,refreshStats,takeEditor,snapshot,error,notice,action,connected:desktopPi(),root,draft,draftKey,setText,setImages,cwd,setCwd,sessions,unreadable,sessionError,refresh,reloadSessions,connect,disconnect,send,stop,sessionAction,saveModel,saveConfiguration,recoverQueue,acceptedInputs:acceptedInputs[draftKey]??[],recoverAccepted,modelForm,setModelForm,sessionName,setSessionName,processChoices,chooseProcess,rememberChatScroll,readChatScroll,displayRunStart,resources};
 }
 export type PiController=ReturnType<typeof usePi>;

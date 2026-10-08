@@ -1,5 +1,9 @@
+import { defaultThinkingMap, parseThinkingMap, thinkingLevels } from './pi-thinking.ts';
+import type { ThinkingLevel, ThinkingLevelMap } from './pi-thinking.ts';
 export interface ProviderModel {
   id:string; name:string; contextWindow:number; maxTokens:number; reasoning:boolean; supportsImages:boolean; baseUrl:string; api:string;
+  thinkingLevelMap?:ThinkingLevelMap; defaultThinkingLevel?:ThinkingLevel;
+  thinkingDefaultsPending?:boolean;
 }
 export interface ProviderView { provider:string; baseUrl:string; api:string; hasCredential:boolean; models:ProviderModel[] }
 export interface RemoteModel { id:string; name:string; contextWindow:number|null; maxTokens:number|null; supportsImages:boolean|null }
@@ -16,7 +20,10 @@ export function parseProviders(value:unknown):ProviderView[]{
     const models=new Set<string>();
     return {provider,baseUrl:text(v.baseUrl),api:text(v.api),hasCredential:flag(v.hasCredential),models:list(v.models).map(item=>{
       const m=object(item),id=text(m.id);if(models.has(id))throw invalid();models.add(id);
-      return {id,name:text(m.name),contextWindow:number(m.contextWindow),maxTokens:number(m.maxTokens),reasoning:flag(m.reasoning),supportsImages:flag(m.supportsImages),baseUrl:text(m.baseUrl),api:text(m.api)};
+      const defaultLevel=m.defaultThinkingLevel??'medium';if(!thinkingLevels.includes(defaultLevel as ThinkingLevel))throw invalid();
+      const mapping=parseThinkingMap(m.thinkingLevelMap);
+      const reasoning=flag(m.reasoning);
+      return {id,name:text(m.name),contextWindow:number(m.contextWindow),maxTokens:number(m.maxTokens),reasoning,supportsImages:flag(m.supportsImages),baseUrl:text(m.baseUrl),api:text(m.api),thinkingLevelMap:mapping??defaultThinkingMap(),defaultThinkingLevel:defaultLevel as ThinkingLevel,thinkingDefaultsPending:reasoning&&mapping===undefined};
     })};
   });
 }

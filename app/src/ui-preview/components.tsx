@@ -1,9 +1,11 @@
+import { ExpandableTextCell } from '../components/ui/expandable-text-cell.tsx';
 import { RecordContextMenu } from '../components/ui/record-context-menu.tsx';
 import { OperationToast, notifyOperation, useOperationNotice } from '../components/ui/operation-toast.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Button, appButtonVariants } from '../components/ui/button.tsx';
 import { AgentEntry } from '../components/ui/agent-entry.tsx';
 import { AttachmentPreview } from '../components/ui/attachment-preview.tsx';
+import { ImageViewer } from '../components/ui/image-viewer.tsx';
 import { attachmentImageData } from './data.ts';
 import { UILink } from '../components/ui/ui-link.tsx';
 import { Disclosure } from '../components/ui/disclosure.tsx';
@@ -40,9 +42,11 @@ import { ProjectAddMenu } from '../project-add-menu.tsx';
 import { TableMenu } from '../table-menu.tsx';
 import { project } from './data.ts';
 
-export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu','record-pagination'];
+export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu','record-pagination','expandable-text-cell','image-viewer'];
 export function Components({state}:{state:string}) {
+  const [cellText,setCellText]=useState('多行单元格示例\n按 F2 或点击展开编辑');
   const [date,setDate]=useState('2026-10-06'),[stage,setStage]=useState<string|null>(project.labels[0].id);
+  const [viewerOpen,setViewerOpen]=useState(state.startsWith('image-viewer'));
   const [formOpen, setFormOpen] = useState(state.startsWith('form-dialog-'));
   const [formName, setFormName] = useState(state === 'form-dialog-long' ? '长名称示例'.repeat(20) : '');
   const [month, setMonth] = useState('2026-10');
@@ -61,10 +65,10 @@ export function Components({state}:{state:string}) {
   const [renameDrafts,setRenameDrafts]=useState<Record<string,string>>({});
   function validLabel(name:string,id?:string) {const clean=name.trim();if(!clean||clean.length>80||labels.some(label=>label.id!==id&&label.name===clean)){setLabelError('请填写 1–80 字且不重复的标签名称。');return false;}setLabelError('');return true;}
   const buttonNames:Record<string,string>={'app-pill':'常规按钮','app-text':'文字操作','app-document':'文档操作','app-idea':'灵感操作','app-quiet':'Agent 次要操作','app-primary':'Agent 主操作','app-icon':'图标按钮','app-menu':'菜单项','app-control':'专用控件基础','app-reading-tab':'阅读标签','app-domain':'领域筛选','app-idea-filter':'灵感筛选','app-provider-tab':'服务商标签','app-ranking-tab':'榜单切换','app-scope':'处理范围'};
-  return <div className="catalog-components"><OperationToast/>
+  return <div className="catalog-components"><OperationToast/><ImageViewer open={viewerOpen} onOpenChange={setViewerOpen} src={state==='image-viewer-error'?'data:image/png;base64,AAAA':`data:image/png;base64,${attachmentImageData}`} name="虚构图片 · 可缩放预览"/>
     <header><h1>通用组件与项目控件</h1><p className="text-muted-foreground mt-2">这里直接使用应用组件。可以打开菜单、日历、弹层，查看焦点、悬停、禁用与选中态。</p></header>
     <div className="catalog-kit-grid">
-      <Card><CardHeader><CardTitle>附件缩略图</CardTitle><CardDescription>图片可放大；表格、PDF 和文本使用文件类型缩略图。这里使用虚构附件。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3"><AttachmentPreview value={{name:'示例.png',imageUrl:`data:image/png;base64,${attachmentImageData}`}} onRemove={()=>setNote('示例：移除图片')}/><AttachmentPreview value={{name:'镜头表.xlsx',bytes:2048}}/><AttachmentPreview value={{name:'交付说明.pdf',bytes:4096}}/></CardContent></Card>
+      <Card><CardHeader><CardTitle>附件缩略图</CardTitle><CardDescription>图片可放大；表格、PDF 和文本使用文件类型缩略图。这里使用虚构附件。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3"><Button variant="outline" onClick={()=>setViewerOpen(true)}>打开可缩放大图</Button><AttachmentPreview value={{name:'示例.png',imageUrl:`data:image/png;base64,${attachmentImageData}`}} onRemove={()=>setNote('示例：移除图片')}/><AttachmentPreview value={{name:'镜头表.xlsx',bytes:2048}}/><AttachmentPreview value={{name:'交付说明.pdf',bytes:4096}}/></CardContent></Card>
       <Card><CardHeader><CardTitle>Agent 入口</CardTitle><CardDescription>单色 ScaleLoader；运行和待回答使用虚构状态，点击切换入口选中态。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-6">
         {[{id:'idle',label:'空闲',active:0,waiting:0},{id:'active',label:'正在工作',active:2,waiting:0},{id:'waiting',label:'待回答',active:0,waiting:1},{id:'disabled',label:'禁用',active:0,waiting:0}].map(item=><div key={item.id} className="flex items-center gap-2"><AgentEntry activeCount={item.active} waitingCount={item.waiting} disabled={item.id==='disabled'} aria-expanded={agentEntryOpen===item.id} onClick={()=>setAgentEntryOpen(current=>current===item.id?null:item.id)}/><span className="text-muted-foreground text-xs">{item.label}</span></div>)}
       </CardContent></Card>
@@ -90,6 +94,7 @@ export function Components({state}:{state:string}) {
         <NativeSelect aria-label="示例选择"><NativeSelectOption>全部领域</NativeSelectOption><NativeSelectOption>视觉应用</NativeSelectOption></NativeSelect>
         <Label htmlFor="kit-month">中文月份筛选</Label><MonthInput id="kit-month" value={month} onChange={setMonth} />
         <MonthInput id="kit-month-disabled" value="" onChange={() => {}} disabled />
+        <ExpandableTextCell label="长文字单元格" value={cellText} disabled={false} onChange={setCellText} onBlur={()=>{}} onCommit={()=>{}} />
         <Textarea aria-label="描述" placeholder="填写描述" defaultValue={state==='long'?'较长的中文内容。'.repeat(40):''} />
         <Input aria-label="只读内容" readOnly value="只读资料" /><Input aria-label="禁用输入" disabled placeholder="不可编辑" />
         <div className="flex items-center gap-3"><Checkbox id="kit-checkbox"/><Label htmlFor="kit-checkbox">参与整理</Label><Switch id="kit-switch"/><Label htmlFor="kit-switch">自动采集</Label></div>

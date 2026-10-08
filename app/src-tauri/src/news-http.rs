@@ -75,7 +75,7 @@ pub fn fetch_with_proxy(value: &str, proxy: Option<&str>) -> Result<FeedResponse
 pub fn fetch_article_with_proxy(value: &str, proxy: Option<&str>) -> Result<FeedResponse, StorageError> {
     fetch_for(value, proxy, true).map_err(|error| {
         let reason=error.message.replace("订阅", "原文").replace("。未报告采集成功。", "。").replace("未报告采集成功；", "");
-        StorageError::new("news_body_fetch_failed", &format!("原文获取失败，已保留订阅摘要和来源链接。{reason}"))
+        StorageError::new(&error.code, &format!("原文获取失败，已保留订阅摘要和来源链接。{reason}"))
     })
 }
 fn fetch_for(value: &str, proxy: Option<&str>, article: bool) -> Result<FeedResponse, StorageError> {
@@ -224,7 +224,23 @@ mod windows_http {
                 url = next; continue;
             }
             if status == 407 { return Err(StorageError::new("feed_proxy_auth", "代理要求身份认证（HTTP 407）；目前支持无需登录的 HTTP / Mixed 代理端口，请核对代理设置。")); }
-            if !(200..300).contains(&status) { return Err(StorageError::new("feed_http_status", &format!("信源返回 HTTP {status}，未当作正常无新增；不自动登录或绕过访问限制。"))); }
+            if !(200..300).contains(&status) {
+                // Identify the browser challenge seen on public article links.
+                // Read only a small diagnostic prefix, never execute its scripts
+                // or treat a challenge page as an article body.
+                if article && matches!(status, 401 | 403) {
+                    let mut prefix = [0u8; 8192];
+                    let mut count = 0;
+                    if set_timeout(&request, deadline).is_ok()
+                        && unsafe { WinHttpReadData(request.0, prefix.as_mut_ptr().cast(), prefix.len() as u32, &mut count) }.is_ok() {
+                        let page = String::from_utf8_lossy(&prefix[..count as usize]);
+                        if page.contains("captcha-delivery.com") && page.contains("enable JS") {
+                            return Err(StorageError::new("news_browser_required", &format!("原报道返回浏览器验证页（HTTP {status}），需要在浏览器中完成页面加载或验证；当前仅取得订阅摘要，未取得原文。")));
+                        }
+                    }
+                }
+                return Err(StorageError::new("feed_http_status", &format!("信源返回 HTTP {status}，未当作正常无新增；不自动登录或绕过访问限制。")));
+            }
             if header(&request, WINHTTP_QUERY_CONTENT_LENGTH)?.and_then(|value| value.parse::<usize>().ok()).is_some_and(|length| length > MAX_FEED_BYTES) {
                 return Err(StorageError::new("feed_too_large", "订阅响应超过4 MiB，已停止读取，原资料保持不变。"));
             }

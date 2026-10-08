@@ -56,9 +56,9 @@ export function MessageMarkdown({text}: {text: string}) {
       const rows:string[][]=[];index+=2;
       while(index<lines.length&&lines[index].trim()){const cells=tableCells(lines[index]);if(!cells)break;rows.push(cells);index++;}
       const alignments=table.separator.map(cell=>cell.startsWith(':')&&cell.endsWith(':')?'center':cell.endsWith(':')?'right':'left');
-      blocks.push(<div className="pi-markdown-table" key={key}><Table aria-label="回复中的表格" containerProps={{tabIndex:0,role:'region','aria-label':'回复表格，可横向滚动'}}>
-        <TableHeader><TableRow>{table.header.map((cell,column)=><TableHead key={column} scope="col" style={{textAlign:alignments[column] as 'left'|'center'|'right'}}>{inline(cell)}</TableHead>)}</TableRow></TableHeader>
-        <TableBody>{rows.map((row,rowIndex)=><TableRow key={rowIndex}>{table.header.map((_,column)=><TableCell key={column} style={{textAlign:alignments[column] as 'left'|'center'|'right'}}>{inline(row[column]??'')}</TableCell>)}</TableRow>)}</TableBody>
+      blocks.push(<div className="pi-markdown-table" key={key}><Table className="table-fixed" style={{minWidth:table.header.length*160}} aria-label="回复中的表格" containerProps={{tabIndex:0,role:'region','aria-label':'回复表格，可横向滚动'}}>
+        <TableHeader><TableRow>{table.header.map((cell,column)=><TableHead className="whitespace-normal align-top [overflow-wrap:anywhere]" key={column} scope="col" style={{textAlign:alignments[column] as 'left'|'center'|'right'}}>{inline(cell)}</TableHead>)}</TableRow></TableHeader>
+        <TableBody>{rows.map((row,rowIndex)=><TableRow key={rowIndex}>{table.header.map((_,column)=><TableCell className="whitespace-normal align-top [overflow-wrap:anywhere]" key={column} style={{textAlign:alignments[column] as 'left'|'center'|'right'}}>{inline(row[column]??'')}</TableCell>)}</TableRow>)}</TableBody>
       </Table></div>);continue;
     }
     const list = line.match(/^\s*(?:([-+*])|\d+[.)])\s+(.+)$/);

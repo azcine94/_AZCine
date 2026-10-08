@@ -56,6 +56,7 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const [selectedModel,setSelectedModel]=useState(MODEL);
   const [removedSessions,setRemovedSessions]=useState<string[]>([]);
   const [sessionPins,setSessionPins]=useState<string[]>([]);
+  const [renamed,setRenamed]=useState<Record<string,string>>({});
   const [drafts,setDrafts]=useState<Record<string,string>>({}),[sessionName,setSessionName]=useState(''),[notice,setNotice]=useOperationNotice<string|null>(null);
   const [choices,setChoices]=useState<Record<string,boolean>>({});
   const [modelForm,setModelForm]=useState<PiController['modelForm']>({provider:'',baseUrl:'',api:'openai-completions',modelId:'',name:'',contextWindow:'128000',maxTokens:'8192',reasoning:false,supportsImages:false,apiKey:''});
@@ -64,8 +65,9 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const generation={complete:1,running:2,error:3,interrupted:4}[scenario];
   const objects=useAgentObjects(null,active.id);
   const snapshot:PiSnapshot={generation,seq:0,connection:'ready',busy:false,stopping:false,sending:false,state:{sessionId:active.id,sessionFile:active.path,sessionName:active.name,model:selectedModel,thinkingLevel:'medium',isStreaming:scenario==='running',isCompacting:false,pendingMessageCount:0,messageCount:projection.messages.length},models:MODELS,projection,recoveredQueue:[],error:null,notice:null,cwd:'demo',runtime:null,paths:null};
-  const switchSession=(session:PiSession)=>{setActive(session);setScenario('complete');setNotice(null);setSessionName('');};
+  const switchSession=(session:PiSession)=>{setActive({...session,name:renamed[session.id]??session.name});setScenario('complete');setNotice(null);setSessionName('');};
   const controller:PiController={
+    viewing:false,selectSession:async session=>{switchSession(session);},
     sessionPins,setSessionPinned:(sessionId,pinned)=>setSessionPins(before=>pinned?before.includes(sessionId)?before:[...before,sessionId]:before.filter(id=>id!==sessionId)),
     objects,prepareRedo:async()=>{},uiAnswers:{},setUiAnswer:()=>{},conversationKey:'ui-demo',source:{module:'agent',page:'agent',objectId:null},openSource:async()=>{},newConversation:async()=>{},selectConversation:async()=>{},runtimeSummary:null,refreshRuntime:async()=>{},saveLimit:async()=>{},files:[],attachFile:async()=>{},removeFile:()=>{},respondUi:async()=>{},stats:null,refreshStats:async()=>{},takeEditor:()=>{},
     deleteConversation:async target=>{if(target.sessionId===active.id&&scenario==='running')return{deleted:false,error:'请先结束运行，再删除示例会话。'};setRemovedSessions(before=>[...before,target.sessionId]);setSessionPins(before=>before.filter(id=>id!==target.sessionId));if(target.sessionId===active.id)switchSession(sessions.find(session=>session.id!==target.sessionId&&!removedSessions.includes(session.id))??{...sessions[0],id:'new-demo',path:'demo/new',name:'新示例会话',messageCount:0});return{deleted:true};},
@@ -78,7 +80,8 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
       return{deleted,errors:protectedRows.map(target=>({sessionId:target.sessionId,error:'请先结束运行，再删除示例会话。'}))};
     },
     resources,
-    snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:(active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session)).filter(session=>!removedSessions.includes(session.id)),unreadable:0,sessionError:null,
+    renameConversation:async(target,name)=>{const clean=name.trim();if(!clean||Array.from(clean).length>200)throw new Error('请填写1–200字的会话名称。');if(target.sessionId===active.id&&scenario==='running')throw new Error('请先结束运行，再修改示例会话名称。');setRenamed(before=>({...before,[target.sessionId]:clean}));if(target.sessionId===active.id)setActive(before=>({...before,name:clean}));setNotice('示例会话已重命名。');},
+    snapshot,root:ROOT,connected:true,error:null,notice,action:null,cwd:'demo',setCwd:()=>{},sessions:(active.id==='new-demo'?[active,...sessions]:sessions.map(session=>session.id===active.id?{...active,messageCount:projection.messages.length}:session)).filter(session=>!removedSessions.includes(session.id)).map(session=>({...session,name:renamed[session.id]??session.name})),unreadable:0,sessionError:null,
     draft:{text:drafts[active.id]??'',images:[]},draftKey:active.id,setText:text=>setDrafts(before=>({...before,[active.id]:text})),setImages:()=>{},
     refresh:async()=>{},reloadSessions:async()=>{setNotice('示例会话已全部载入。');},connect:async session=>{if(session)switchSession(session);},disconnect:async()=>{},
     send:async()=>{setNotice('这是界面示例。切回真实会话后才能发送。');},stop:async()=>{},

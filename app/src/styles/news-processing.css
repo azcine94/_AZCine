@@ -39,6 +39,8 @@
 .processing-scope-summary > span { color:var(--t2); font-size:var(--fs-s); }
 .processing-batch { display:flex; align-items:center; flex-wrap:wrap; gap:var(--s-2); font-size:var(--fs-s); }
 .processing-live { display:grid; min-width:0; gap:var(--s-4); }
+.news-processing .processing-model-config { min-width:0; overflow-wrap:anywhere; }
+.news-processing .processing-model-config ul { display:grid; gap:var(--s-1); padding-left:var(--s-4); list-style:disc; }
 .processing-phase { display:flex; align-items:start; gap:var(--s-3); padding-top:var(--s-1); }
 .processing-phase > div { min-width:0; display:grid; gap:var(--s-1); }
 .processing-phase-dot { flex:none; width:8px; height:8px; margin-top:8px; border-radius:50%; background:var(--t2); }
@@ -88,6 +90,10 @@
 .processing-record-status[data-status="running"], .processing-record-status[data-status="saving"] { color:var(--acc); }
 .processing-record-status[data-status="cancelled"], .processing-record-status[data-status="awaitingModel"], .processing-record-status[data-status="interrupted"] { color:var(--warn); }
 .processing-record-status[data-status="failed"] { color:var(--bad); }
+.processing-record-status[data-status="pendingMaterials"] { color:var(--warn); }
+.processing-phase[data-phase="pendingMaterials"] .processing-phase-dot { background:var(--warn); box-shadow:none; }
+.processing-pending-materials { max-height:320px; overflow:auto; padding-left:24px; display:grid; gap:12px; overflow-wrap:anywhere; }
+.processing-pending-materials p { margin:4px 0 0; }
 .processing-history-footer { display:flex; flex-wrap:wrap; gap:var(--s-4); }
 .processing-history-footer:empty { display:none; }
 .processing-card { display:grid; gap:var(--s-4); min-width:0; padding:var(--s-5); border:1px solid var(--line); border-radius:var(--r-panel); }

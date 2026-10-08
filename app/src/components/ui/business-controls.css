@@ -489,3 +489,9 @@ button:disabled { cursor:not-allowed; }
 .form-actions { display:flex; align-items:center; gap:var(--s-2); flex-wrap:wrap; }
 
 .todo-empty { color:var(--t2); padding-block:var(--s-5); }
+/* Controlled long-text editor shared by document table cells. */
+.ui-expandable-cell { display:flex; align-items:flex-start; flex:1; min-width:0; gap:var(--s-1); }
+.ui-expandable-cell .ui-expandable-cell-input { flex:1; min-width:0; width:100%; min-height:36px; max-height:92px; resize:none; white-space:pre-wrap; overflow-wrap:anywhere; line-height:var(--lh-body); padding:var(--s-2) var(--s-1); }
+.ui-expandable-cell>button { flex:none; margin-top:var(--s-1); }
+.ui-expandable-cell-editor { display:grid; gap:var(--s-3); overflow-wrap:anywhere; }
+.ui-expandable-cell-editor textarea { width:100%; min-height:240px; max-height:50vh; resize:vertical; }

@@ -148,3 +148,20 @@ fn given_private_addresses_and_auth_when_validate_then_reject_before_public_requ
     }
     assert!(news_http::public_url("https://example.org/feed.xml").is_ok());
 }
+
+#[test]
+fn media_content_cannot_replace_feed_article_body() {
+    let prose="Public article paragraph with real reporting and source context. ".repeat(12);
+    let xml=format!(r#"<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:media="http://search.yahoo.com/mrss/"><channel><item><title>Article</title><link>https://example.org/article</link><description>Summary</description><content:encoded><![CDATA[<p>{prose}</p>]]></content:encoded><media:content url="https://example.org/photo.jpg"><media:title>Photo credit only</media:title></media:content></item></channel></rss>"#);
+    let feed=news_feed::parse(xml.as_bytes(),"https://example.org/rss").unwrap();
+    assert!(feed.entries[0].body_full);
+    assert!(feed.entries[0].body.as_ref().unwrap().contains("real reporting"));
+    assert!(!feed.entries[0].body.as_ref().unwrap().contains("Photo credit"));
+}
+#[test]
+fn image_caption_alone_is_not_full_feed_body() {
+    let xml=r#"<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><item><title>Article</title><link>https://example.org/article</link><description>Actual RSS summary.</description><media:content url="https://example.org/photo.jpg"><media:title>Photo credit</media:title></media:content></item></channel></rss>"#;
+    let feed=news_feed::parse(xml.as_bytes(),"https://example.org/rss").unwrap();
+    assert!(!feed.entries[0].body_full);
+    assert_eq!(feed.entries[0].body.as_deref(),Some("Actual RSS summary."));
+}

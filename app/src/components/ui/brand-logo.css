@@ -1,0 +1,11 @@
+@layer components {
+  .ui-brand-logo {
+    display:inline-flex; align-items:center; justify-content:center; flex:none;
+    width:32px; height:32px; color:var(--foreground);
+  }
+  .ui-brand-logo[data-size="md"] { width:40px; height:40px; }
+  /* Native black artwork keeps its original color on a small white backplate in both themes. */
+  .ui-brand-logo[data-native-mono="true"] { padding:4px; border-radius:var(--r-xs); background:#fff; }
+  .ui-brand-logo img { display:block; width:100%; height:100%; object-fit:contain; border-radius:var(--r-xs); }
+  .ui-brand-logo .ui-brand-logo-fallback { width:24px; height:24px; color:var(--muted-foreground); }
+}

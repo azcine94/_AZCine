@@ -18,7 +18,7 @@ export const pages = [
 ] as const;
 
 export type PageId = typeof pages[number]['id'];
-export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | `bookkeeping/${string}` | `servers-credentials/servers/${string}` | `servers-credentials/credentials/${string}` | 'missing';
+export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | 'news/daily' | `news/daily/${string}` | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `today/${string}` | `bookkeeping/${string}` | `servers-credentials/servers/${string}` | `servers-credentials/credentials/${string}` | 'missing';
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const projectPattern = new RegExp(`^projects/(${uuidPattern})(?:/(${uuidPattern})/(${uuidPattern}))?$`);
 const newsSourcePattern = new RegExp(`^settings/news/sources/(new|rss-[a-z0-9-]{1,96}|${uuidPattern})$`);
@@ -33,7 +33,8 @@ export function resolveRoute(hash: string): Route {
   const setting = settingsRoute(id);
   if (setting) return setting;
   if (id === 'news/materials') return 'settings/news/materials';
-  if(id==='news/history')return 'news';
+  if(id==='news/history'||id==='news/daily')return 'news/daily';
+  if(new RegExp(`^news/daily/${uuidPattern}$`).test(id))return id as `news/daily/${string}`;
   if(/^news\/items\/[a-f0-9]{32}$/.test(id))return id as `news/items/${string}`;
   if(/^news\/stories\/[a-f0-9]{64}$/.test(id))return id as `news/stories/${string}`;
   if (/^news\/events\/[a-f0-9]{64}$/.test(id)) return id as `news/events/${string}`;
@@ -62,6 +63,7 @@ export function pageTitle(route: Route): string {
   const setting = settingsTitle(route);
   if (setting) return setting;
   if (route === 'news/materials') return '采集资料';
+  if (route === 'news/daily' || route.startsWith('news/daily/')) return '资讯';
   if (route.startsWith('news/events/')) return '文章详情';
   if (route.startsWith('news/items/')) return '文章详情';
   if (route.startsWith('news/stories/')) return '事件进展';

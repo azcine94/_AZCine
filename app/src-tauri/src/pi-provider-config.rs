@@ -10,6 +10,7 @@ pub struct ProviderModelInput {
     pub id: String, pub name: String, pub context_window: u64, pub max_tokens: u64,
     pub reasoning: bool, pub supports_images: bool,
     pub base_url: Option<String>, pub api: Option<String>,
+    pub thinking_level_map: Option<Value>, pub default_thinking_level: Option<String>,
 }
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -19,6 +20,10 @@ pub struct ProviderSettingsInput {
     pub api_key: Option<String>, pub models: Vec<ProviderModelInput>,
 }
 fn invalid() -> ConfigError { ConfigError { code: "pi_provider_invalid", message: "服务商配置无效：请添加1至200个模型，模型ID不能重复；输入与原配置保留。" } }
+const LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+pub fn valid_thinking_map(value: &Value) -> bool {
+    value.as_object().is_some_and(|map| map.iter().all(|(key, value)| LEVELS.contains(&key.as_str()) && (value.is_null() || value.as_str().is_some_and(|s| s.len() <= 100 && !s.chars().any(char::is_control)))))
+}
 
 pub fn plan_provider_update(documents: &[Value; 3], input: &ProviderSettingsInput) -> Result<[Value; 3], ConfigError> {
     crate::pi_model_config::validate_connection(&input.base_url, &input.api, input.api_key.as_deref())?;
@@ -35,6 +40,18 @@ pub fn plan_provider_update(documents: &[Value; 3], input: &ProviderSettingsInpu
         };
         let update = plan_model_update(&next[0], &next[1], &next[2], &model_input)?;
         next = [update.models, update.auth, update.settings];
+        if let Some(mapping) = &model.thinking_level_map {
+            if !valid_thinking_map(mapping) { return Err(invalid()); }
+            let row = next[0]["providers"][&input.provider]["models"].as_array_mut().ok_or_else(invalid)?.iter_mut().find(|row| row["id"] == model.id).ok_or_else(invalid)?;
+            row["thinkingLevelMap"] = mapping.clone();
+        }
+        if let Some(level) = &model.default_thinking_level {
+            let mapping = next[0]["providers"][&input.provider]["models"].as_array().ok_or_else(invalid)?.iter().find(|row| row["id"] == model.id).and_then(|row|row.get("thinkingLevelMap"));
+            let mapped = mapping.and_then(|map|map.get(level));
+            if !LEVELS.contains(&level.as_str()) || (!model.reasoning && level != "off") || (model.reasoning && (mapped.is_some_and(Value::is_null) || matches!(level.as_str(), "xhigh"|"max") && mapped.is_none())) { return Err(invalid()); }
+            let levels = next[2].as_object_mut().ok_or_else(invalid)?.entry("modelThinkingLevels").or_insert_with(||json!({})).as_object_mut().ok_or_else(invalid)?;
+            levels.insert(format!("{}/{}", input.provider, model.id), json!(level));
+        }
     }
     next[0]["providers"][&input.provider]["baseUrl"] = json!(input.base_url);
     next[0]["providers"][&input.provider]["api"] = json!(input.api);
@@ -70,12 +87,15 @@ pub fn provider_views(documents: &[Value; 3]) -> Result<Value, ConfigError> {
         let mut models = Vec::new();
         for row in rows {
             let model_id = row.get("id").and_then(Value::as_str).ok_or_else(invalid)?;
+            if row.get("thinkingLevelMap").is_some_and(|value| !valid_thinking_map(value)) { return Err(invalid()); }
             let model_url = row.get("baseUrl").and_then(Value::as_str).unwrap_or(endpoint);
             let model_api = row.get("api").and_then(Value::as_str).unwrap_or(api);
             models.push(json!({"id":model_id,"name":row.get("name").and_then(Value::as_str).unwrap_or(model_id),
                 "contextWindow":row.get("contextWindow").and_then(Value::as_u64).unwrap_or(128000),
                 "maxTokens":row.get("maxTokens").and_then(Value::as_u64).unwrap_or(8192),
                 "reasoning":row.get("reasoning").and_then(Value::as_bool).unwrap_or(false),
+                "thinkingLevelMap":row.get("thinkingLevelMap"),
+                "defaultThinkingLevel":documents[2].get("modelThinkingLevels").and_then(|levels|levels.get(format!("{id}/{model_id}"))).and_then(Value::as_str).or_else(||documents[2].get("defaultThinkingLevel").and_then(Value::as_str)).unwrap_or("medium"),
                 "supportsImages":row.get("input").and_then(Value::as_array).is_some_and(|v|v.iter().any(|v|v=="image")),
                 "baseUrl":if model_url==endpoint {""}else{model_url}, "api":if model_api==api {""}else{model_api}}));
         }

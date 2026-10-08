@@ -1,9 +1,17 @@
 import type { AgentDraft } from '../use-agent-data.ts';
 import type { ProjectDocument } from '../projects-contract.ts';
-import { at,uuid } from './data.ts';
+import { at,source,uuid } from './data.ts';
+
+export const draftApplyFailure='新信源必须先以暂停状态保存；请保留信源内容，按新版本重做为暂停状态，保存并预览核对后再启用。（虚构失败，不写入数据）';
 
 // Explicit in-memory UI data. These scenes never submit an MCP operation.
 export function reviewFixture(state:string):AgentDraft {
+  if(state==='agent-draft-apply-error') {
+    const operations=Array.from({length:12},(_,index)=>({module:'news',objectId:`source:${uuid(700+index)}`,action:'create',values:{...source.config,id:uuid(700+index),name:`虚构信源 ${index+1}`,feedUrl:`https://example.com/fixture-${index+1}.xml`,enabled:true}}));
+    return {id:'ui-fixture-draft',conversationKey:'default',inputId:'ui-fixture-input',messageKey:'mcp:ui-preview:ui-fixture-input:demo',
+      payload:{version:1,operations,decisions:[]},context:{messageCount:0,objects:operations.map(operation=>({source:{module:'news',page:'news',objectId:operation.objectId},revision:0}))},
+      validation:{error:null,items:operations.map(operation=>({...operation,title:operation.values.name,actionLabel:'新建信源',before:null,proposed:operation.values}))},status:'review',receipt:null,revision:1,createdAt:at};
+  }
   const update=state==='agent-draft-update',long=state==='agent-draft-long';
   const columns:Extract<ProjectDocument['blocks'][number],{kind:'list'}>['columns']=[
     {id:uuid(301),name:'镜头号',kind:'shot'}, {id:uuid(302),name:'当前阶段',kind:'stage'},

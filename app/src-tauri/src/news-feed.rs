@@ -37,7 +37,7 @@ fn plain_text(value: &str) -> String {
         } else if inside { tag.push(c); }
         else if hidden.is_none() { result.push(c); }
     }
-    let decoded = quick_xml::escape::unescape(&result).map(|text| text.into_owned()).unwrap_or(result);
+    let decoded = crate::news_content::decode_html(&result);
     decoded.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 fn published(value: &str) -> Option<String> {
@@ -57,12 +57,15 @@ fn finish(item: Item, feed_url: &str) -> Option<FeedEntry> {
     let summary = plain_text(&item.summary);
     let summary_truncated = summary.chars().count() > 1000;
     let summary = if summary.is_empty() { None } else { Some(summary.chars().take(1000).collect()) };
-    let body=crate::news_content::markdown(if item.body.is_empty(){&item.summary}else{&item.body},url.as_str(),false).ok().filter(|v|!v.is_empty());
+    let full_text=plain_text(&item.body);
+    let body_full=full_text.chars().count()>=300;
+    let content=if !body_full&&plain_text(&item.summary).chars().count()>full_text.chars().count(){&item.summary}else if item.body.is_empty(){&item.summary}else{&item.body};
+    let body=crate::news_content::markdown(content,url.as_str(),false).ok().filter(|v|!v.is_empty());
     Some(FeedEntry {
         external_id: if item.id.trim().is_empty() || item.id.len() > 4096 { None } else { Some(item.id.trim().to_owned()) },
         title, url: url.into(), published_at: published(raw), published_raw: if raw.is_empty() { None } else { Some(raw.chars().take(500).collect()) },
         summary, summary_truncated,
-        body, body_full:!item.body.is_empty(),
+        body, body_full,
     })
 }
 fn apply(item: &mut Item, capture: Capture) {
@@ -103,7 +106,8 @@ fn open_element(start: &BytesStart<'_>, stack: &mut Vec<Frame>, item: &mut Optio
             let field = match name.as_str() {
                 "title" => Some("title"), "guid" | "id" => Some("id"),
                 "description" | "summary" => Some("summary"),
-                "encoded" | "content" => Some("body"),
+                "encoded" if start.name().as_ref()=="content:encoded" => Some("body"),
+                "content" if *kind==Some(FeedKind::Atom)&&matches!(start.name().as_ref(),"content"|"atom:content") => Some("body"),
                 "pubDate" | "published" | "date" => Some("date"),
                 "link" if *kind == Some(FeedKind::Rss) && attributes(start, "href")?.is_none() => Some("link"),
                 _ => None,

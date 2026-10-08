@@ -34,6 +34,8 @@
     "allow-project-catalog",
     "allow-set-project-deleted",
     "allow-project-deletion-request",
+    "allow-project-import-image",
+    "allow-project-image-preview",
     "allow-pi-runtime-summary",
     "allow-pi-save-runtime",
     "allow-pi-respond-ui",

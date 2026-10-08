@@ -47,6 +47,11 @@ if (mode === 'dev') {
   env.AZCINE_DEV_PI_DATA_DIR = path.join(mainRoot, '.tooling', 'dev-instance', 'data');
   env.WEBVIEW2_USER_DATA_FOLDER = process.env.WEBVIEW2_USER_DATA_FOLDER || path.join(instance, 'webview');
 }
+// Scope the development profile to the main window. The process-wide WebView2
+// override would also force public article windows into that same environment,
+// where their separate proxy/incognito options cannot be created.
+const webviewDataFolder = env.WEBVIEW2_USER_DATA_FOLDER;
+delete env.WEBVIEW2_USER_DATA_FOLDER;
 for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER']) delete env[key];
 // Remote debugging is opt-in for this owned validation instance only.
 delete env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS;
@@ -77,7 +82,7 @@ if (mode === 'dev') {
     if (!ready) continue;
     const source = JSON.parse(readFileSync(path.join(app, 'src-tauri/tauri.conf.json'), 'utf8'));
     devConfig = path.join(stateDirectory, 'tauri-dev.json');
-    writeFileSync(devConfig, JSON.stringify({ build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
+    writeFileSync(devConfig, JSON.stringify({ build: { beforeDevCommand: null, devUrl: `http://127.0.0.1:${port}` }, app: { windows: source.app.windows.map(window => window.label === 'main' ? {...window, dataDirectory: webviewDataFolder} : window), security: { csp: source.app.security.csp.replaceAll('127.0.0.1:1420', `127.0.0.1:${port}`) } } }, null, 2));
     const isolated = !!(env.AZCINE_TEST_CONFIG_DIR || env.AZCINE_TEST_DEFAULT_ROOT);
     // Report the real locator target without opening the business database or
     // reading Pi credentials. Rust remains responsible for validating it.
@@ -89,7 +94,7 @@ if (mode === 'dev') {
       catch { /* Rust displays the original locator error; no empty-root fallback. */ }
     }
     const data = env.AZCINE_TEST_DEFAULT_ROOT || locatedRoot || (isolated ? path.join(root, '.tooling', 'dev-instance', 'data') : null);
-    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : env.AZCINE_DEV_PI_DATA_DIR, piDataMode: isolated ? 'isolated-validation' : 'shared-main', webview: env.WEBVIEW2_USER_DATA_FOLDER };
+    const state = { root, launcherPid: process.pid, vitePid: vite.pid, port, config, data, dataMode: isolated ? 'isolated-validation' : 'original-main', piData: isolated ? data : env.AZCINE_DEV_PI_DATA_DIR, piDataMode: isolated ? 'isolated-validation' : 'shared-main', webview: webviewDataFolder };
     writeFileSync(path.join(stateDirectory, 'run-state.json'), JSON.stringify(state, null, 2));
     console.log('AZCine Worktree 开发实例：' + JSON.stringify(state));
     break;

@@ -29,47 +29,79 @@ impl Session {
             let lookup=key.clone();let failed=with_storage(self.app.clone(),move|m|m.store()?.reader_failed_response(&lookup)).await?;
             if let Some(text)=failed {if validate_output(template,&text,&vars,&input).is_ok(){self.worker=Some(handle);crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase("usingSavedResult"));return Ok(text);}}
         }
-        let reserve_key=key.clone();let run=self.run.id.clone();let subject=material.to_owned();let model_json=json!(model);let hash=prompt_hash.clone();let input_copy=prompt.clone();let limits=self.preferences.config.pipeline.clone();let retry=self.retry;
-        let receipt=with_storage(self.app.clone(),move|m|m.store()?.reader_start_step(&reserve_key,&run,&subject,stage,&model_json,&hash,&input_copy,&limits,retry)).await?;
-        crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase(stage));
-        let validation_input=input.clone();
-        let (handle,mut result,usage)=tauri::async_runtime::spawn_blocking(move||{let result=handle.prompt(&prompt);let usage=handle.usage.lock().map(|v|v.clone()).unwrap_or(Value::Null);(handle,result,usage)}).await.map_err(|_|invalid_reply())?;self.worker=Some(handle);
-        let raw_response=result.as_ref().ok().cloned();
-        if let Ok(text)=&result {if let Err(error)=validate_output(template,text,&vars,&validation_input){result=Err(step_error(stage,error));}}
-        let error=result.as_ref().err().map(|e|e.message.clone());let response=raw_response;
-        // Attempt both durable stores. A diagnostic file failure must not discard a paid result.
-        let retained=if let Some(text)=&response{crate::news_editorial_commands::retain_output(&self.root,&self.run.id,receipt as usize,stage,text)}else{Ok(())};
-        with_storage(self.app.clone(),move|m|m.store()?.reader_finish_step(receipt,response.as_deref(),&usage,error.as_deref())).await?;
-        retained?;
-        crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase(stage));
-        let _=self.app.emit_to("main","news-processing-changed",());result
+        self.worker=Some(handle);
+        // One original attempt plus three retries. Each request reserves its own
+        // receipt/quota; successful prior stages never pass through this loop.
+        let backoff=[(2,"retryWaiting1"),(5,"retryWaiting2"),(10,"retryWaiting3")];
+        let mut attempt=0;
+        loop {
+            self.cancelled()?;
+            if self.worker.as_ref().is_some_and(|worker|!worker.process().is_connected()){
+                // Release the old process and background lease before reconnecting.
+                drop(self.worker.take());
+                let root=self.root.clone();let resources=self.resources.clone();let preferred=model.clone();let app=self.app.clone();
+                let cancel=app.state::<crate::news_ai::AiControl>().cancel.clone();
+                self.worker=Some(tauri::async_runtime::spawn_blocking(move||AiWorker::connect(&app,&root,&resources,Some(&preferred),cancel,crate::news_processing::observer(&app))).await.map_err(|_|invalid_reply())??);
+            }
+            self.cancelled()?;
+            let reserve_key=key.clone();let run=self.run.id.clone();let subject=material.to_owned();let model_json=json!(model);let hash=prompt_hash.clone();let input_copy=prompt.clone();let limits=self.preferences.config.pipeline.clone();let retry=self.retry||attempt>0;
+            let receipt=with_storage(self.app.clone(),move|m|m.store()?.reader_start_step(&reserve_key,&run,&subject,stage,&model_json,&hash,&input_copy,&limits,retry)).await?;
+            crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase(stage));
+            let handle=self.worker.take().ok_or_else(invalid_reply)?;let request=prompt.clone();
+            let (handle,mut result,usage)=tauri::async_runtime::spawn_blocking(move||{let result=handle.prompt(&request);let usage=handle.usage.lock().map(|v|v.clone()).unwrap_or(Value::Null);(handle,result,usage)}).await.map_err(|_|invalid_reply())?;self.worker=Some(handle);
+            let raw_response=result.as_ref().ok().cloned();
+            if let Ok(text)=&result {if let Err(error)=validate_output(template,text,&vars,&input){result=Err(step_error(stage,error));}}
+            let retryable=result.as_ref().err().is_some_and(crate::news_ai::transient_failure);
+            if retryable&&attempt==backoff.len(){
+                if let Err(error)=&mut result{error.message=format!("自动重试 {} 次后仍失败。已完成步骤保留，可稍后重试原任务。{}",backoff.len(),error.message);}
+            }
+            let error=result.as_ref().err().map(|e|e.message.clone());let response=raw_response;
+            // Finish this attempt before retrying. Storage/validation failures do
+            // not trigger another potentially paid request.
+            let retained=if let Some(text)=&response{crate::news_editorial_commands::retain_output(&self.root,&self.run.id,receipt as usize,stage,text)}else{Ok(())};
+            with_storage(self.app.clone(),move|m|m.store()?.reader_finish_step(receipt,response.as_deref(),&usage,error.as_deref())).await?;
+            retained?;
+            self.cancelled()?;
+            if !retryable||attempt==backoff.len(){
+                crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase(stage));
+                let _=self.app.emit_to("main","news-processing-changed",());return result;
+            }
+            let (seconds,phase)=backoff[attempt];attempt+=1;
+            crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase(phase));
+            crate::news_processing::persist(&self.app,&crate::news_editorial_commands::cache_path(&self.root,&self.run.id,"progress.json")?)?;
+            let cancel=self.app.state::<crate::news_ai::AiControl>().cancel.clone();
+            tauri::async_runtime::spawn_blocking(move||{
+                let deadline=std::time::Instant::now()+std::time::Duration::from_secs(seconds);
+                while std::time::Instant::now()<deadline&&!cancel.load(Ordering::Acquire){std::thread::sleep(std::time::Duration::from_millis(100));}
+            }).await.map_err(|_|invalid_reply())?;
+        }
     }
     async fn body(&self,m:&Material,tier:&str)->Result<(String,String,Option<String>,bool),StorageError>{
         let id=m.id.clone();let previous=with_storage(self.app.clone(),move|s|s.store()?.reader_body(&id)).await?;
         let rule=self.preferences.config.pipeline.sources.iter().find(|s|s.source_id==m.source_id);
         let display=rule.is_none_or(|r|r.display_body)&&tier!="EXCLUDE_MP";
-        if previous.as_ref().is_some_and(|(_,kind,_)|kind=="web"||kind=="feed")||rule.is_some_and(|r|!r.fetch_body)||tier=="EXCLUDE_MP"{
+        if previous.as_ref().is_some_and(|(body,kind,_)|kind=="web"||kind=="feed"&&body.chars().count()>=300)||rule.is_some_and(|r|!r.fetch_body)||tier=="EXCLUDE_MP"{
             return Ok(previous.map(|(body,kind,error)|(body,kind,error,display)).unwrap_or_else(||(m.summary.clone().unwrap_or_default(),"summary".into(),None,display)));
         }
         self.cancelled()?;crate::news_processing::observer(&self.app)(crate::news_processing::ProgressEvent::Phase("fetchingBody"));
-        let url=m.url.clone();let proxy=self.preferences.config.collection_proxy.clone();let fetched=tauri::async_runtime::spawn_blocking(move||{
-            let response=crate::news_http::fetch_article_with_proxy(&url,proxy.as_deref())?;let html=String::from_utf8(response.body).map_err(|_|StorageError::new("news_body_encoding","公开正文不是 UTF-8，订阅内容保留。"))?;
-            crate::news_content::markdown(&html,&response.url,true)
-        }).await.map_err(|_|invalid_reply())?;
-        let (body,kind,error)=match fetched {Ok(body)=>(body,"web".to_owned(),None),Err(e)=>(previous.map(|v|v.0).or_else(||m.summary.clone()).unwrap_or_default(),"summary".to_owned(),Some(e.message))};
+        let url=m.url.clone();let title=m.title.clone();let feed_body=previous.as_ref().map(|v|v.0.clone()).unwrap_or_default();let proxy=self.preferences.config.collection_proxy.clone();
+        let app=self.app.clone();
+        let fetched=tauri::async_runtime::spawn_blocking(move||crate::news_content::fetch_body(&app,&url,&title,&feed_body,proxy.as_deref())).await.map_err(|_|invalid_reply())?;
+        let (body,kind,error)=match fetched {Ok(body)=>(body.body,body.kind,body.error),Err(e) if e.code=="news_cancelled"=>return Err(e),Err(e)=>(previous.map(|v|v.0).or_else(||m.summary.clone()).unwrap_or_default(),"summary".to_owned(),Some(e.message))};
         let id=m.id.clone();let b=body.clone();let k=kind.clone();let e=error.clone();with_storage(self.app.clone(),move|s|s.store()?.reader_save_body(&id,&b,&k,e.as_deref())).await?;Ok((body,kind,error,display))
     }
     pub async fn article(&mut self,m:&Material)->Result<Article,StorageError>{
         let source=self.run.sources.iter().find(|s|s.config.id==m.source_id);
         let tier=self.preferences.config.pipeline.sources.iter().find(|s|s.source_id==m.source_id).map(|r|r.tier.clone()).unwrap_or_else(||if source.is_some_and(|s|matches!(s.config.identity,SourceIdentity::Official|SourceIdentity::Research)){"T1"}else{"T2"}.into());
         let (body,kind,error,display)=self.body(m,&tier).await?;let capped=body.chars().take(60000).collect::<String>();
-        let context=format!("【来源】{}（RSS，tier={}）\n【发布时间】{}\n【原文链接】{}\n【标题】{}\n\n【正文】\n{}\n\n【材料质量】{}",m.source_name,tier,m.published_at.as_deref().unwrap_or("未知；发现时间不是发布时间"),m.url,m.title,if capped.is_empty(){"(无正文)"}else{&capped},if kind=="summary"{"仅订阅摘要"}else{"完整正文；超过60000字符时仅向模型发送前60000字符"});
+        let context=format!("【来源】{}（RSS，tier={}）\n【发布时间】{}\n【原文链接】{}\n【标题】{}\n\n【正文】\n{}\n\n【材料质量】{}",m.source_name,tier,m.published_at.as_deref().unwrap_or("未知；发现时间不是发布时间"),m.url,m.title,if capped.is_empty(){"(无正文)"}else{&capped},if kind=="summary"{"仅订阅摘要"}else if kind=="partial"{"原始页面公开节选，不是完整正文；不得补写缺失部分"}else{"完整正文；超过60000字符时仅向模型发送前60000字符"});
+        if capped.trim().is_empty(){return Err(StorageError::new("news_awaiting_body",&format!("没有可用摘要或正文。{}",error.as_deref().unwrap_or("请补充材料后重试。"))));}
         let vars=crate::news_prompts::variables();
         let pre:Prefilter=crate::news_ai::parse_json(&self.call(&m.id,"prefilter","prefilter","prefilter",vars.clone(),encode(&context)?).await?)?;
         if !["PASS","BLOCK","UNKNOWN"].contains(&pre.label.as_str())||pre.reason.chars().count()>200{return Err(invalid_reply());}
+        prefilter_readiness(&pre.label,&capped).map_err(|_|StorageError::new("news_awaiting_body",&format!("预筛无法判断：{}{}",pre.reason,error.as_deref().map(|message|format!("；{message}")).unwrap_or_default())))?;
         let occurrence=crate::news_prompts::hash(&format!("occurrence:{}",m.id));
         let mut a=Article{legacy_event_id:None,id:m.id.clone(),material:m.clone(),title_zh:m.title.clone(),summary_zh:String::new(),reason:pre.reason,category:None,tags:vec![],subjects:vec![],scope:"unknown".into(),fact:Value::Null,score_first:None,score_second:None,score:None,tier,selected:false,adds_value:true,selection_reason:String::new(),occurrence_id:occurrence.clone(),story_id:occurrence,original_body:body,translated_body:None,body_kind:kind,body_error:error,display_body:display,translation_complete:false,translation_error:None,status:"ready".into(),processed_at:crate::news_store::now(),config_revision:self.preferences.revision,upstream:crate::news_prompts::UPSTREAM.into()};
-        prefilter_readiness(&pre.label,&capped)?;
         if pre.label=="BLOCK"{a.status="blocked".into();return Ok(a);}
         let threshold=match a.tier.as_str(){"T1"=>Some(60),"T1_5"=>Some(65),"T2"=>Some(76),_=>None};
         if let Some(threshold)=threshold {
@@ -263,7 +295,7 @@ fn translation_reply(text:&str,input:&Value)->Result<Vec<String>,StorageError>{
 fn protect_markdown(text:&str,protected:&mut Vec<String>)->String{if text.starts_with("```")||text.starts_with("!["){let id=protected.len();protected.push(text.into());return format!("⟦{id}⟧");}let mut out=String::new();let mut rest=text;while !rest.is_empty(){let next=[rest.find("https://"),rest.find("http://"),rest.find('`'),rest.find('<'),rest.find('>')].into_iter().flatten().min();let Some(start)=next else{out.push_str(rest);break;};out.push_str(&rest[..start]);rest=&rest[start..];let end=if rest.starts_with(['<','>']){1}else if rest.starts_with('`'){rest[1..].find('`').map(|n|n+2).unwrap_or(rest.len())}else{rest.find(|c:char|c.is_whitespace()||c==')').unwrap_or(rest.len())};let id=protected.len();protected.push(rest[..end].into());out.push_str(&format!("⟦{id}⟧"));rest=&rest[end..];}out}
 pub async fn process(app:tauri::AppHandle,root:PathBuf,resources:PathBuf,run:&mut EditorialRun,preferences:&Preferences,materials:&[Material],retry:bool)->Result<(),StorageError>{
     let mut session=Session::new(app.clone(),root,resources,run.clone(),preferences.clone(),retry);
-    let mut untranslated=Vec::new();
+    let mut untranslated=Vec::new();let mut pending=0;
     for (index,m) in materials.iter().enumerate(){session.cancelled()?;crate::news_processing::batch(&app,index,std::slice::from_ref(m),session.run.processed);
         let id=m.id.clone();let dismissed=with_storage(app.clone(),move|s|s.store()?.db.query_row("SELECT EXISTS(SELECT 1 FROM news_pending_dismissals WHERE material_id=?1)",[id],|r|r.get::<_,bool>(0)).map_err(db_error)).await?;
         if dismissed{return Err(StorageError::new("news_material_dismissed","此任务包含已清出待处理队列的资料，未再次调用模型。请选择当前待处理资料开始。"));}
@@ -278,12 +310,23 @@ pub async fn process(app:tauri::AppHandle,root:PathBuf,resources:PathBuf,run:&mu
             }
             session.digest(&article).await?;
         }continue;}
-        let mut article=session.article(m).await?;session.cancelled()?;article.processed_at=crate::news_store::now();let a=article.clone();let mut current=session.run.clone();let updated=with_storage(app.clone(),move|s|{s.store()?.reader_commit(&a,&mut current)?;Ok(current)}).await?;session.run=updated;*run=session.run.clone();
+        let mut article=match session.article(m).await{
+            Ok(article)=>article,
+            Err(error) if error.code=="news_awaiting_body"=>{
+                session.cancelled()?;pending+=1;
+                crate::news_processing::pending_material(&app,m,&error.message);
+                crate::news_processing::persist(&app,&crate::news_editorial_commands::cache_path(&session.root,&run.id,"progress.json")?)?;
+                continue;
+            },
+            Err(error)=>return Err(error),
+        };
+        session.cancelled()?;article.processed_at=crate::news_store::now();let a=article.clone();let mut current=session.run.clone();let updated=with_storage(app.clone(),move|s|{s.store()?.reader_commit(&a,&mut current)?;Ok(current)}).await?;session.run=updated;*run=session.run.clone();
         crate::news_processing::completed(&app,run.processed);let _=app.emit_to("main","news-editorial-changed",());
         if article.translation_error.is_some(){untranslated.push(article.id.clone());}
         session.digest(&article).await?;
     }
     session.cancelled()?;
+    if pending>0{return Err(StorageError::new("news_materials_pending",&format!("本轮已结束，已保存 {} / {} 条；{pending} 条材料不足，仍保留在待处理列表。各条原因见待补材料；补齐后可重试原任务，已保存文章会保留。{}",run.processed,run.total,if untranslated.is_empty(){String::new()}else{format!("另有 {} 篇正文翻译未完成。",untranslated.len())})));}
     if !untranslated.is_empty(){return Err(StorageError::new("news_translation_pending",&format!("报道已保存，可前往资讯阅读；{}篇正文翻译的返回格式不合规，原文保留。请从此任务重试未完成部分，已完成的预筛、评分和导读会复用。",untranslated.len())));}
     if run.kind=="daily"{let copy=run.clone();with_storage(app,move|s|crate::news_reader_editions::daily(s.store()?,&copy)).await?;}Ok(())
 }

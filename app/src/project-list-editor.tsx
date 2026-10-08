@@ -1,4 +1,5 @@
 import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
+import { ExpandableTextCell } from './components/ui/expandable-text-cell.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Button } from './components/ui/button.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -11,6 +12,8 @@ import { DateInput } from './date-input.tsx';
 import { ProjectStagePicker } from './project-stage-picker.tsx';
 import type { ProjectStageLabelActions } from './project-stage-picker.tsx';
 import { TableMenu } from './table-menu.tsx';
+import { ProjectCellImages } from './project-cell-images.tsx';
+import type { ImageImportDraft } from './project-image-imports.ts';
 
 interface ListEditorProps {
   block: ListBlock; targetRowId?: string; labels: ProjectContent['labels'];
@@ -20,10 +23,11 @@ interface ListEditorProps {
   blurSave(event: FocusEvent<HTMLElement>): void;
   remove(type: 'row' | 'column', id: string): boolean;
   commit(): void;
+  imageImportDraft(key: string): ImageImportDraft;
 }
 type DragItem = { kind: 'row' | 'column'; id: string };
 type DropTarget = DragItem & { after: boolean };
-export function ListEditor({ block, targetRowId, labels, labelActions, disabled, locked, editingDisabled, update, blurSave, remove, commit }: ListEditorProps) {
+export function ListEditor({ block, targetRowId, labels, labelActions, disabled, locked, editingDisabled, update, blurSave, remove, commit, imageImportDraft }: ListEditorProps) {
   const [pageIndex, setPageIndex] = useState(() => Math.max(0, Math.floor(block.rows.findIndex(row => row.id === targetRowId) / LIST_PAGE_SIZE)));
   const pageCount = Math.max(1, Math.ceil(block.rows.length / LIST_PAGE_SIZE));
   const currentPage = Math.min(pageIndex, pageCount - 1);
@@ -54,7 +58,7 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
     const next = nextFocus.current;
     if (!next) return;
     const row = tableRef.current?.querySelector<HTMLElement>(`[data-row-id="${next.rowId}"]`);
-    const control = next.columnId ? row?.querySelector<HTMLElement>(`[data-column-id="${next.columnId}"] input, [data-column-id="${next.columnId}"] button`) : row?.querySelector<HTMLElement>('.table-menu__trigger');
+    const control = next.columnId ? row?.querySelector<HTMLElement>(`[data-column-id="${next.columnId}"] textarea, [data-column-id="${next.columnId}"] input:not([hidden]), [data-column-id="${next.columnId}"] button`) : row?.querySelector<HTMLElement>('.table-menu__trigger');
     if (control || !next.rowId || !block.rows.some(row => row.id === next.rowId)) {
       nextFocus.current = null; (control ?? addRowRef.current)?.focus({ preventScroll: true });
       control?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -77,17 +81,17 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
   function focusCell(rowId: string, columnId: string) {
     const targetPage = Math.floor(block.rows.findIndex(row => row.id === rowId) / LIST_PAGE_SIZE);
     if (targetPage < 0) return;
-    const target = tableRef.current?.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-column-id="${columnId}"] input, [data-row-id="${rowId}"] [data-column-id="${columnId}"] button`);
+    const target = tableRef.current?.querySelector<HTMLElement>(`[data-row-id="${rowId}"] [data-column-id="${columnId}"] :is(textarea,input:not([hidden]),button)`);
     if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
     else { nextFocus.current = { rowId, columnId }; setPageIndex(targetPage); commit(); }
   }
   function cellKeys(event: KeyboardEvent<HTMLTableElement>) {
-    if (event.defaultPrevented || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement) || event.target.closest('[popover]')) return;
+    if (event.defaultPrevented || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement) || event.target.closest('[popover], [role=dialog]')) return;
     const td = event.target.closest<HTMLElement>('td[data-column-id]'), rowId = td?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
     const columnId = td?.dataset.columnId;
     if (!rowId || !columnId) return;
     const row = block.rows.findIndex(item => item.id === rowId), column = block.columns.findIndex(item => item.id === columnId);
-    const input = event.target instanceof HTMLInputElement && event.target.type === 'text' ? event.target : null;
+    const input = event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement && event.target.type === 'text' ? event.target : null;
     if (event.key === 'F2' && input) { event.preventDefault(); input.setSelectionRange(input.value.length, input.value.length); return; }
     let nextRow = row, nextColumn = column;
     if (event.key === 'Enter' && input) nextRow += event.shiftKey ? -1 : 1;
@@ -175,9 +179,9 @@ export function ListEditor({ block, targetRowId, labels, labelActions, disabled,
       { name: '上方插入行', run: () => insertRow(row.id, false) }, { name: '下方插入行', run: () => insertRow(row.id) },
       { name: '向上移动行', disabled: startIndex + index === 0, run: () => move('row', row.id, -1) }, { name: '向下移动行', disabled: startIndex + index === block.rows.length - 1, run: () => move('row', row.id, 1) },
       { name: '删除行', run: () => deleteRow(row.id) },
-    ]}>{startIndex + index + 1}</TableMenu></th>{block.columns.map(column => <td key={column.id} data-column-kind={column.kind} data-column-id={column.id} data-selected={selection?.rowId === row.id && selection.columnId === column.id || undefined}>{column.kind === 'stage' ? <ProjectStagePicker labels={labels} labelActions={{ ...labelActions, create: name => labelActions.create(name, row.id, column.id) }} currentId={row.cells[column.id] || null} onChange={value => cell(row.id, column.id, value || '', true)} disabled={disabled} label={`${block.title}，${column.name}`} /> : column.kind === 'delivered' ? <label className="check-label"><Input variant="inline" type="checkbox" data-project-commit checked={row.cells[column.id] === 'true'} disabled={locked} aria-disabled={disabled} onChange={event => cell(row.id, column.id, String(event.target.checked), true)} />已交完</label> : column.kind === 'date' ? <DateInput label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} selectionDisabled={disabled} onChange={(value, selected) => cell(row.id, column.id, value, !!selected)} onBlur={blurSave} /> : <Input variant="app" className="input" type="text" aria-label={`${block.title}，${column.name}`} spellCheck={false} autoComplete="off" value={row.cells[column.id] || ''} disabled={editingDisabled} onChange={event => cell(row.id, column.id, event.target.value)} onBlur={blurSave} />}</td>)}</tr></RecordContextMenu>)}</tbody></table></div>
+    ]}>{startIndex + index + 1}</TableMenu></th>{block.columns.map(column => <td key={column.id} data-column-kind={column.kind} data-column-id={column.id} data-selected={selection?.rowId === row.id && selection.columnId === column.id || undefined}><ProjectCellImages importDraft={imageImportDraft(`${block.id}:${row.id}:${column.id}`)} images={row.images?.[column.id] ?? []} disabled={disabled || editingDisabled} label={`${block.title}，第${startIndex + index + 1}行，${column.name}`} change={transform => update(current => ({ ...current, rows: current.rows.map(item => item.id === row.id ? { ...item, images: { ...item.images, [column.id]: transform(item.images?.[column.id] ?? []) } } : item) }), true)}>{column.kind === 'stage' ? <ProjectStagePicker labels={labels} labelActions={{ ...labelActions, create: name => labelActions.create(name, row.id, column.id) }} currentId={row.cells[column.id] || null} onChange={value => cell(row.id, column.id, value || '', true)} disabled={disabled} label={`${block.title}，${column.name}`} /> : column.kind === 'delivered' ? <label className="check-label"><Input variant="inline" type="checkbox" data-project-commit checked={row.cells[column.id] === 'true'} disabled={locked} aria-disabled={disabled} onChange={event => cell(row.id, column.id, String(event.target.checked), true)} />已交完</label> : column.kind === 'date' ? <DateInput label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} selectionDisabled={disabled} onChange={(value, selected) => cell(row.id, column.id, value, !!selected)} onBlur={blurSave} /> : <ExpandableTextCell label={`${block.title}，${column.name}`} value={row.cells[column.id] || ''} disabled={editingDisabled} onChange={value => cell(row.id, column.id, value)} onBlur={blurSave} onCommit={commit} />}</ProjectCellImages></td>)}</tr></RecordContextMenu>)}</tbody></table></div>
     {!block.rows.length && <p className="project-empty">此 list 暂无内容，添加一行开始记录。</p>}
     {overflow && <p className="meta list-width-note">列较多时仅在表格容器内横向查看，不会撑开文档；可拖窄或删除不需要的列。</p>}
-    <div className="list-footer"><Button variant="app-document" ref={addRowRef} type="button" className="doc-button doc-add-row" data-project-commit disabled={locked} aria-disabled={disabled} onClick={() => insertRow()}><span aria-hidden="true">＋</span>添加行</Button><span className="meta">拖动 ⠿ 排序 · 列边调宽 · Enter 换行 / F2 编辑</span></div>
+    <div className="list-footer"><Button variant="app-document" ref={addRowRef} type="button" className="doc-button doc-add-row" data-project-commit disabled={locked} aria-disabled={disabled} onClick={() => insertRow()}><span aria-hidden="true">＋</span>添加行</Button><span className="meta">拖动 ⠿ 排序 · 列边调宽 · Enter 下一行 · Shift+Enter 换行 · F2 展开编辑</span></div>
   </>;
 }
