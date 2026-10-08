@@ -18,6 +18,7 @@ pub async fn task_panel_worktree(app:tauri::AppHandle,window:tauri::WebviewWindo
         let encoded=encode(&input)?;
         if let Some(previous)=request(&store.db,&input.request_id,&encoded)?{return Ok(previous);}
         let task=crate::task_panel_store::task(&store.db,&input.task_id)?;
+        crate::task_panel_projects::require_task_active(&store.db,&task.id)?;
         if crate::task_panel_store::executions(&store.db)?.iter().any(|r|r.task_id==task.id){return Err(invalid("已有执行历史的任务不能更换执行目录，请创建新任务。"));}
         let root=store.task_workspace.as_ref().ok_or_else(||invalid("请先打开任务仓库"))?.clone();
         if crate::task_panel_locations::assigned(&store.db,&task.id)?.is_some(){return Err(invalid("任务已有分支执行位置，未创建第二个工作目录。"));}
@@ -26,14 +27,22 @@ pub async fn task_panel_worktree(app:tauri::AppHandle,window:tauri::WebviewWindo
         let git=crate::task_panel_monitor::git(&root);
         if !git.error.is_empty()||git.head.len()!=40{return Err(invalid("不能确认 Git 基线，未创建分支。"));}
 
+        let intent=store.task_setting(&format!("task-panel:worktree-intent:{}",task.id))?.map(|raw|crate::task_panel_store::decode::<WorktreeInput>(&raw)).transpose()?;
+        if intent.as_ref().is_some_and(|old|old.branch!=input.branch){return Err(invalid("原分支创建结果尚未核对，请先选择仅保留任务，再修改分支；不会重复创建。"));}
+        let previous:Option<WorktreeResult>=if let Some(old)=&intent{use rusqlite::OptionalExtension;let raw:Option<String>=store.db.query_row("SELECT result FROM tp_requests WHERE id=?1",[&old.request_id],|r|r.get(0)).optional().map_err(crate::task_panel_store::db_error)?;raw.map(|s|crate::task_panel_store::decode(&s)).transpose()?}else{None};
         let parent=crate::task_panel_workspace::directory(&root,".azcine/worktrees")?;
-        let path=parent.join(format!("{}-{}",input.branch.replace('/',"-"),&crate::task_panel_paths::hash(input.request_id.as_bytes())[..8]));
-        if path.exists(){return Err(invalid("分支工作目录已存在，未覆盖。"));}
-        let config=crate::herdr_adapter::discover(store.task_panel_herdr_config()?,Some(&root))?;
-        let mut result=WorktreeResult{path:path.to_string_lossy().into_owned(),branch:input.branch.clone(),base:git.head,creation:Value::Null,session:config.session.clone(),error:"创建结果尚未核对；重试不会重复创建".into()};
+        let path=previous.as_ref().map(|old|std::path::PathBuf::from(&old.path)).unwrap_or_else(||parent.join(format!("{}-{}",input.branch.replace('/',"-"),&crate::task_panel_paths::hash(input.request_id.as_bytes())[..8])));
+        if !path.starts_with(&parent){return Err(invalid("原创建目录不在本仓库的执行目录中，未继续创建。"));}
+        if path.exists()&&previous.is_none(){return Err(invalid("分支工作目录已存在，未覆盖。"));}
+        let mut config=store.task_panel_herdr_config()?;
+        if let Some(old)=&previous {config.session=old.session.clone();}
+        let config=if path.exists(){config}else{crate::herdr_adapter::discover(config,Some(&root))?};
+        let mut result=previous.unwrap_or(WorktreeResult{path:path.to_string_lossy().into_owned(),branch:input.branch.clone(),base:git.head,creation:Value::Null,session:config.session.clone(),error:"创建结果尚未核对；重试不会重复创建".into()});
+        if !path.exists()&&crate::task_panel_snapshots::git(&root,&["show-ref","--verify",&format!("refs/heads/{}",input.branch)]).is_ok(){return Err(invalid("分支已存在，但原目录未核对，不能再创建或覆盖；请先恢复原位置。"));}
         store.save_task_setting(&format!("task-panel:worktree-intent:{}",task.id),&encoded)?;
         receipt(&store.db,&input.request_id,&encoded,&result)?;
-        match crate::herdr_adapter::call(&config,"worktree.create",json!({"cwd":root,"branch":input.branch,"base":result.base,"path":result.path,"label":input.label})){
+        let created=if path.exists(){Ok(result.creation.clone())}else{crate::herdr_adapter::call(&config,"worktree.create",json!({"cwd":root,"branch":input.branch,"base":result.base,"path":result.path,"label":input.label}))};
+        match created{
             Ok(created)=>{result.creation=created;let observed=crate::task_panel_monitor::git(&path);if observed.branch==result.branch&&observed.head==result.base {result.error.clear();let actual=crate::task_panel_workspace::repository_root(&path)?;
                 if crate::task_panel_locations::owner(&actual)?!=root{return Err(invalid("新工作目录不属于当前总仓库，未关联。"));}
                 let location=crate::task_panel_locations::ExecutionWorkspace{path:actual.to_string_lossy().into_owned(),branch:result.branch.clone(),base:result.base.clone()};

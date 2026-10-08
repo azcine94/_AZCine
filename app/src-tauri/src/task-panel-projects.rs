@@ -46,15 +46,40 @@ pub(crate) fn plan(db:&Connection,id:&str)->Result<TaskPlan,StorageError>{
     Ok(db.query_row("SELECT project_id,goal_id,phase FROM tp_task_plans WHERE task_id=?1",[id],|r|Ok(TaskPlan{project_id:r.get(0)?,goal_id:r.get(1)?,phase:r.get(2)?})).optional().map_err(db_error)?.unwrap_or_default())
 }
 pub(crate) fn projects(db:&Connection)->Result<Vec<TaskProject>,StorageError>{
-    let mut result = db.prepare("SELECT id,name,summary,revision,created_at FROM tp_projects ORDER BY name,id").map_err(db_error)?
-        .query_map([],|r|Ok(TaskProject{id:r.get(0)?,name:r.get(1)?,summary:r.get(2)?,revision:r.get(3)?,created_at:r.get(4)?,repository_ids:Vec::new()})).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
+    let mut result = db.prepare("SELECT id,name,summary,revision,created_at,EXISTS(SELECT 1 FROM app_meta m WHERE m.key='task-panel:project-deleted:'||p.id) FROM tp_projects p ORDER BY name,id").map_err(db_error)?
+        .query_map([],|r|Ok(TaskProject{id:r.get(0)?,name:r.get(1)?,summary:r.get(2)?,revision:r.get(3)?,created_at:r.get(4)?,deleted:r.get(5)?,repository_ids:Vec::new()})).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
     for p in &mut result { p.repository_ids=db.prepare("SELECT repository_id FROM tp_project_repositories WHERE project_id=?1 ORDER BY repository_id").map_err(db_error)?.query_map([&p.id],|r|r.get(0)).map_err(db_error)?.collect::<Result<_,_>>().map_err(db_error)?; }
     Ok(result)
+}
+pub(crate) fn require_active(db:&Connection,id:&str)->Result<(),StorageError>{
+    let deleted:Option<bool>=db.query_row("SELECT EXISTS(SELECT 1 FROM app_meta WHERE key='task-panel:project-deleted:'||p.id) FROM tp_projects p WHERE id=?1",[id],|r|r.get(0)).optional().map_err(db_error)?;
+    match deleted {Some(false)=>Ok(()),Some(true)=>Err(invalid("项目已删除，原内容保留；请先在项目管理中恢复。")),None=>Err(invalid("项目不存在。"))}
+}
+pub(crate) fn require_task_active(db:&Connection,id:&str)->Result<(),StorageError>{
+    if let Some(project)=plan(db,id)?.project_id {require_active(db,&project)?;}
+    Ok(())
+}
+// A tombstone in the existing repository metadata keeps all ownership and
+// foreign-key history intact, without rewriting or migrating user records.
+pub(crate) fn set_deleted(db:&Connection,id:&str,deleted:bool,approved:bool,revision:Option<i64>)->Result<i64,StorageError>{
+    if !approved||!id_ok(id){return Err(invalid("请核对并确认本次项目删除或恢复。"));}
+    let old:i64=db.query_row("SELECT revision FROM tp_projects WHERE id=?1",[id],|r|r.get(0)).optional().map_err(db_error)?.ok_or_else(||invalid("项目不存在。"))?;
+    expected(old,revision)?;
+    if deleted {
+        let tasks:Vec<String>=db.prepare("SELECT task_id FROM tp_task_plans WHERE project_id=?1").map_err(db_error)?.query_map([id],|r|r.get(0)).map_err(db_error)?.collect::<Result<_,_>>().map_err(db_error)?;
+        if crate::task_panel_store::executions(db)?.iter().any(|run|tasks.contains(&run.task_id)&&crate::task_panel_store::is_live(&run.state)) {
+            return Err(invalid("项目还有未结束执行，请先停止并核对执行，再删除项目。"));
+        }
+        for task_id in tasks {if task(db,&task_id)?.lifecycle!="cancelled"&&crate::task_panel_execution::pending_creation(db,&task_id)?.is_some(){return Err(invalid("项目还有窗格创建待核对，请先处理对应任务，再删除项目。"));}}
+        db.execute("INSERT INTO app_meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",params![format!("task-panel:project-deleted:{id}"),now()]).map_err(db_error)?;
+    }else{db.execute("DELETE FROM app_meta WHERE key=?1",[format!("task-panel:project-deleted:{id}")]).map_err(db_error)?;}
+    db.execute("UPDATE tp_projects SET revision=revision+1 WHERE id=?1",[id]).map_err(db_error)?;
+    Ok(old+1)
 }
 pub(crate) fn save_project(db:&Connection,id:&str,name:&str,summary:&str,repos:&[String],revision:Option<i64>)->Result<i64,StorageError>{
     if !id_ok(id)||name.trim().is_empty()||name.chars().count()>200||summary.chars().count()>10000||repos.len()>100||repos.iter().collect::<HashSet<_>>().len()!=repos.len(){return Err(invalid("请填写项目名称和明确的工作区归属。"));}
     let old:Option<i64>=db.query_row("SELECT revision FROM tp_projects WHERE id=?1",[id],|r|r.get(0)).optional().map_err(db_error)?;
-    if let Some(v)=old{expected(v,revision)?;}else if revision.is_some(){return Err(crate::task_panel_store::conflict());}
+    if let Some(v)=old{require_active(db,id)?;expected(v,revision)?;}else if revision.is_some(){return Err(crate::task_panel_store::conflict());}
     for repo in repos { repository(db,repo)?;if repository_project(db,repo)?.is_some_and(|p|p!=id){return Err(invalid("工作区已有项目归属；请保留原项目，并为独立执行登记不同目录或 Worktree。"));} }
     let previous:Vec<String>=db.prepare("SELECT repository_id FROM tp_project_repositories WHERE project_id=?1").map_err(db_error)?.query_map([id],|r|r.get(0)).map_err(db_error)?.collect::<Result<_,_>>().map_err(db_error)?;
     if previous.iter().any(|r|!repos.contains(r)){return Err(invalid("已有工作区归属保留；本次可以增加工作区，不隐式迁移历史任务。"));}
@@ -70,7 +95,7 @@ pub(crate) fn save_plan(db:&Connection,id:&str,value:&TaskPlan)->Result<(),Stora
     let t=task(db,id)?;
     if value.phase.chars().count()>100||value.goal_id.as_deref()==Some(id){return Err(invalid("阶段名称过长或目标不能指向自身。"));}
     if let Some(p)=&value.project_id {
-        if !db.query_row("SELECT EXISTS(SELECT 1 FROM tp_projects WHERE id=?1)",[p],|r|r.get::<_,bool>(0)).map_err(db_error)?{return Err(invalid("项目不存在。"));}
+        require_active(db,p)?;
         if let Some(repo)=&t.repository_id {if repository_project(db,repo)?.as_ref()!=Some(p){return Err(invalid("任务工作区与项目归属不一致，请先将工作区登记到该项目。"));}}
     }else if t.repository_id.is_some()||value.goal_id.is_some()||!value.phase.is_empty(){return Err(invalid("请先选择项目，再指定目标与阶段。"));}
     if let Some(g)=&value.goal_id {

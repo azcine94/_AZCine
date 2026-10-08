@@ -1,5 +1,5 @@
 import { invoke } from './desktop-api.ts';
-import type { AgentAccess, ContextPackage, GraphQuery, GraphView, HerdrCapabilities, HerdrConfig, HerdrSession, ImportPreview, MutationReceipt, PanelSnapshot, RecoveryPreview, TaskMutation } from './task-panel-contract.ts';
+import type { AgentAccess, ContextPackage, GraphQuery, GraphView, HerdrCapabilities, HerdrConfig, HerdrSession, ImportPreview, MutationReceipt, PanelSnapshot, RecoveryPreview, TaskDraft, TaskMutation } from './task-panel-contract.ts';
 
 export interface TaskWorkspaceEntry { path: string; label: string }
 export interface OpenedTaskWorkspace extends TaskWorkspaceEntry { repositoryId: string; projectId: string | null; dataDirectory: string; skillPath: string; scope: string[]; migration: string }
@@ -14,6 +14,8 @@ export function taskPanelClient(workspace: string | null) {
   }
   return {
   list: () => call<PanelSnapshot>('task_panel_list'),
+  drafts: () => call<Record<string, TaskDraft>>('task_panel_drafts'),
+  saveDraft: (id: string, draft: TaskDraft | null) => call<void>('task_panel_draft', { input: { id, draft } }),
   accesses: () => call<AgentAccess[]>('task_panel_agent_accesses'),
   mutate: (requestId: string, expectedRevision: number | null, action: TaskMutation) => call<MutationReceipt>('task_panel_mutate', { input: { requestId, expectedRevision, action } }),
   graph: (input: GraphQuery) => call<GraphView>('task_panel_graph', { input }),

@@ -3,6 +3,18 @@ use crate::task_panel_types::{MutationInput, MutationReceipt, PanelSnapshot, Eve
 use crate::task_panel_graph::{GraphQuery, GraphView};
 use tauri::Manager;
 #[tauri::command]
+pub async fn task_panel_feedback(app:tauri::AppHandle,window:tauri::WebviewWindow,workspace:String,input:crate::task_panel_collaboration::FeedbackInput)->Result<crate::task_panel_collaboration::Feedback,StorageError>{
+    crate::main_window(&window)?;crate::task_panel_workspace::with_store(app,workspace,move|store|store.task_panel_feedback(input)).await
+}
+#[tauri::command]
+pub async fn task_panel_drafts(app:tauri::AppHandle,window:tauri::WebviewWindow,workspace:String)->Result<serde_json::Value,StorageError>{
+    crate::main_window(&window)?;crate::task_panel_workspace::with_store(app,workspace,|store|crate::task_panel_collaboration::drafts(&store.db)).await
+}
+#[tauri::command]
+pub async fn task_panel_draft(app:tauri::AppHandle,window:tauri::WebviewWindow,workspace:String,input:crate::task_panel_collaboration::DraftInput)->Result<(),StorageError>{
+    crate::main_window(&window)?;crate::task_panel_workspace::with_store(app,workspace,move|store|store.task_panel_draft(input)).await
+}
+#[tauri::command]
 pub async fn task_panel_agent_access(app:tauri::AppHandle,window:tauri::WebviewWindow,workspace:String,input:crate::task_panel_agent::AccessInput)->Result<crate::task_panel_agent::AccessSummary,StorageError>{
     crate::main_window(&window)?;
     if !input.approved{return Err(crate::task_panel_store::invalid("请先核对本任务接入范围。"));}

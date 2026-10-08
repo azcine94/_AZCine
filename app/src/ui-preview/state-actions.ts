@@ -4,6 +4,11 @@ export interface StateAction {selector:string;action?:'click'|'open'|'reveal'|'f
 const stage:StateAction={selector:'.project-stage-picker__trigger'};
 const more:StateAction={selector:'[data-agent-more]'};
 export const stateActions:Record<string,StateAction[]>={
+  'task-panel-feedback-pending':[{selector:'.tp-feedback-panel details',action:'open'}],
+  'task-panel-feedback-response':[{selector:'.tp-feedback-panel details',action:'open'}],
+  'task-panel-project-delete-confirm':[{selector:'[data-task-project-delete]'}],
+  'task-panel-project-deleted':[{selector:'[data-slot="tabs-trigger"]',text:'已删除'}],
+  'task-panel-project-delete-error':[{selector:'[data-task-project-delete]'},{selector:'.tp-project-confirm button',text:'确认删除'}],
   'operation-toast':[{selector:'[data-toast-demo]'}],
   'history-delete':[{selector:'[data-history-delete]'}],
   'history-clear':[{selector:'[data-history-clear]'}],

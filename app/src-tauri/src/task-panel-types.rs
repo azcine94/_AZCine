@@ -82,6 +82,7 @@ pub struct Node {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskView {
+    #[serde(default)] pub workspace_error:String,
     #[serde(default)] pub execution_workspace:Option<crate::task_panel_locations::ExecutionWorkspace>,
     #[serde(default)] pub execution_profile:String,
     #[serde(default)] pub recommended_actions:Vec<String>,
@@ -108,11 +109,13 @@ pub struct TaskPlan {
 pub struct TaskProject {
     pub id: String, pub name: String, pub summary: String, pub repository_ids: Vec<String>,
     pub revision: i64, pub created_at: String,
+    #[serde(default)] pub deleted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PanelSnapshot {
+    #[serde(default)] pub feedback:Vec<crate::task_panel_collaboration::Feedback>,
     #[serde(default)] pub monitor: crate::task_panel_monitor::Monitor,
     #[serde(default)] pub projects: Vec<TaskProject>,
     pub graph_revision: i64, pub tasks: Vec<TaskView>, pub repositories: Vec<Repository>,
@@ -131,11 +134,13 @@ pub struct MutationInput {
 #[serde(tag = "type", rename_all = "snake_case", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Mutation {
     Project { id: String, name: String, summary: String, repository_ids: Vec<String> },
+    ProjectDeleted { id: String, deleted: bool, approved: bool },
     Repository { id: String, label: String, path: String, scope: Vec<String>, #[serde(default)] project_id: Option<String> },
     SaveTask { id: String, title: String, goal: String, scope: Vec<String>, criteria: Vec<String>,
         repository_id: Option<String>, source: String, #[serde(default)] plan: Option<TaskPlan> },
     Lifecycle { id: String, lifecycle: String, reason: String },
     CancelStoppedExecution { id:String, execution_id:String, reason:String, approved:bool },
+    KeepTaskWithoutWorktree { id:String, approved:bool },
     ResumeSummary { id: String, summary: String },
     Relation { from_id: String, to_id: String, kind: String, threshold: String, source: String },
     InvalidateRelation { id: String },

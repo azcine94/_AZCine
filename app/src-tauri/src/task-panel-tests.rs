@@ -334,11 +334,88 @@ fn given_required_check_claim_when_accepting_then_real_log_review_is_required_an
     let acceptance=AcceptInput{request_id:"required-accept".into(),task_id:"task-a".into(),expected_revision:1,execution_id:run.id.clone(),snapshot_id:review.observed_snapshot_id.unwrap(),accepted:true,approved:true,acknowledge_unverified:true,reason:"本人核对".into()};
     assert!(s.task_panel_accept(acceptance.clone()).is_err());
     let log=exchange.join("check.log");std::fs::write(&log,"fictional check failed\n").unwrap();
-    let check=CheckInput{request_id:"check-failed".into(),execution_id:run.id,expected_revision:1,command:"fictional check".into(),exit_code:Some(1),status:"failed".into(),log_path:log.to_string_lossy().into_owned(),coverage:vec!["src".into()],approved:true,reason:"本人核对隔离日志".into()};
+    let check=CheckInput{check_id:Some("fictional test".into()),request_id:"check-failed".into(),execution_id:run.id,expected_revision:1,command:"fictional check".into(),exit_code:Some(1),status:"failed".into(),log_path:log.to_string_lossy().into_owned(),expected_log_hash:None,coverage:vec!["src".into()],approved:true,reason:"本人核对隔离日志".into()};
     s.task_panel_check(check.clone()).unwrap();assert!(s.task_panel_accept(acceptance.clone()).is_err());
     std::fs::write(&log,"fictional check passed\n").unwrap();let mut check=check;check.request_id="check-corrected".into();check.status="passed".into();check.exit_code=Some(0);let evidence=s.task_panel_check(check).unwrap();assert_ne!(evidence.path,log.to_string_lossy());assert!(std::path::Path::new(&evidence.path).is_file());
     s.task_panel_accept(acceptance).unwrap();assert_eq!(s.task_panel_snapshot().unwrap().tasks[0].lane,"done");
     std::fs::write(&evidence.path,"changed saved log; original digest no longer matches\n").unwrap();assert_ne!(s.task_panel_snapshot().unwrap().tasks[0].check_state,"passed");
+}
+
+#[test]
+fn given_two_reported_required_checks_when_incomplete_then_technical_stays_unverified_and_acceptance_needs_confirmation(){
+    use crate::task_panel_evidence::CheckInput;
+    let (base,mut s)=fixture();let root=repo_fixture(&mut s,&base);repo_task(&mut s,"task-a");
+    let exchange=base.join("exchange");std::fs::create_dir(&exchange).unwrap();let run=dispatch_fixture(&mut s,&root,&exchange,"task-a");
+    let path=result_file(&exchange,&run,"two-checks");let mut raw:Value=serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    raw["checks"]=json!([{"id":"a","command":"check a","required":true,"status":"passed","coverage":["src/a.ts"]},{"id":"b","command":"check b","required":true,"status":"passed","coverage":["src/b.ts"]}]);
+    std::fs::write(&path,serde_json::to_vec(&raw).unwrap()).unwrap();
+    let review=s.task_panel_result(ResultInput{request_id:"two-result".into(),execution_id:run.id.clone(),path:path.to_string_lossy().into_owned()}).unwrap();
+    let accept=AcceptInput{request_id:"two-accept".into(),task_id:"task-a".into(),expected_revision:1,execution_id:run.id.clone(),snapshot_id:review.observed_snapshot_id.unwrap(),accepted:true,approved:true,acknowledge_unverified:false,reason:"本人核对".into()};
+    let log=exchange.join("check.log");std::fs::write(&log,"fixture reviewed log\n").unwrap();
+    let mut check=CheckInput{request_id:"wrong-coverage".into(),execution_id:run.id.clone(),expected_revision:1,check_id:Some("a".into()),command:"actual check a".into(),exit_code:Some(0),status:"passed".into(),log_path:log.to_string_lossy().into_owned(),expected_log_hash:None,coverage:vec!["src/b.ts".into()],approved:true,reason:"隔离虚构记录".into()};
+    s.task_panel_check(check.clone()).unwrap();assert!(s.task_panel_accept(accept.clone()).is_err());
+    let mut personal_acceptance=accept.clone();personal_acceptance.request_id="accept-reported-checks-unverified".into();personal_acceptance.acknowledge_unverified=true;
+    s.task_panel_accept(personal_acceptance).unwrap();
+    assert_eq!(s.task_panel_snapshot().unwrap().tasks[0].check_state,"not_run");
+    check.request_id="correct-a".into();check.coverage=vec!["src/a.ts".into()];s.task_panel_check(check.clone()).unwrap();
+    assert_ne!(s.task_panel_snapshot().unwrap().tasks[0].check_state,"passed");assert!(s.task_panel_accept(accept.clone()).is_err());
+    let partial=result_file(&exchange,&run,"partial-checks");raw["checks"]=json!([{"id":"a","command":"check a","required":true,"status":"passed","coverage":["src/a.ts"]}]);
+    std::fs::write(&partial,serde_json::to_vec(&raw).unwrap()).unwrap();s.task_panel_result(ResultInput{request_id:"partial-result".into(),execution_id:run.id.clone(),path:partial.to_string_lossy().into_owned()}).unwrap();
+    assert!(s.task_panel_accept(accept.clone()).is_err()); // Partial reports do not make technical checks passed.
+    crate::task_panel_evidence::add_evidence(&s.db,&run,"check","user_confirmed","not_run","","",&json!({"id":"b","required":true,"command":"check b","coverage":["src/b.ts"]}),Some(&accept.snapshot_id)).unwrap();
+    let mut user_required_acceptance=accept.clone();user_required_acceptance.request_id="accept-user-required-unverified".into();user_required_acceptance.acknowledge_unverified=true;
+    assert!(s.task_panel_accept(user_required_acceptance).is_err());
+    check.request_id="correct-b".into();check.check_id=Some("b".into());check.command="actual check b".into();check.coverage=vec!["src/b.ts".into()];s.task_panel_check(check).unwrap();
+    s.task_panel_accept(accept).unwrap();assert_eq!(s.task_panel_snapshot().unwrap().tasks[0].check_state,"passed");
+    std::fs::write(root.join("src/b.ts"),"export const b = 9;\n").unwrap();let snapshot=s.task_panel_snapshot().unwrap();
+    assert_eq!(snapshot.tasks[0].check_state,"stale");assert!(snapshot.evidence.iter().filter(|e|e.kind=="check").all(|e|e.detail["validity"]["current"]==false));
+}
+
+#[test]
+fn given_missing_task_worktree_when_loading_panel_then_other_project_stays_available(){
+    let (base,mut s)=fixture();repo_fixture(&mut s,&base);repo_task(&mut s,"task-a");second_project(&mut s,&base);
+    let location=crate::task_panel_locations::ExecutionWorkspace{path:base.join("missing-worktree").to_string_lossy().into_owned(),branch:"fix/missing".into(),base:"fixture".into()};
+    s.save_task_setting(&crate::task_panel_locations::key("task-a"),&serde_json::to_string(&location).unwrap()).unwrap();
+    let snapshot=s.task_panel_snapshot().unwrap();let broken=snapshot.tasks.iter().find(|t|t.task.id=="task-a").unwrap();
+    assert!(!broken.workspace_error.is_empty());assert!(!broken.allowed_actions.iter().any(|a|a=="dispatch"));
+    assert!(snapshot.tasks.iter().any(|t|t.task.id=="task-b"&&t.workspace_error.is_empty()));
+}
+
+#[test]
+fn given_editor_draft_when_store_reopens_then_input_restores_without_starting_execution(){
+    use crate::task_panel_collaboration::{DraftInput,drafts};
+    let (base,mut s)=fixture();let original=json!({"id":"draft-a","title":"待核对草案","goal":"保留自然语言","scope":"src","criteria":"本人核对","repositoryId":"","projectId":"","goalId":"","phase":"","source":"虚构草案","autoStart":true,"expectedRevision":null});
+    s.task_panel_draft(DraftInput{id:"draft-a".into(),draft:Some(original)}).unwrap();drop(s);
+    let mut reopened=Store::open(&base.join("data"),true).unwrap();let saved=drafts(&reopened.db).unwrap();
+    assert_eq!(saved["draft-a"]["title"],"待核对草案");assert_eq!(saved["draft-a"]["autoStart"],false);
+    assert!(reopened.task_panel_snapshot().unwrap().executions.is_empty());
+    reopened.task_panel_draft(DraftInput{id:"draft-a".into(),draft:None}).unwrap();assert!(drafts(&reopened.db).unwrap()["draft-a"].is_null());
+}
+
+#[test]
+fn given_live_execution_when_requirements_change_then_old_run_must_stop_and_old_receipt_is_history(){
+    let (base,mut s)=fixture();let root=repo_fixture(&mut s,&base);repo_task(&mut s,"task-a");let exchange=base.join("exchange");std::fs::create_dir(&exchange).unwrap();let run=dispatch_fixture(&mut s,&root,&exchange,"task-a");
+    let update=MutationInput{request_id:"revise".into(),expected_revision:Some(1),action:Mutation::SaveTask{plan:None,id:"task-a".into(),title:"新要求".into(),goal:"新的任务范围".into(),scope:vec!["src".into()],criteria:vec!["核对新交付".into()],repository_id:Some("repo-a".into()),source:"本人".into()}};
+    assert!(s.task_panel_mutate(update.clone()).is_err());
+    let release=crate::task_panel_execution::ExecutionActionInput{request_id:"release-revision".into(),execution_id:run.id.clone(),action:"release_for_revision".into(),reason:"本人核对停止".into(),approved:true};
+    setup_herdr(&mut s,&root,"working");assert!(s.task_panel_execution_action(release.clone()).is_err());
+    setup_herdr(&mut s,&root,"idle");assert_eq!(s.task_panel_execution_action(release).unwrap().state,"superseded");
+    assert_eq!(s.task_panel_mutate(update).unwrap().revision,2);
+    let path=result_file(&exchange,&run,"old-revision");let review=s.task_panel_result(ResultInput{request_id:"old-receipt".into(),execution_id:run.id,path:path.to_string_lossy().into_owned()}).unwrap();
+    assert_eq!(review.status,"quarantined");assert_eq!(s.task_panel_snapshot().unwrap().tasks[0].task.revision,2);
+}
+
+#[test]
+fn given_saved_feedback_when_original_agent_is_busy_then_it_waits_and_sent_retry_does_not_duplicate(){
+    use crate::task_panel_collaboration::FeedbackInput;
+    let (base,mut s)=fixture();let root=repo_fixture(&mut s,&base);repo_task(&mut s,"task-a");let exchange=base.join("exchange");std::fs::create_dir(&exchange).unwrap();let run=dispatch_fixture(&mut s,&root,&exchange,"task-a");
+    let payload=|request_id:&str,action:&str|FeedbackInput{request_id:request_id.into(),task_id:"task-a".into(),expected_revision:1,execution_id:run.id.clone(),id:"opinion-a".into(),action:action.into(),body:if action=="save"{"请保留长文本可读性"}else{""}.into(),approved:true};
+    s.task_panel_feedback(payload("save-opinion","save")).unwrap();setup_herdr(&mut s,&root,"working");
+    assert_eq!(s.task_panel_feedback(payload("send-opinion","send")).unwrap().state,"pending");assert_eq!(crate::herdr_adapter::test_calls("agent.prompt"),0);
+    setup_herdr(&mut s,&root,"idle");assert_eq!(s.task_panel_feedback(payload("send-opinion","send")).unwrap().state,"sent");
+    s.task_panel_feedback(payload("send-opinion","send")).unwrap();assert_eq!(crate::herdr_adapter::test_calls("agent.prompt"),1);
+    let received=crate::task_panel_collaboration::acknowledge_feedback(&s.db,"task-a",1,&run.id,"opinion-a","received","已收到","received-a").unwrap();assert_eq!(received.state,"received");
+    assert!(crate::task_panel_collaboration::acknowledge_feedback(&s.db,"task-a",1,"other-run","opinion-a","addressed","不能串任务","bad-ack").is_err());
 }
 
 #[test]

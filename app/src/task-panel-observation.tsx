@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Execution, PanelSnapshot, TaskView } from './task-panel-contract.ts';
+import type { Execution, GitObservation, PanelSnapshot, TaskView } from './task-panel-contract.ts';
 import { executionLabels, liveExecution } from './task-panel-contract.ts';
 
 export const terminalLabels: Record<string, string> = { working: '运行中', blocked: '待你回答', idle: '空闲', done: '本轮已停止输出', unknown: '状态未知', disconnected: '失联待核对' };
@@ -22,12 +22,31 @@ export function RunClock({ run, task }: { run?: Execution; task: TaskView }) {
   return <span className="tp-meta tp-run-clock">派发后 {elapsed(run.createdAt)}{task.observation?.state === 'blocked' && ` · 等待回答 ${elapsed(task.observation.stateSince)}`}{task.observation && <span>最近核对 {new Date(task.observation.observedAt).toLocaleTimeString('zh-CN')}</span>}</span>;
 }
 export function taskGit(task: TaskView, snapshot: PanelSnapshot | null) {
-  return task.executionWorkspace ? snapshot?.monitor?.worktrees?.[task.executionWorkspace.path] : snapshot?.monitor?.git;
+  if (task.executionWorkspace) return snapshot?.monitor?.worktrees?.[task.executionWorkspace.path];
+  const repository = snapshot?.repositories.find(item => item.id === task.repositoryId);
+  if (!repository) return undefined;
+  const git = snapshot?.monitor?.git;
+  const directory = (path: string) => path.replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '').replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/+$/, '').toLowerCase();
+  return git && directory(git.path) === directory(repository.path) ? git : undefined;
 }
 export function taskBranch(task: TaskView, snapshot: PanelSnapshot | null) {
-  return taskGit(task, snapshot)?.branch || task.executionWorkspace?.branch || '主工作区';
+  return taskGit(task, snapshot)?.branch || task.executionWorkspace?.branch || (task.repositoryId ? '主工作区' : '无代码工作区');
+}
+export function gitStatus(git: GitObservation | undefined) {
+  if (!git) return '状态待同步';
+  if (git.error) return '读取失败';
+  const observedAt = Date.parse(git.observedAt);
+  if (!Number.isFinite(observedAt) || Date.now() - observedAt > 15000) return '状态待刷新';
+  return git.changedFiles ? `${git.changedFiles} 个文件未提交` : '工作区干净';
+}
+/** Compact labels; full status and path remain in titles/details. */
+export function compactGitStatus(git: GitObservation | undefined) {
+  const status=gitStatus(git);
+  if(status==='工作区干净')return '干净';
+  if(status.endsWith('个文件未提交'))return `${git?.changedFiles} 处改动`;
+  return status==='状态待同步'?'待同步':status==='状态待刷新'?'待刷新':status;
 }
 export function TaskObservation({ task, snapshot }: { task: TaskView; snapshot: PanelSnapshot | null }) {
   const run = snapshot?.executions.find(r => r.taskId === task.id), git = taskGit(task, snapshot);
-  return <section className="tp-runtime-summary"><h3>运行状态</h3><p>{executionLabel(task)}</p><RunClock run={run} task={task} />{task.executionWorkspace && !git && <p className="tp-meta">{task.executionWorkspace.branch} · 正在读取分支状态</p>}{git && <><h3>任务执行目录 · Git</h3><p>{git.error || `${git.branch} · ${git.changedFiles ? `${git.changedFiles} 个文件未提交` : '工作区干净'}`}</p><p className="tp-meta tp-mono">{git.path.replace(/^\\\\\?\\/, '')}</p><p className="tp-meta">HEAD {git.head.slice(0, 12)} · {new Date(git.observedAt).toLocaleTimeString('zh-CN')}</p></>}</section>;
+  return <section className="tp-runtime-summary"><h3>运行状态</h3><p>{executionLabel(task)}</p><RunClock run={run} task={task} />{(task.repositoryId || task.executionWorkspace) && <><h3>任务执行目录 · Git</h3><p>{task.executionWorkspace ? '任务分支' : '主工作区'} · {git?.branch || task.executionWorkspace?.branch || '分支待确认'} · {gitStatus(git)}</p>{git?.error && <p className="tp-meta">{git.error}</p>}<p className="tp-meta tp-mono">{(task.executionWorkspace?.path || git?.path || snapshot?.repositories.find(item => item.id === task.repositoryId)?.path || '').replace(/^\\\\\?\\/, '')}</p>{git && <p className="tp-meta">HEAD {git.head.slice(0, 12) || '未知'} · {new Date(git.observedAt).toLocaleTimeString('zh-CN')}</p>}</>}</section>;
 }

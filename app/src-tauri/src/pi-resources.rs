@@ -5,6 +5,26 @@ use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{fs,io::Write,path::{Path,PathBuf},time::Duration};
 
+/// Explicitly requested skill in the ordinary app-owned resource directory.
+/// Keep user edits, and remember installation so removal stays removed.
+pub fn provision_task_refinement(pi_root:&Path,agent:&Path)->Result<(),crate::pi_model_config::ConfigError>{
+    use crate::pi_model_config::ConfigError;
+    let failed=||ConfigError{code:"pi_task_skill_install",message:"任务细化 Skill 安装未完成，已有资源保留。"};
+    let marker=pi_root.join("task-refine-installed");no_link(&marker)?;
+    if marker.try_exists().map_err(|_|failed())?{return Ok(());}
+    let directory=agent.join("skills").join("task-refine");no_link(&directory)?;
+    fs::create_dir_all(&directory).map_err(|_|failed())?;
+    let path=directory.join("SKILL.md");no_link(&path)?;
+    let publish=|parent:&Path,target:&Path,bytes:&[u8]|->Result<(),ConfigError>{
+        let mut file=tempfile::NamedTempFile::new_in(parent).map_err(|_|failed())?;
+        file.write_all(bytes).map_err(|_|failed())?;file.as_file().sync_all().map_err(|_|failed())?;
+        match file.persist_noclobber(target){Ok(_)=>Ok(()),Err(e) if e.error.kind()==std::io::ErrorKind::AlreadyExists=>Ok(()),Err(_)=>Err(failed())}
+    };
+    if !path.try_exists().map_err(|_|failed())?{publish(&directory,&path,include_bytes!("../../resources/skills/task-refine/SKILL.md"))?;}
+    if !path.is_file(){return Err(failed());}
+    publish(pi_root,&marker,b"1\n")
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct ResourceUpdate { pub generation:u64,pub id:String,pub hash:Option<String>,pub content:Option<String>,pub enabled:Option<bool> }

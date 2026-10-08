@@ -277,6 +277,12 @@ React的 `use-pi.ts` / `use-agent-*.ts` 和Agent面板共用长寿命控制器�
 
 兼容共同业务库的 `storage-branch-schema.rs` 按表/列结构区分任务旧13/14与Agent13～16，合并后全局保持16，任务表另记app_meta.task_panel_schema=14；初始化/迁移同事务创建缺少模块并验证。旧任务13/14不能跳过Agent建表/待办软删除，Agent16不能重跑13/14迁移；不降级/重建库，独立仓库任务库不混用这套版本。相关旧fixture和版本断言已随合并调整但未运行，真实库/任务归并/窗格/模型本轮未操作。
 
+任务面板后续修订由 `task-panel-create-dialog.tsx` / `use-task-refinement.ts` 通过已配置模型、独立Agent绑定与选定仓库调用Pi；`pi-resources.rs` / `pi-launch-plan.rs` 按用户明确决定提供 `app/resources/skills/task-refine/SKILL.md` 到应用自有Skills目录，保用户修改，用安装标记避免删除后自动恢复，不改上游核心/默认提示。上下文只是有限项目资料，代码结论仍需实际读仓库；不等于OS沙箱。
+
+`task-panel-collaboration.rs` / `use-task-panel-drafts.ts` 使用任务库app_meta保存意见、每仓库编辑草稿与部分创建记录；projects/store支持项目软删除/恢复，无新schema版本。新增IPC `task_panel_feedback`、`task_panel_drafts`、`task_panel_draft`，CLI提供feedback/acknowledge_feedback及稳定请求ID。通知核对原generation/server/pane/agent/cwd且可交互，不确定发送不盲重试；release_for_revision先核对停止再建新修订。单执行目录失败单独报告workspaceError，不拖垮全列表。
+
+内容/记录/意见分别在 `task-panel-task-content.tsx`、`task-panel-task-records.tsx`、`task-panel-feedback.tsx`；graph-layout/graph及控制器保项目范围、图层和分页，普通执行图在分页前排除技术对象。evidence按检查身份/覆盖/日志哈希/代码指纹判断当前证据，顶层user_confirmed决定本人必做门槛，不能由Agent的detail伪造；acknowledge_unverified只记录本人接受未验证结果，不改技术检查状态或下游技术门槛。旧回执不自动升级，新代码需重启后端生效；合并不操作现存授权/运行绑定。
+
 ### 服务器和凭证
 
 `App.tsx` / `routes.ts` → `server-credentials-panel.tsx` → `use-server-credentials.ts` → Rust `server-credentials.rs`，契约/日期在 `server-credentials-contract.ts`，布局在 `styles/server-credentials.css`；`server-credentials-demo.ts` 仅供显式UI预览。共用分页在 `components/ui/record-pagination.tsx`，组件变体与总览沿用现有目录。

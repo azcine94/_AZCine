@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutTaskGraph, taskGraphPath } from '../src/task-panel-graph-layout.ts';
+import { layoutTaskGraph, layoutTaskOverview, taskFlowView, taskGraphPath } from '../src/task-panel-graph-layout.ts';
 import type { GraphNode, Relation } from '../src/task-panel-contract.ts';
 const node = (id: string, kind = 'file'): GraphNode => ({id,kind,label:id,repositoryId:null,path:'',symbol:'',evidenceLevel:'fixture',sources:[],stale:false});
 const edge = (fromId: string, toId: string, kind = 'imports'): Relation => ({id:fromId+toId+kind,fromId,toId,kind,threshold:'none',source:'fixture',evidenceLevel:'fixture',active:true,revision:1});
@@ -21,9 +21,20 @@ test('Given 反向影响候选 When 安排代码层级 Then 不把候选变成�
   assert.equal(graph.relations.length,2);
 });
 test('Given 焦点任务与前置下游 When 展开邻域 Then 当前任务保持独立列且每个对象只出现一次', () => {
-  const result=layoutTaskGraph({nodes:['before','now','after','proof'].map(id=>node(id,'task')),relations:[edge('now','before','depends_on'),edge('after','now','depends_on')]},'now');
-  assert.deepEqual(['before','now','after','proof'].map(id=>result.positions.get(id)!.column),[0,1,2,3]);
-  assert.equal(result.positions.size,4);
+  const graph={graphRevision:1,totalNodes:5,offset:0,hasMore:false,coverage:[],unknowns:[],nodes:[node('project','project'),...['before','now','after'].map(id=>node(id,'task')),node('proof','check')],relations:[edge('project','now','contains'),edge('now','before','depends_on'),edge('after','now','depends_on'),edge('now','proof','checked_by')]};
+  const flow=taskFlowView(graph,'now'),result=layoutTaskGraph(flow,'now',true);
+  assert.deepEqual(['project','before','now','after'].map(id=>result.positions.get(id)!.column),[0,0,1,2]);
+  assert.equal(result.positions.size,4);assert(!result.positions.has('proof'));
+});
+
+test('Given 项目下的多个独立任务 When 总览随可用宽度排列 Then 保留所有任务且不把归属画成任务前置',()=>{
+  const graph={nodes:[node('project','project'),...['a','b','c'].map(id=>node(id,'task'))],relations:['a','b','c'].map(id=>edge('project',id,'contains'))};
+  const wide=layoutTaskOverview(graph,1200),narrow=layoutTaskOverview(graph,288);
+  assert.equal(wide.positions.size,4);assert.equal(narrow.positions.size,4);
+  assert.equal(wide.positions.get('a')!.y,wide.positions.get('c')!.y);
+  assert(wide.positions.get('project')!.y<wide.positions.get('a')!.y);
+  for(const p of narrow.positions.values())assert(p.x>=0&&p.x+p.width!<=narrow.width);
+  assert.equal(graph.relations.filter(r=>r.kind==='depends_on').length,0);
 });
 test('Given 跨列连线与缺失端点 When 生成曲线 Then 避开中间卡片且缺失端点不造假对象', () => {
   const result=layoutTaskGraph({nodes:['a','b','c'].map(id=>node(id)),relations:[edge('a','b'),edge('b','c'),edge('a','c')]});

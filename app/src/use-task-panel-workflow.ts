@@ -3,6 +3,7 @@ import { isTauri } from './desktop-api.ts';
 import { taskPanelClient } from './task-panel-client.ts';
 import { taskError } from './task-panel-contract.ts';
 import { notifyOperation } from './components/ui/operation-toast.tsx';
+import { useCreationDialog } from './components/ui/form-dialog.tsx';
 import type { AgentAccess, Binding, ContextPackage, Execution, HerdrCapabilities, HerdrConfig, HerdrSession, ImportPreview, RecoveryPreview, ResultReview, TaskView } from './task-panel-contract.ts';
 
 export function useTaskPanelWorkflow(root: string | null, refresh: () => Promise<void>) {
@@ -20,8 +21,10 @@ export function useTaskPanelWorkflow(root: string | null, refresh: () => Promise
   const [importOpen, setImportOpen] = useState(false), [imports, setImports] = useState<ImportPreview[]>([]), [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importDraft, setImportDraft] = useState({ repositoryId: '', factsPath: '', source: '', relationIds: [] as string[], approved: false });
   const [goalOpen, setGoalOpen] = useState(false), [goalDraft, setGoalDraft] = useState({ title: '', goal: '', requirements: '', decisions: '', designs: '', planJson: '', source: '本人目标与选定规划材料', parentRepositoryId: '', newDirectory: '', initializeGit: false, installDependencies: false, approved: false, projectId: '' });
-  const [deliveryOpen, setDeliveryOpen] = useState(false), [deliveryTaskId, setDeliveryTaskId] = useState('');
-  const [deliveryDraft, setDeliveryDraft] = useState({ executionId: '', path: '', reason: '', approved: false, acknowledgeUnverified: false, command: '', exitCode: '', logPath: '', coverage: '.', checkStatus: 'not_run' });
+  const deliveryDialog = useCreationDialog();
+  const { open:deliveryOpen, setOpen:setDeliveryOpen, session:deliverySession } = deliveryDialog;
+  const [deliveryTaskId, setDeliveryTaskId] = useState('');
+  const [deliveryDraft, setDeliveryDraft] = useState({ executionId: '', path: '', reason: '', approved: false, acknowledgeUnverified: false, checkId: '', command: '', exitCode: '', logPath: '', coverage: '.', checkStatus: 'not_run' });
   const [resultReview, setResultReview] = useState<ResultReview | null>(null), [recovery, setRecovery] = useState<RecoveryPreview | null>(null), [recoveryOpen, setRecoveryOpen] = useState(false);
   const [analysisDraft, setAnalysisDraft] = useState({ repositoryId: '', skillPath: '', exchangeDirectory: '', focus: '', incremental: false, approved: false });
   const lock = useRef(false), identity = useRef({ root, generation: 0 }), alive = useRef(true), requests = useRef(new Map<string, string>());
@@ -38,7 +41,7 @@ export function useTaskPanelWorkflow(root: string | null, refresh: () => Promise
   async function input<T>(name: string, label: string, payload: Record<string, unknown>, changed = true): Promise<T | null> {
     const key = JSON.stringify({ root, name, payload }), requestId = requests.current.get(key) ?? crypto.randomUUID(); requests.current.set(key, requestId);
     const result = await perform(label, () => client.input<T>(name, { ...payload, requestId }), changed);
-    if (result !== null && name !== 'create_execution' && !(typeof result === 'object' && result && 'state' in result && result.state === 'uncertain')) requests.current.delete(key); return result;
+    if (name === 'worktree' || result !== null && name !== 'create_execution' && !(typeof result === 'object' && result && 'state' in result && result.state === 'uncertain')) requests.current.delete(key); return result;
   }
   useEffect(() => {
     let active = true;
@@ -67,5 +70,5 @@ export function useTaskPanelWorkflow(root: string | null, refresh: () => Promise
   async function loadAccesses() { const rows = await perform('读取本任务接入记录', client.accesses); if (rows) setAccesses(rows); }
   return { launch, action, error, setError, cancelTaskId, setCancelTaskId, input, perform, config, setConfig, capabilities, status, saveConfig, sessions, loadSessions, accesses, loadAccesses, accessResult, setAccessResult, accessDrafts, setAccessDrafts, context, setContext, buildContext, dispatchOpen, setDispatchOpen, dispatchTaskId, creationResult, setCreationResult, dispatchDraft, setDispatchDraft, openDispatch,
     importOpen, setImportOpen, imports, loadImports, importPreview, setImportPreview, importDraft, setImportDraft, previewImport, goalOpen, setGoalOpen, goalDraft, setGoalDraft,
-    deliveryOpen, setDeliveryOpen, deliveryTaskId, setDeliveryTaskId, deliveryDraft, setDeliveryDraft, resultReview, setResultReview, reviewResult, recovery, recoveryOpen, setRecoveryOpen, showRecovery, analysisDraft, setAnalysisDraft };
+    deliveryOpen, setDeliveryOpen, deliverySession, deliveryTaskId, setDeliveryTaskId, deliveryDraft, setDeliveryDraft, resultReview, setResultReview, reviewResult, recovery, recoveryOpen, setRecoveryOpen, showRecovery, analysisDraft, setAnalysisDraft };
 }
