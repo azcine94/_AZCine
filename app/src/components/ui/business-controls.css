@@ -1,5 +1,24 @@
 /* ShadcnStore business variants. Page styles only own layout, not control skins. */
 
+/* Same surface as Today's review panel; layout and spacing remain with the caller. */
+.ui-card-review { background:linear-gradient(180deg,var(--muted),var(--card)); color:var(--text); border:1px solid var(--border); border-radius:var(--r-panel); box-shadow:var(--shadow-card); }
+
+/* Explicit record-table and semantic badge variants; existing defaults stay intact. */
+.ui-status-badge[data-variant="soft"] { gap:var(--s-1); border:1px solid var(--border); padding:var(--s-1) var(--s-2); white-space:nowrap; }
+.ui-status-badge[data-variant="soft"][data-tone="success"] { color:var(--ok); background:var(--ok-soft); border-color:color-mix(in srgb,var(--ok) 24%,var(--border)); }
+.ui-status-badge[data-variant="soft"][data-tone="warning"] { color:var(--warn); background:var(--warn-soft); border-color:color-mix(in srgb,var(--warn) 24%,var(--border)); }
+.ui-status-badge[data-variant="soft"][data-tone="error"] { color:var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 24%,var(--border)); }
+.ui-table-records { border-collapse:collapse; border-spacing:0; }
+.ui-table-records [data-slot="table-head"] { padding:var(--s-3) var(--s-4); background:var(--muted); color:var(--muted-foreground); font-size:var(--fs-s); border-bottom:1px solid var(--border); }
+.ui-table-records [data-slot="table-cell"] { padding:var(--s-4); }
+.ui-table-records[data-density="compact"] [data-slot="table-cell"] { padding:var(--s-2) var(--s-4); }
+.ui-table-records [data-slot="table-body"] tr:not(:last-child) > td { border-bottom:1px solid var(--border); }
+.ui-table-records tr > :is(th,td) + :is(th,td) { border-left:1px solid var(--border); }
+
+.side .nav-item--notice { position:relative; }
+.side .nav-item .nav-status-dot { margin-left:auto; }
+.app-shell[data-sidebar-collapsed="true"] .side .nav-item .nav-status-dot { display:inline-block; position:absolute; top:var(--s-1); right:var(--s-1); margin:0; box-shadow:0 0 0 2px var(--sidebar); }
+
 /* base：业务控件及上下文变体 */
 
 a { color: var(--acc); text-decoration: none; } a:hover { text-decoration: underline; }
@@ -429,6 +448,12 @@ button:disabled { cursor:not-allowed; }
 .foundation-empty { min-height:160px; display:flex; flex-direction:column; justify-content:center; gap:var(--s-2); padding:var(--s-5) 0; }
 .foundation-empty h2 { font:600 var(--fs-h)/var(--lh-h) var(--font); }
 .foundation-empty p { color:var(--t2); max-width:640px; }
+.ui-record-pagination { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s-3); padding:var(--s-3) var(--s-4); border-top:1px solid var(--border); }
+.ui-record-pagination-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:var(--s-2); }
+.ui-empty-state--centered { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--s-3); min-height:256px; padding:var(--s-7) var(--s-5); text-align:center; }
+.ui-empty-state--centered > svg { flex-shrink:0; width:32px; height:32px; color:var(--muted-foreground); }
+.ui-empty-state--centered :is(h2,h3) { font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.ui-empty-state--centered > p { max-width:440px; color:var(--muted-foreground); overflow-wrap:anywhere; }
 .today-card .foundation-empty { min-height:144px; }
 
 /* 公共空态与操作排列：news-processing.css */

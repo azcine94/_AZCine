@@ -46,7 +46,7 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    {scene.route ? <WorkspaceView {...models} {...theme} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
+    {scene.route ? <WorkspaceView {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${scene.route}`)} /> : <Components state={state}/>}
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];

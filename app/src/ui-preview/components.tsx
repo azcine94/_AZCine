@@ -13,6 +13,7 @@ import { StatusBadge } from '../components/ui/status-badge.tsx';
 import { StatusDot } from '../components/ui/status-dot.tsx';
 import { ActionGroup } from '../components/ui/action-group.tsx';
 import { EmptyState } from '../components/ui/empty-state.tsx';
+import { RecordPagination } from '../components/ui/record-pagination.tsx';
 import { Input } from '../components/ui/input.tsx';
 import { Textarea } from '../components/ui/textarea.tsx';
 import { NativeSelect,NativeSelectOption } from '../components/ui/native-select.tsx';
@@ -39,12 +40,13 @@ import { ProjectAddMenu } from '../project-add-menu.tsx';
 import { TableMenu } from '../table-menu.tsx';
 import { project } from './data.ts';
 
-export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu'];
+export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu','record-pagination'];
 export function Components({state}:{state:string}) {
   const [date,setDate]=useState('2026-10-06'),[stage,setStage]=useState<string|null>(project.labels[0].id);
   const [formOpen, setFormOpen] = useState(state.startsWith('form-dialog-'));
   const [formName, setFormName] = useState(state === 'form-dialog-long' ? '长名称示例'.repeat(20) : '');
   const [month, setMonth] = useState('2026-10');
+  const [recordPage, setRecordPage] = useState(1), [recordPageSize, setRecordPageSize] = useState(20);
   const [agentEntryOpen, setAgentEntryOpen] = useState<string | null>(null);
   const [,setNote]=useOperationNotice('');
   const [refreshing, setRefreshing] = useState(false);
@@ -76,6 +78,7 @@ export function Components({state}:{state:string}) {
         <ActionGroup aria-label="会话状态圆点示例"><span className="inline-flex items-center gap-2"><StatusDot tone="success" label="空闲"/>空闲</span><span className="inline-flex items-center gap-2"><StatusDot tone="active" label="运行中"/>运行中</span><span className="inline-flex items-center gap-2"><StatusDot tone="warning" label="待回答或连接中"/>待回答 / 连接中</span><span className="inline-flex items-center gap-2"><StatusDot tone="error" label="连接异常"/>连接异常</span><span className="inline-flex items-center gap-2"><StatusDot label="未连接或已保存"/>未连接 / 已保存</span></ActionGroup>
         <Feedback as="p" tone="error" role="alert">示例失败，输入和已有内容保留。</Feedback><Feedback tone="pending">保存回执待核对 <Button variant="app-pill" onClick={()=>setNote('示例核对，不访问业务库')}>核对结果</Button></Feedback>
         <EmptyState><h3>还没有内容</h3><p>空内容说明使用同一公共入口；具体动作由所在页面提供。</p></EmptyState>
+        <EmptyState variant="centered"><h3>记录你的第一台服务器</h3><p>居中空状态保留内容间距，操作按钮按内容宽度显示。</p><Button variant="outline" onClick={()=>setNote('居中空状态的示例操作，不写入业务库')}>添加服务器</Button></EmptyState>
         <Disclosure open={state==='error'}><summary>查看详情与限制</summary><div className="dbody">统一折叠标题、图标、间距与键盘焦点；真实页面使用同一组件。</div></Disclosure>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>按钮与状态</CardTitle><CardDescription>主操作、常规操作、危险操作和文字操作</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
@@ -92,6 +95,8 @@ export function Components({state}:{state:string}) {
         <div className="flex items-center gap-3"><Checkbox id="kit-checkbox"/><Label htmlFor="kit-checkbox">参与整理</Label><Switch id="kit-switch"/><Label htmlFor="kit-switch">自动采集</Label></div>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>页面组织与数据表</CardTitle><CardDescription>页签、表格、分隔线</CardDescription></CardHeader><CardContent>
+        <Tabs defaultValue="servers"><TabsList size="lg" aria-label="宽松页签示例"><TabsTrigger value="servers">服务器</TabsTrigger><TabsTrigger value="credentials">凭证</TabsTrigger><TabsTrigger value="reminders">到期提醒<StatusBadge>3</StatusBadge></TabsTrigger></TabsList></Tabs>
+        <RecordPagination label="示例记录" total={57} page={recordPage} pageSize={recordPageSize} onPageChange={setRecordPage} onPageSizeChange={size => { setRecordPageSize(size); setRecordPage(1); }} />
         <Tabs defaultValue="list"><TabsList><TabsTrigger value="list">列表</TabsTrigger><TabsTrigger value="detail">详情</TabsTrigger></TabsList><TabsContent value="list"><Table><TableHeader><TableRow><TableHead>名称</TableHead><TableHead>状态</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell>示例内容</TableCell><TableCell><Badge variant="secondary">已完成</Badge></TableCell></TableRow><TableRow><TableCell>待核对资料</TableCell><TableCell>待确认</TableCell></TableRow></TableBody></Table></TabsContent><TabsContent value="detail"><p>示例详情内容</p><Separator className="my-4"/><p className="text-muted-foreground">说明与辅助信息</p></TabsContent></Tabs>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>操作提示与生命周期</CardTitle><CardDescription>右上角只显示最新一条；普通提示 4 秒，撤销 6 秒。悬停或聚焦暂停计时。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2">
@@ -118,6 +123,14 @@ export function Components({state}:{state:string}) {
             
           </form>
         </FormDialog>
+      </CardContent></Card>
+      <Card variant="review"><CardHeader><CardTitle>待核对面板底框</CardTitle><CardDescription>与今天页待核对面板一致的渐变底色、细边框、圆角和轻阴影，统计卡片共用此变体。</CardDescription></CardHeader></Card>
+      <Card><CardHeader><CardTitle>记录表格与到期状态</CardTitle><CardDescription>records 表格使用行列分隔线；soft 状态沿用亮暗语义色。</CardDescription></CardHeader><CardContent>
+        <Table variant="records"><TableHeader><TableRow><TableHead>演示记录</TableHead><TableHead>到期状态</TableHead></TableRow></TableHeader><TableBody>
+          <TableRow><TableCell>开发实验机</TableCell><TableCell><StatusBadge variant="soft" tone="success">正常 · 剩余 95 天</StatusBadge></TableCell></TableRow>
+          <TableRow><TableCell>个人作品站</TableCell><TableCell><StatusBadge variant="soft" tone="warning">即将到期 · 25 天</StatusBadge></TableCell></TableRow>
+          <TableRow><TableCell>素材中转站</TableCell><TableCell><StatusBadge variant="soft" tone="error">已过期 3 天</StatusBadge></TableCell></TableRow>
+        </TableBody></Table>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>弹层与菜单</CardTitle><CardDescription>点击查看打开态，Escape 关闭</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
         <Dialog defaultOpen={state==='dialog-open'}><DialogTrigger asChild><Button variant="outline">打开对话框</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>核对变更</DialogTitle><DialogDescription>这是虚构示例，用于调整弹层间距与排版。</DialogDescription></DialogHeader><Input aria-label="弹层输入" placeholder="填写名称"/><DialogFooter><Button onClick={()=>setNote('示例操作，不保存业务资料。')}>示例操作</Button></DialogFooter></DialogContent></Dialog>

@@ -111,9 +111,9 @@ mod windows_impl {
         let path=PathBuf::from(OsString::from_wide(unsafe{display.0.as_wide()}));if !path.is_absolute()||path.extension().is_none_or(|e|!e.eq_ignore_ascii_case("md")){return Err(StorageError::new("news_export_path","请选择绝对路径的.md文件。"));}Ok(Some(path))
     })}
 
-    /// Asks Windows to open the current stored data root.
+    /// Asks Windows to open the stored data root or a validated application-owned directory.
     ///
-    /// The caller MUST obtain `path` from Manager::store()?.root, not from
+    /// The caller MUST derive and validate `path` from Manager::store()?.root, not from
     /// frontend arguments. This helper cannot independently prove root
     /// ownership because it intentionally does not receive the Manager.
     ///

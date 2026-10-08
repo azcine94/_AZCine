@@ -11,6 +11,15 @@ export interface Scene {id:string;title:string;group:string;route:Route|null;sta
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table'];
 export const extraStateLabels:Record<string,string>={
+  'manager-notice-warning':'服务器提醒 · 仅临近到期黄点','manager-notice-clear':'服务器提醒 · 无提醒不显示点',
+  'manager-reminders-dismissed':'服务器提醒 · 清除红点后保留完整列表',
+  'manager-credentials':'服务器和凭证 · 凭证列表', 'manager-reminders':'服务器和凭证 · 到期提醒',
+  'manager-credentials-many':'凭证 · 57条记录与分页',
+  'manager-servers-many':'服务器 · 57条记录与分页', 'manager-reminders-many':'到期提醒 · 57条记录与分页', 'manager-renewals-many':'续费历史 · 57条记录与已删除服务器', 'manager-invalid-date':'服务器 · 无效日期防御显示',
+  'manager-loading':'服务器和凭证 · 正在读取', 'manager-load-error':'服务器和凭证 · 读取失败', 'manager-save-pending':'服务器和凭证 · 保存结果待核对',
+  'manager-delete-server':'服务器 · 删除确认', 'manager-delete-credential':'凭证 · 关联服务器的删除确认', 'manager-credentials-empty':'凭证 · 空列表',
+  'manager-validation':'服务器和凭证 · 日期校验保留输入',
+  'manager-server-create':'服务器和凭证 · 新建草稿', 'manager-key-create':'服务器和凭证 · 密钥文件表单', 'manager-renew':'服务器和凭证 · 登记续费',
   'today-news-many':'今天 · 最多10条资讯与内部滚动','today-news-long':'今天 · 资讯长标题换行','today-news-empty':'今天 · 日报无条目','today-news-loading':'今天 · 资讯读取中','today-news-error':'今天 · 资讯失败保留内容',
   'agent-cold-history':'Agent · 查看历史无需启动进程','agent-lazy-start':'Agent · 首次发送按需连接','agent-connect-error':'Agent · 连接失败保留文字与附件',
   'agent-process-nested':'Agent · 子调用归入同一已工作','agent-process-nested-running':'Agent · 子调用执行中','agent-process-nested-error':'Agent · 父调用完成但子调用失败',
@@ -39,6 +48,7 @@ export const extraStateLabels:Record<string,string>={
 };
 export const stateLabels: Record<string,string> = {'root-error':'数据目录读取失败',removed:'已移除的灵感',converted:'已转为待办',undo:'可撤销状态',normal:'正常内容',empty:'空内容',loading:'读取中',error:'失败 / 保留内容',long:'长文本',dirty:'未保存草稿',pending:'保存回执待核对',editing:'编辑中','no-root':'未选择数据目录',paused:'暂停信源',preview:'信源预览',proxy:'手动代理配置',remote:'获取到远程模型',models:'服务商模型列表',advanced:'服务商高级设置',busy:'刷新中',disconnected:'未连接 Pi',review:'需要核对',incomplete:'日报覆盖不完整',detail:'批次详情',success:'成功样式（虚构）',all:'全部动态',featured:'精选',hot:'热点',daily:'固定日报',filtered:'领域筛选后无结果',attachments:'消息附件',compacting:'整理上下文',...statusLabels,...processingPhases};
 const files: Record<string,string[]> = {
+  'servers-credentials':['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts','components/ui/status-badge.tsx','components/ui/status-dot.tsx','components/ui/table.tsx'],
   'task-panel':['task-panel-panels.tsx','task-panel-graph.tsx','task-panel-workflow.tsx','task-panel-project-view.tsx'],
   bookkeeping:['bookkeeping-panels.tsx'],
   today:['workspace-panels.tsx','projects-panels.tsx','today-news-panel.tsx'],
@@ -54,6 +64,8 @@ const files: Record<string,string[]> = {
   'settings/news/ai':['news-preferences-panel.tsx'],'settings/news/automation':['news-preferences-panel.tsx'],
 };
 function states(route:string) {
+  if (route==='servers-credentials') return ['normal','empty','long','manager-credentials','manager-credentials-many','manager-servers-many','manager-reminders-many','manager-renewals-many','manager-invalid-date','manager-reminders','manager-server-create','manager-key-create','manager-renew','manager-validation','manager-notice-warning','manager-notice-clear','manager-reminders-dismissed','manager-loading','manager-load-error','manager-save-pending','manager-delete-server','manager-delete-credential','manager-credentials-empty','shell-collapsed'];
+  if (route.startsWith('servers-credentials/')) return ['normal','long'];
   if (route==='task-panel') return [...base,'task-panel-branches','dirty','pending','conflict','task-panel-editor','task-panel-intake','task-panel-intake-launch','task-panel-graph','task-panel-code-graph','task-panel-graph-long','task-panel-memory','task-panel-sessions','task-panel-goal','task-panel-dispatch','task-panel-import','task-panel-delivery','task-panel-recovery','task-panel-project','task-panel-multiple-projects','task-panel-context','task-panel-memory-reference','task-panel-memory-pending','task-panel-start-failed','task-panel-paused','task-panel-cancelled','task-panel-stopping','task-panel-stop-confirm'];
   if (route==='bookkeeping'||route.startsWith('bookkeeping/')) return [...base,'dirty','pending','filtered','conflict','undo','bookkeeping-selected','bookkeeping-confirm','bookkeeping-delete','bookkeeping-saving',...(route==='bookkeeping'?['month-open','bookkeeping-validation','bookkeeping-create','bookkeeping-edit','bookkeeping-save-feedback','bookkeeping-refresh','bookkeeping-refresh-fast']:[]),'bookkeeping-fx','bookkeeping-fx-loading','bookkeeping-fx-error'];
   if (route==='jobs'||route==='settings/news/processing') return [...base,'detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
@@ -82,6 +94,9 @@ function scene(route:Route,title:string,group:string,sources:string[] = files[ro
 export const scenes:Scene[] = [
   {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open'],sources:['components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
   ...pages.filter(page=>page.id!=='settings').map(page=>scene(page.id,page.title,'主页面')),
+  scene('servers-credentials/servers/render-node','服务器资料与关联凭证','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),
+  scene('servers-credentials/credentials/render-key','SSH 密钥详情','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),
+  scene('servers-credentials/credentials/studio-login','账号密码详情','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),
   ...settingsGroups.flatMap(group=>group.items.map(item=>scene(item.route,item.title,`设置 / ${group.title}`))),
   scene('projects/new','新建公司项目 · 弹窗','创建弹窗',['projects-panels.tsx']),
   scene('bookkeeping/new','记账 · 记一笔弹窗','创建弹窗',['bookkeeping-panels.tsx']),

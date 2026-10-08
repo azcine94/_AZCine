@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-function Table({ className, containerProps, ...props }: React.ComponentProps<"table"> & { containerProps?: React.ComponentProps<"div"> }) {
+function Table({ className, variant = 'default', density = 'default', containerProps, ...props }: React.ComponentProps<"table"> & { variant?: 'default' | 'records'; density?: 'default' | 'compact'; containerProps?: React.ComponentProps<"div"> }) {
   return (
     <div
       {...containerProps}
@@ -12,7 +12,9 @@ function Table({ className, containerProps, ...props }: React.ComponentProps<"ta
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        data-variant={variant}
+        data-density={density}
+        className={cn("w-full caption-bottom text-sm", variant === 'records' && 'ui-table-records', className)}
         {...props}
       />
     </div>
