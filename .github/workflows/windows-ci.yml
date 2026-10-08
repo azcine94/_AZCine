@@ -1,0 +1,25 @@
+name: Windows CI
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: Windows x64 checks
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/prepare-windows
+      - name: Script and frontend tests
+        run: npm test
+      - name: Build release application without publishing
+        run: npm run build:desktop -- --no-bundle
+      - name: Rust tests with fictional data
+        run: cargo test --manifest-path app/src-tauri/Cargo.toml --release --locked --lib
+

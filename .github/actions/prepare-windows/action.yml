@@ -1,0 +1,30 @@
+name: Prepare Windows build
+description: Install pinned project tools and upstream runtime without user data
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24.21.0
+        cache: npm
+        cache-dependency-path: app/package-lock.json
+    - name: Install frontend dependencies
+      shell: pwsh
+      run: npm --prefix app ci --no-audit --no-fund
+    - name: Install repository-owned Rust
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force .tooling/downloads | Out-Null
+        Invoke-WebRequest 'https://static.rust-lang.org/rustup/archive/1.29.1/x86_64-pc-windows-msvc/rustup-init.exe' -OutFile .tooling/downloads/rustup-init-1.29.1.exe
+        ./scripts/setup-rust.ps1
+    - name: Prepare pinned Node and Pi resources
+      shell: pwsh
+      run: node scripts/prepare-release-runtime.mjs
+    - name: Set isolated build paths
+      shell: pwsh
+      run: |
+        "CARGO_HOME=$env:GITHUB_WORKSPACE/.tooling/cargo" >> $env:GITHUB_ENV
+        "RUSTUP_HOME=$env:GITHUB_WORKSPACE/.tooling/rustup" >> $env:GITHUB_ENV
+        "CARGO_TARGET_DIR=$env:GITHUB_WORKSPACE/.tooling/build-target" >> $env:GITHUB_ENV
+        "$env:GITHUB_WORKSPACE/.tooling/cargo/bin" >> $env:GITHUB_PATH
+

@@ -1,0 +1,66 @@
+name: Windows release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag matching the version on main
+        required: true
+        default: v0.1.0
+permissions:
+  contents: read
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check exact main and unused tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release tag' }
+          $remoteMain = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha'
+          if ($LASTEXITCODE -ne 0 -or $remoteMain -ne $env:GITHUB_SHA) { throw 'main changed; dispatch from the reviewed commit again' }
+          $version = (Get-Content app/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") { throw 'Tag and application version differ' }
+          $refs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or @($refs | Where-Object { $_.ref -eq "refs/tags/$env:RELEASE_TAG" }).Count) { throw 'Tag already exists or could not be checked' }
+      - uses: ./.github/actions/prepare-windows
+      - name: Script and frontend tests
+        run: npm test
+      - name: Rust tests with fictional data
+        run: cargo test --manifest-path app/src-tauri/Cargo.toml --release --locked --lib
+      - name: Build Windows installer and updater signature
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: npm run build:desktop -- --bundles nsis
+      - name: Generate update manifest and checksums
+        run: node scripts/release-assets.mjs
+      - name: Preserve exact release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release-assets
+          path: artifacts/release/*
+          if-no-files-found: error
+      - name: Create draft, upload, and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem artifacts/release -File | Where-Object { $_.Name -ne 'release-notes.md' } | Select-Object -ExpandProperty FullName)
+          gh release create $env:RELEASE_TAG @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "AZCine $env:RELEASE_TAG" --notes-file artifacts/release/release-notes.md --draft
+          if ($LASTEXITCODE -ne 0) { throw 'Draft creation/upload failed; inspect before retrying' }
+          $release = gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json isDraft,assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $release.isDraft -or $release.assets.Count -ne $files.Count) { throw 'Draft assets incomplete' }
+          gh release edit $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing failed; draft retained for inspection' }
+
