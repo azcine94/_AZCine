@@ -121,6 +121,17 @@ impl Store {
         let request_id=format!("agent:{}:{}",input.grant_id,input.request_id);
         let encoded=encode(&json!({"method":input.method,"params":input.params,"taskId":task_id,"taskRevision":revision}))?;
         match input.method.as_str(){
+            "feedback"=>Ok(json!({"taskId":task_id,"taskRevision":revision,"items":crate::task_panel_collaboration::feedback(&self.db)?.into_iter().filter(|f|f.task_id==task_id&&f.task_revision==revision).collect::<Vec<_>>(),"authorization":"补充意见不扩展原执行授权；改变范围或要求先提交候选"})),
+            "acknowledge_feedback"=>{
+                if let Some(prior)=request(&self.db,&request_id,&encoded)?{return Ok(prior);}
+                let id=input.params["id"].as_str().ok_or_else(||invalid("意见 ID 缺失。"))?;
+                let run=input.params["executionId"].as_str().ok_or_else(||invalid("执行 ID 缺失。"))?;
+                let state=input.params["state"].as_str().unwrap_or("");
+                let response=input.params["response"].as_str().unwrap_or("");
+                let tx=self.db.transaction().map_err(db_error)?;
+                let value=crate::task_panel_collaboration::acknowledge_feedback(&tx,&task_id,revision,run,id,state,response,&request_id)?;
+                let result=serde_json::to_value(value).map_err(|_|invalid("意见回执无法编码。"))?;receipt(&tx,&request_id,&encoded,&result)?;tx.commit().map_err(db_error)?;Ok(result)
+            },
             "frontier"=>{
                 let snapshot=self.task_panel_snapshot_scoped(Some(&project_id))?;
                 let tasks:Vec<_>=snapshot.tasks.into_iter().filter(|v|v.plan.project_id.as_ref()==Some(&project_id)).map(|v|json!({"id":v.task.id,"title":v.task.title,"revision":v.task.revision,"plan":v.plan,"kind":v.object_kind,"lane":v.lane,"reasons":v.reason_codes,"blockers":v.blockers,"allowedActions":v.allowed_actions,"executionState":v.execution_state,"checkState":v.check_state,"acceptanceState":v.acceptance_state})).collect();
@@ -168,7 +179,7 @@ impl Store {
                 let file=crate::task_panel_paths::scoped_file(&task_root,relative,&[".".into()])?;
                 serde_json::to_value(self.task_panel_result(crate::task_panel_evidence::ResultInput{request_id,execution_id:run.into(),path:file.to_string_lossy().into_owned()})?).map_err(|_|invalid("回执编码失败。"))
             },
-            _=>Err(invalid("此入口只开放 frontier/task/context/graph/source/propose_memory/submit_result；不会执行命令、审批或验收。")),
+            _=>Err(invalid("此入口只开放 frontier/task/context/graph/source/feedback/acknowledge_feedback/propose_memory/submit_result；不会执行命令、审批或验收。")),
         }
     }
 }

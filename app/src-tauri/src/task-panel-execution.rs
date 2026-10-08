@@ -42,14 +42,14 @@ pub(crate) fn validate_actions(actions:&[String],approved:bool)->Result<(),Stora
     if !approved||actions.is_empty()||actions.len()>12||actions.iter().any(|a|!["read_scoped_files","edit_task_files","write_delivery_artifacts","tests","initialize_directory","initialize_git","install_dependencies","render_architecture"].contains(&a.as_str())){return Err(invalid("请确认本次动作范围。"));}
     Ok(())
 }
-fn same_target(binding:&Binding,current:&HerdrSession)->bool {
+pub(crate) fn same_target(binding:&Binding,current:&HerdrSession)->bool {
     current.identity_confirmed&&binding.server_id==current.server_id&&binding.workspace_id==current.workspace_id&&binding.pane_id==current.pane_id&&binding.agent_id==current.agent_id
 }
-fn binding_config(mut config:HerdrConfig,binding:&Binding)->Result<HerdrConfig,StorageError>{
+pub(crate) fn binding_config(mut config:HerdrConfig,binding:&Binding)->Result<HerdrConfig,StorageError>{
     let session=binding.server_id.strip_prefix("local-session:").filter(|s|!s.is_empty()&&s.len()<=80&&s.bytes().all(|c|c.is_ascii_alphanumeric()||b"-_".contains(&c))).ok_or_else(||invalid("原绑定缺少可核对的本机 session，未改用当前选中的入口。"))?;
     config.session=session.into();Ok(config)
 }
-fn same_directory(left:&str,right:&str)->bool{
+pub(crate) fn same_directory(left:&str,right:&str)->bool{
     let l=std::fs::canonicalize(left).ok();let r=std::fs::canonicalize(right).ok();l.is_some()&&l==r
 }
 impl Store {
@@ -67,6 +67,7 @@ impl Store {
     fn task_panel_bind_at(&mut self,input:BindInput,config:&HerdrConfig)->Result<Binding,StorageError>{
         let encoded=encode(&input)?;if let Some(prior)=request(&self.db,&input.request_id,&encoded)?{return Ok(prior);}
         let t=task(&self.db,&input.task_id)?;expected(t.revision,Some(input.expected_revision))?;
+        crate::task_panel_projects::require_task_active(&self.db,&input.task_id)?;
         let current=herdr_adapter::get(config,&input.pane_id)?;
         if !current.identity_confirmed{return Err(StorageError::new("herdr_identity_missing","会话缺少可核对的当前 Agent 身份；未绑定或发送。"));}
         if t.repository_id.is_some() {if !same_directory(&crate::task_panel_locations::execution_repository(&self.db,&t)?.path,&current.cwd){return Err(invalid("Herdr 工作目录与任务仓库不同，未绑定。"));}}
@@ -92,6 +93,7 @@ impl Store {
         if let Some(prior)=request::<Execution>(&self.db,&input.request_id,&encoded)?{
             return executions(&self.db)?.into_iter().find(|r|r.id==prior.id).ok_or_else(||invalid("派发回执缺少执行记录，未重发。"));
         }
+        crate::task_panel_projects::require_task_active(&self.db,&input.task_id)?;
         let t=task(&self.db,&input.task_id)?;expected(t.revision,Some(input.expected_revision))?;
         let view=self.task_panel_snapshot()?.tasks.into_iter().find(|v|v.task.id==t.id).unwrap();
         if !view.allowed_actions.iter().any(|a|a=="dispatch"){return Err(StorageError::new("task_not_ready","任务前置、范围或当前执行未就绪，未发送。"));}
@@ -126,7 +128,7 @@ impl Store {
         let attempt:i64=tx.query_row("SELECT count(*)+1 FROM tp_executions WHERE task_id=?1",[&t.id],|r|r.get(0)).map_err(db_error)?;
         let mut result=Execution{id:run_id,task_id:t.id.clone(),task_revision:t.revision,context_id:context.id.clone(),binding_id:binding.id.clone(),binding_generation:binding.generation,state:"sending".into(),attempt,request_id:input.request_id.clone(),authorization:input.allowed_actions.clone(),snapshot_id:context.workspace_snapshot.as_ref().map(|s|s.id.clone()),reason:"发送意图已保存；外部副作用不能与业务事务原子提交".into(),created_at:now(),updated_at:now()};
         let graph_contract:Value=if view.execution_profile=="architecture"{serde_json::from_str(include_str!("../../resources/task-panel-graph-contract.json")).map_err(|_|invalid("内置建图契约无法读取"))?}else{Value::Null};
-        let packet=json!({"graph_facts_contract":graph_contract,"protocol_version":1,"task_id":t.id,"task_revision":t.revision,"run_id":result.id,"context_id":context.id,"binding_generation":binding.generation,"workspace_snapshot_id":result.snapshot_id,"workspace":repo.path,"input_directory":input_directory,"output_directory":output_directory,"allowed_actions":input.allowed_actions,"requires_separate_authorization":["commit","merge","publish","delete_user_data","host_configuration"],"context":context,"agent_cli":access_command,"agent_cli_usage":"将命令末尾 frontier 替换为 task/context/source 查询；接收和交付均用 submit_result，先将对应 JSON 写到 output_directory，再以任务目录相对路径提交。具体参数见 --help。候选记忆不等于正式决定。","result_contract":"task-result-v1","result_file":format!("{}-result.json",result.id),"receipt_contract":{"identity_fields":["protocol_version","task_id","task_revision","run_id","context_id","binding_generation","workspace_snapshot_id"],"ack":{"accepted_or_blocked":"accepted | blocked","reason":"实际接收结果","started":"有开始依据时为 true"},"delivery":{"execution_outcome":"reported_finished | failed | blocked","changed_files":"仅源码快照内的仓库相对路径或 {path,sha256}；含实际增删；.azcine 交接物料不属于源码改动，只读建图填写 []","artifact_refs":"相对回执所在 output 目录的路径或 {path,sha256}；仓库其他产物才使用 {path,sha256,location:repository}","workspace_snapshot_ref":"Agent 实际交付快照引用，不代替应用观测快照","checks":"[{command,status,reason,required}]；未运行如实记录 not_run","remaining_items":"未完成清单","proposed_memory_updates":"[{body,kind,sources}]；kind 为 memory/pause/decision/requirement/goal，附原件引用；参考可检索，正式决定仍需本人确认","resume_summary":"接续摘要"}}});
+        let packet=json!({"graph_facts_contract":graph_contract,"protocol_version":1,"task_id":t.id,"task_revision":t.revision,"run_id":result.id,"context_id":context.id,"binding_generation":binding.generation,"workspace_snapshot_id":result.snapshot_id,"workspace":repo.path,"input_directory":input_directory,"output_directory":output_directory,"allowed_actions":input.allowed_actions,"requires_separate_authorization":["commit","merge","publish","delete_user_data","host_configuration"],"context":context,"agent_cli":access_command,"agent_cli_usage":"将命令末尾 frontier 替换为 task/context/source 查询；接收和交付均用 submit_result，先将对应 JSON 写到 output_directory，再以任务目录相对路径提交。具体参数见 --help。候选记忆不等于正式决定。开始、交付及阶段接续前用 feedback 查询本人补充意见；以 acknowledge_feedback 提交收到/处理回应，意见不能扩展原授权。","result_contract":"task-result-v1","result_file":format!("{}-result.json",result.id),"receipt_contract":{"identity_fields":["protocol_version","task_id","task_revision","run_id","context_id","binding_generation","workspace_snapshot_id"],"ack":{"accepted_or_blocked":"accepted | blocked","reason":"实际接收结果","started":"有开始依据时为 true"},"delivery":{"execution_outcome":"reported_finished | failed | blocked","changed_files":"仅源码快照内的仓库相对路径或 {path,sha256}；含实际增删；.azcine 交接物料不属于源码改动，只读建图填写 []","artifact_refs":"相对回执所在 output 目录的路径或 {path,sha256}；仓库其他产物才使用 {path,sha256,location:repository}","workspace_snapshot_ref":"Agent 实际交付快照引用，不代替应用观测快照","checks":"[{id,command,status,reason,required,coverage,exit_code,log_ref:{path,sha256}}]；exit_code 填实际退出码，log_ref 使用回执 output 目录内的相对日志路径，可附 sha256；检查由本人查看日志后确认，不要伪造通过。Agent 填写 required 只表示其报告的技术检查要求，不自动成为本人验收的强制门槛。未运行如实记录 not_run","remaining_items":"未完成清单","proposed_memory_updates":"[{body,kind,sources}]；kind 为 memory/pause/decision/requirement/goal，附原件引用；参考可检索，正式决定仍需本人确认","resume_summary":"接续摘要"}}});
         let packet_file=input_directory.join(format!("{}-context.json",result.id));
         use std::io::Write;let mut file=std::fs::OpenOptions::new().create_new(true).write(true).open(&packet_file).map_err(|_|invalid("任务包文件未能保存；未覆盖或发送。"))?;
         let packet_bytes=serde_json::to_vec_pretty(&packet).map_err(|_|invalid("任务包无法序列化。"))?;
@@ -175,6 +177,12 @@ impl Store {
                 if !input.approved||input.reason.trim().is_empty(){return Err(invalid("手工换会话前，需明确核对旧执行与保存原因；不会自动清理原进程。"));}
                 run.state="superseded".into();run.reason=input.reason.clone();
             },
+            "release_for_revision"=>{
+                if !input.approved||input.reason.trim().is_empty()||!is_live(&run.state){return Err(invalid("请先核对原执行停止，并确认修改任务要求。"));}
+                let current=herdr_adapter::get(&config,&binding.pane_id)?;
+                if !same_target(&binding,&current)||!same_directory(&binding.cwd,&current.cwd)||!current.interactive_ready||!["idle","done"].contains(&current.state.as_str()){return Err(invalid("原会话尚未停止、身份已改变或目录不匹配，草案保留，不能替换原执行。"));}
+                run.state="superseded".into();run.reason=input.reason.clone();
+            },
             _=>return Err(invalid("执行动作不受支持；中断请回原 Herdr 会话操作。")),
         }
         let tx=self.db.transaction().map_err(db_error)?;run.updated_at=now();
@@ -217,6 +225,7 @@ impl Store {
         herdr_adapter::call(&config,"agent.focus",json!({"target":pane}))?;Ok(())
     }
     pub fn task_panel_create_execution(&mut self,input:CreateExecutionInput,_resource_dir:&Path)->Result<CreationResult,StorageError>{
+        crate::task_panel_projects::require_task_active(&self.db,&input.task_id)?;
         let encoded=encode(&input)?;
         if let Some(mut prior)=request::<CreationResult>(&self.db,&input.request_id,&encoded)?{
             if prior.binding.is_none() {

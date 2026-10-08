@@ -1,18 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isTauri, listen } from './desktop-api.ts';
 import { notifyOperation } from './components/ui/operation-toast.tsx';
 import { taskPanelClient, taskWorkspaceClient } from './task-panel-client.ts';
 import type { TaskWorkspaceEntry } from './task-panel-client.ts';
 import { useTaskPanelWorkflow } from './use-task-panel-workflow.ts';
-import { newTaskDraft, nonEmptyLines, taskDraft, taskError } from './task-panel-contract.ts';
-import type { GraphQuery, GraphView, PanelSnapshot, RepositoryDraft, TaskDraft, TaskMutation, TaskProject, TaskView } from './task-panel-contract.ts';
+import { useTaskRefinement } from './use-task-refinement.ts';
+import { useTaskPanelDrafts } from './use-task-panel-drafts.ts';
+import { activePanelSnapshot, newTaskDraft, nonEmptyLines, taskDraft, taskError } from './task-panel-contract.ts';
+import type { GraphQuery, GraphView, PanelSnapshot, RepositoryDraft, TaskDraft, TaskFeedback, TaskMutation, TaskProject, TaskView } from './task-panel-contract.ts';
 
 export function useTaskPanel(_businessRoot: string | null, enabled = true) {
   const [root, setRoot] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<TaskWorkspaceEntry[]>([]);
   const [openingWorkspace, setOpeningWorkspace] = useState(false);
   const workspaceRequest = useRef(0);
-  const [snapshot, setSnapshot] = useState<PanelSnapshot | null>(null);
+  const [allSnapshot, setSnapshot] = useState<PanelSnapshot | null>(null);
+  const snapshot = useMemo(() => activePanelSnapshot(allSnapshot), [allSnapshot]);
+  const projectCatalog = allSnapshot?.projects ?? [];
+  const projectTaskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const task of allSnapshot?.tasks ?? []) if (task.plan.projectId && task.objectKind !== 'goal') counts[task.plan.projectId] = (counts[task.plan.projectId] ?? 0) + 1;
+    return counts;
+  }, [allSnapshot]);
   const [loading, setLoading] = useState(false), [loadError, setLoadError] = useState('');
   const [action, setAction] = useState(''), [actionError, setActionError] = useState('');
   const [selectedId, select] = useState<string | null>(null), [tab, setTab] = useState('board');
@@ -21,15 +30,19 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
   const [projectFilter, setProject] = useState('');
   const projectScope = useRef(projectFilter); projectScope.current = projectFilter;
   const [projectOpen, setProjectOpen] = useState(false);
+  const [projectManagerOpen, setProjectManagerOpen] = useState(false);
   const [projectDraft, setProjectDraft] = useState(() => ({ id: crypto.randomUUID(), name: '', summary: '', repositoryIds: [] as string[], expectedRevision: null as number | null }));
   const projectDrafts = useRef<Record<string, typeof projectDraft>>({});
   const projectCurrent = useRef(projectDraft), projectSession = useRef(0); projectCurrent.current = projectDraft; projectDrafts.current[projectDraft.expectedRevision === null ? `${root}:new` : projectDraft.id] = projectDraft;
   const [editorOpen, setEditorOpen] = useState(false), [draft, setDraft] = useState<TaskDraft>(newTaskDraft);
-  const drafts = useRef<Record<string, TaskDraft>>({});
+  const currentDraft = useRef(draft); currentDraft.current = draft;
+  function setEditorDraft(value:TaskDraft) {currentDraft.current=value;setDraft(value);}
+  const draftStorage = useTaskPanelDrafts(enabled), drafts = draftStorage.drafts;
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [intake, setIntake] = useState<RepositoryDraft>(() => ({ id: crypto.randomUUID(), label: '', path: '', scope: '.', goal: '', skillPath: 'E:\\skills-manager\\archify', agentKind: 'codex', paneName: '', exchangePath: '', paneId: '', step: 1, projectId: '' }));
   const [graph, setGraph] = useState<GraphView | null>(null), [graphLoading, setGraphLoading] = useState(false), [graphError, setGraphError] = useState('');
-  const [graphMode, setGraphMode] = useState<'architecture' | 'task'>('architecture');
+  const [graphMode, setGraphMode] = useState<'architecture' | 'task'>('task');
+  const [graphLayer, setGraphLayer] = useState<GraphQuery['layer']>(undefined);
   const [graphCenter, setGraphCenter] = useState<string | null>(null), [graphDepth, setGraphDepth] = useState(2), [graphFilter, setGraphFilter] = useState('all');
   const [selectedNode, selectNode] = useState<string | null>(null);
   const [memoryDraft, setMemoryDraft] = useState({ body: '', source: '', kind: 'decision', supersedes: '' });
@@ -44,6 +57,7 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
   if (identity.current.root !== root) identity.current = { root, generation: identity.current.generation + 1 };
   const alive = useRef(true), busy = useRef(false), dialogSession = useRef(0), graphSession = useRef(0);
   const requests = useRef(new Map<string, string>());
+  const graphScope = useRef({ key:'', count:80 });
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const refreshing = useRef(false);
   const refresh = useCallback(async () => {
@@ -66,6 +80,52 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
     return () => { active = false; clearInterval(timer); void unlisten.then(stop => stop()); };
   }, [root, enabled, refresh]);
   const workflow = useTaskPanelWorkflow(root, refresh);
+  const [, setFeedbackVersion] = useState(0);
+  const [feedbackFailure, setFeedbackFailure] = useState({root:'',taskId:'',message:''});
+  function setFeedbackError(message:string,taskId=selectedId || '',workspace=root || '') {setFeedbackFailure({root:workspace,taskId,message});}
+  const feedbackError=feedbackFailure.root===root&&feedbackFailure.taskId===selectedId?feedbackFailure.message:'';
+  const feedbackBusy = useRef(false);
+  const feedbackRequests = useRef(new Map<string,{id:string;requestId:string}>());
+  function feedbackText(task:TaskView) { return drafts.current[draftStorage.key(root,`feedback-draft-${task.id}`)]?.feedbackText || ''; }
+  function updateFeedback(task:TaskView, body:string) {
+    const value = { ...taskDraft(task), id:`feedback-draft-${task.id}`, feedbackOnly:true, feedbackText:body };
+    draftStorage.remember(root,value); setFeedbackVersion(v=>v+1); setFeedbackError('');
+  }
+  async function sendFeedback(task:TaskView, executionId:string) {
+    if (!enabled || !root || feedbackBusy.current || workflow.action) return;
+    const workspace=root, generation=identity.current.generation, body=feedbackText(task).trim();
+    const key=JSON.stringify({workspace,taskId:task.id,revision:task.revision,executionId,body});
+    const request=feedbackRequests.current.get(key) ?? {id:crypto.randomUUID(),requestId:crypto.randomUUID()}; feedbackRequests.current.set(key,request);
+    feedbackBusy.current=true; setFeedbackError('');
+    try {
+      const target=taskPanelClient(workspace);
+      const saved=await target.input<TaskFeedback>('feedback',{requestId:request.requestId,id:request.id,taskId:task.id,expectedRevision:task.revision,executionId,body,action:'save',approved:true});
+      if (!alive.current || generation!==identity.current.generation) return;
+      feedbackRequests.current.delete(key);
+      if (feedbackText(task).trim()===body) {draftStorage.forget(workspace,`feedback-draft-${task.id}`);setFeedbackVersion(v=>v+1);}
+      await target.input('feedback',{requestId:`${request.requestId}-send`,id:saved.id,taskId:task.id,expectedRevision:task.revision,executionId,action:'send',approved:true});
+      await refresh();
+    } catch(e) {if(generation===identity.current.generation){setFeedbackError(taskError(e),task.id,workspace);await refresh();}}
+    finally {feedbackBusy.current=false;}
+  }
+  async function cancelFeedback(task:TaskView,executionId:string,id:string) {
+    if(!enabled || !root || feedbackBusy.current) return;
+    const workspace=root,generation=identity.current.generation; feedbackBusy.current=true;
+    try {await taskPanelClient(workspace).input('feedback',{requestId:crypto.randomUUID(),taskId:task.id,expectedRevision:task.revision,executionId,id,action:'cancel',approved:true});await refresh();}
+    catch(e){if(alive.current&&generation===identity.current.generation)setFeedbackError(taskError(e),task.id,workspace);}
+    finally{feedbackBusy.current=false;}
+  }
+  // A saved opinion authorizes one notification to the exact original pane.
+  // Wait for a usable prompt rather than injecting text into a running tool.
+  useEffect(()=>{
+    if (!enabled || !root || feedbackBusy.current || !isTauri()) return;
+    const pending=snapshot?.feedback?.find(f=>f.state==='pending'&&snapshot.tasks.some(t=>t.id===f.taskId&&t.revision===f.taskRevision&&t.lifecycle==='active')&&snapshot.executions.some(r=>r.id===f.executionId&&r.taskRevision===f.taskRevision&&['awaiting_receipt','accepted','running','blocked'].includes(r.state))&&snapshot.monitor?.runs[f.executionId]&&['idle','done'].includes(snapshot.monitor.runs[f.executionId].state));
+    if (!pending) return;
+    const workspace=root, generation=identity.current.generation; feedbackBusy.current=true;
+    void taskPanelClient(workspace).input('feedback',{requestId:`feedback-send-${pending.id}`,id:pending.id,taskId:pending.taskId,expectedRevision:pending.taskRevision,executionId:pending.executionId,action:'send',approved:true})
+      .catch(e=>{if(alive.current&&generation===identity.current.generation)setFeedbackError(taskError(e),pending.taskId,workspace);})
+      .finally(()=>{feedbackBusy.current=false;});
+  },[snapshot,root,enabled]);
   async function mutate(action: TaskMutation, expectedRevision: number | null, label = '保存') {
     if (!enabled || busy.current || openingWorkspace) return null;
     busy.current = true; setAction(label); setActionError('');
@@ -81,62 +141,75 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
     finally { busy.current = false; if (alive.current) setAction(''); }
   }
   function openEditor(task?: TaskView) {
-    drafts.current[draft.id] = draft;
-    setDraft(task ? drafts.current[task.id] ?? taskDraft(task) : drafts.current[`${root}:new`] ?? { ...newTaskDraft(), projectId: projectFilter, repositoryId: repositoryFilter || snapshot?.repositories[0]?.id || '', scope: snapshot?.repositories[0]?.scope.join('\n') || '.' });
+    const repository = snapshot?.repositories.find(item => repositoryFilter ? item.id === repositoryFilter : projectFilter ? snapshot?.projects.find(project => project.id === projectFilter)?.repositoryIds.includes(item.id) : true);
+    const projectId = projectFilter || snapshot?.projects.find(item => item.repositoryIds.includes(repository?.id ?? ''))?.id || '';
+    setEditorDraft(task ? drafts.current[draftStorage.key(root, task.id)] ?? taskDraft(task) : drafts.current[draftStorage.key(root, 'new')] ?? { ...newTaskDraft(), projectId, repositoryId: repository?.id ?? '', scope: repository?.scope.join('\n') || '.' });
     ++dialogSession.current; setActionError(''); setEditorOpen(true);
   }
-  function updateDraft(patch: Partial<TaskDraft>) { setDraft(before => { const next = { ...before, ...patch }; drafts.current[next.id] = next; if (next.expectedRevision === null) drafts.current[`${root}:new`] = next; return next; }); }
+  function updateDraft(patch: Partial<TaskDraft>) { const next = { ...currentDraft.current, ...patch }; currentDraft.current = next; draftStorage.remember(root, next); setEditorDraft(next); }
+  const refinement = useTaskRefinement(_businessRoot, root, draft, snapshot, updateDraft, enabled && editorOpen && draft.expectedRevision === null);
   function closeEditor(open: boolean) { ++dialogSession.current; setEditorOpen(open); }
-  async function saveTask(start = false) {
-    const submitted = { ...draft }, session = dialogSession.current, selectedProject = projectScope.current;
-    if (submitted.newBranch?.trim() && submitted.expectedRevision === null) {
-      const fingerprint = JSON.stringify({ root, task: submitted.id, branch: submitted.newBranch });
-      const requestId = requests.current.get(fingerprint) ?? crypto.randomUUID(); requests.current.set(fingerprint, requestId);
-      try {
-        const target = taskPanelClient(root);
-        const saved = await workflow.perform('保存任务并创建分支', async () => {
-          const result = await target.mutate(`${requestId}-task`, null, { type:'save_task', id:submitted.id, title:submitted.title, goal:submitted.goal, scope:nonEmptyLines(submitted.scope), criteria:nonEmptyLines(submitted.criteria), repositoryId:submitted.repositoryId || null, source:submitted.source, plan:{ projectId:submitted.projectId || null, goalId:submitted.goalId || null, phase:submitted.phase } });
-          const created = await target.input<{path:string;error:string}>('worktree', { requestId, taskId:submitted.id, branch:submitted.newBranch!.trim(), label:submitted.paneName || submitted.title, approved:true });
-          return {result,created};
-        });
-        if (!saved) return null;
-        const {result,created}=saved;
-        if (created.error) { setActionError(created.error); await refresh(); return null; }
-        await refresh();
-        if(identity.current.root!==root) return result;
-        select(submitted.id); setTab('board'); setBranchFilter('');
-        const edited=drafts.current[submitted.id];
-        const sameDraft=!edited || JSON.stringify(edited)===JSON.stringify(submitted);
-        if(sameDraft){
-          delete drafts.current[submitted.id];
-          if(drafts.current[`${root}:new`]?.id===submitted.id) delete drafts.current[`${root}:new`];
-          if(session===dialogSession.current){closeEditor(false);setDraft(newTaskDraft());}
-        }else if(edited){
-          const next={...edited,expectedRevision:result.revision,newBranch:''};
-          drafts.current[submitted.id]=next;
-          if(session===dialogSession.current)setDraft(next);
-        }
-        if (start) await workflow.perform('在任务分支开始', () => target.input('launch', { requestId:`${requestId}-launch`, taskId:submitted.id, expectedRevision:result.revision, kind:submitted.agentKind || 'codex', paneName:submitted.paneName || submitted.title, allowedActions:['read_scoped_files','edit_task_files','write_delivery_artifacts'], approved:true }));
-        return result;
-      } catch (error) { setActionError(taskError(error)); return null; }
-    }
-    const result = await mutate({ type: 'save_task', id: submitted.id, title: submitted.title, goal: submitted.goal, scope: nonEmptyLines(submitted.scope), criteria: nonEmptyLines(submitted.criteria), repositoryId: submitted.repositoryId || null, source: submitted.source, plan: { projectId: submitted.projectId || null, goalId: submitted.goalId || null, phase: submitted.phase } }, submitted.expectedRevision, '保存任务');
-    if (result) {
-      const edited = drafts.current[submitted.id];
-      const sameDraft = !edited || JSON.stringify(edited) === JSON.stringify(submitted);
-      if (sameDraft) { delete drafts.current[submitted.id]; if (drafts.current[`${root}:new`]?.id === submitted.id) delete drafts.current[`${root}:new`]; }
-      if (projectScope.current === selectedProject) { if (selectedProject && submitted.projectId !== selectedProject) setProjectFilter(submitted.projectId); select(submitted.id); }
-      if (session === dialogSession.current && sameDraft) { closeEditor(false); setDraft(newTaskDraft()); }
-      else if (edited) { const next = { ...edited, expectedRevision: result.revision }; drafts.current[submitted.id] = next; if (drafts.current[`${root}:new`]?.id === submitted.id) delete drafts.current[`${root}:new`]; if (session === dialogSession.current) setDraft(next); }
-    }
-    if (result && start) {
-      const current = await workflow.perform('读取已保存任务', taskPanelClient(root).list);
-      const task = current?.tasks.find(t => t.id === submitted.id);
-      if (task) {
-        workflow.openDispatch(task);
-        workflow.setDispatchDraft(d => ({ ...d, kind: submitted.agentKind || 'codex', paneName: submitted.paneName || submitted.title, approved: false }));
-        await workflow.launch(task, submitted.agentKind || 'codex', submitted.paneName || submitted.title);
+  async function saveTask(start = false, createBranch = true) {
+    if (busy.current || workflow.action || openingWorkspace || !root) return null;
+    const workspace = root, generation = identity.current.generation;
+    const submitted = { ...draft }, session = dialogSession.current;
+    const saveBaseline = JSON.stringify(submitted);
+    const selectedProject = projectScope.current;
+    if (submitted.expectedRevision === null && submitted.rawRequest?.trim()) {
+      if (refinement.busy || submitted.refinementQuestions?.length || !submitted.manualTask && submitted.refinedRequest && (submitted.refinedRequest !== submitted.rawRequest.trim() || submitted.refinedRepositoryId !== submitted.repositoryId)) {
+        setActionError('请先完成细化并核对当前需求的草案。'); return null;
       }
+      submitted.goal = `${submitted.goal}\n\n## 原始需求\n${submitted.rawRequest.trim()}`;
+      if (submitted.goal.length > 20000) { setActionError('任务说明与原始需求合计超过 20000 字，请精简后保存。'); return null; }
+    }
+    const result = await mutate({ type: 'save_task', id: submitted.id, title: submitted.title, goal: submitted.goal,
+      scope: nonEmptyLines(submitted.scope), criteria: nonEmptyLines(submitted.criteria), repositoryId: submitted.repositoryId || null,
+      source: submitted.source, plan: { projectId: submitted.projectId || null, goalId: submitted.goalId || null, phase: submitted.phase } }, submitted.expectedRevision, '保存任务');
+    if (!result || identity.current.generation !== generation) return result;
+    const currentKey = draftStorage.key(workspace, submitted.id);
+    const edited = drafts.current[currentKey] ?? submitted;
+    const unchanged = JSON.stringify(edited) === saveBaseline;
+    // The task is already durable, even if the next external step fails. A
+    // retry must update this task rather than repeat its creation request.
+    const next = { ...(unchanged ? submitted : edited), expectedRevision: result.revision, worktreePending:!!submitted.newBranch?.trim() };
+    draftStorage.remember(workspace, next);
+    if (session === dialogSession.current) setEditorDraft(next);
+    setTab('board');
+    if (projectScope.current === selectedProject && selectedProject && submitted.projectId !== selectedProject) setProjectFilter(submitted.projectId);
+    select(submitted.id);
+    if (submitted.newBranch?.trim()) {
+      if (createBranch) {
+        const assigned = snapshot?.tasks.find(task => task.id === submitted.id)?.executionWorkspace;
+        const created = assigned && assigned.branch === submitted.newBranch.trim() ? {path:assigned.path,error:''} : await workflow.input<{ path:string; error:string }>('worktree', '创建任务分支', {
+          taskId: submitted.id, branch: submitted.newBranch.trim(), label: submitted.paneName || submitted.title, approved:true,
+        });
+        if (!created || created.error) {
+          if (identity.current.generation === generation) { setActionError(`任务已保存，分支未创建。${created?.error || workflow.error || '请核对原位置后重试。'}`); await refresh(); }
+          return result;
+        }
+      } else {
+        const kept = await mutate({ type:'keep_task_without_worktree', id:submitted.id, approved:true }, result.revision, '仅保留任务');
+        if (!kept) return result;
+      }
+      if (identity.current.generation !== generation) return result;
+      const latest = drafts.current[currentKey] ?? next;
+      const recovered = { ...latest, newBranch:'', worktreePending:false };
+      draftStorage.remember(workspace, recovered);
+      if (session === dialogSession.current) setEditorDraft(recovered);
+    }
+    if (identity.current.generation !== generation) return result;
+    const latest = drafts.current[currentKey];
+    const savedInput = { ...next, newBranch:submitted.newBranch?.trim() ? '' : next.newBranch, worktreePending:false };
+    const sameInput = unchanged && JSON.stringify(latest) === JSON.stringify(savedInput);
+    // Clear only the exact input saved by this session, including execution settings.
+    if (sameInput) {
+      draftStorage.forget(workspace, submitted.id);
+      if (session === dialogSession.current) { closeEditor(false); setEditorDraft(newTaskDraft()); }
+    }
+    if (start && createBranch) {
+      const current = await workflow.perform('读取已保存任务', taskPanelClient(workspace).list);
+      const task = current?.tasks.find(t => t.id === submitted.id);
+      if (task && identity.current.generation === generation) await workflow.launch(task, submitted.agentKind || 'codex', submitted.paneName || submitted.title);
     }
     return result;
   }
@@ -147,10 +220,11 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
     try {
       const opened = await taskWorkspaceClient.open(path, label, scope, configure);
       if (!alive.current || request !== workspaceRequest.current) return null;
-      drafts.current[draft.id] = draft;
-      setDraft(newTaskDraft()); setProjectDraft({ id: crypto.randomUUID(), name: '', summary: '', repositoryIds: [], expectedRevision: null });
+      await draftStorage.load(opened.path);
+      if (!alive.current || request !== workspaceRequest.current) return null;
+      setEditorDraft(newTaskDraft()); setProjectDraft({ id: crypto.randomUUID(), name: '', summary: '', repositoryIds: [], expectedRevision: null });
       setRoot(opened.path); setBranchFilter(''); setProject(opened.projectId || ''); setRepositoryFilter(opened.repositoryId);
-      select(null); selectNode(null); setGraph(null); setGraphCenter(null); setMemoryTarget(''); setEditorOpen(false); setProjectOpen(false);
+      select(null); selectNode(null); setGraph(null); setGraphCenter(null); setMemoryTarget(''); setEditorOpen(false); setProjectOpen(false); setProjectManagerOpen(false);
       if (opened.path === root) await refresh();
       setWorkspaces(await taskWorkspaceClient.list());
       try { localStorage.setItem('azcine.task-panel.workspace', opened.path); } catch { /* UI preference only */ }
@@ -178,13 +252,29 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
   }
   async function loadGraph(input: GraphQuery, append = false) {
     const session = ++graphSession.current, generation = identity.current.generation;
+    const scopeKey = JSON.stringify({ root, ...input, offset:0, limit:0 });
+    if (graphScope.current.key !== scopeKey) graphScope.current = { key:scopeKey, count:input.limit || 80 };
+    const end = append ? (input.offset || 0) + (input.limit || 80) : graphScope.current.count;
     setGraphLoading(true); setGraphError('');
     try {
-      const result = await taskPanelClient(root).graph(input);
+      // Re-read the loaded range on sync. Page size stays bounded, but a
+      // changed graph revision cannot retract the pages the user opened.
+      let offset = 0, result:GraphView | null = null;
+      const nodes = new Map<string, GraphView['nodes'][number]>(), relations = new Map<string, GraphView['relations'][number]>();
+      do {
+        const page = await taskPanelClient(root).graph({ ...input, offset, limit:Math.min(80, Math.max(1,end-offset)) });
+        if (!alive.current || session !== graphSession.current || generation !== identity.current.generation) return;
+        if (result && page.graphRevision !== result.graphRevision) throw new Error('关系正在变化，保留已加载内容并等待下次同步。');
+        result = page; page.nodes.forEach(node => nodes.set(node.id,node)); page.relations.forEach(edge => relations.set(edge.id,edge));
+        offset += page.nodes.length;
+      } while (result.hasMore && result.nodes.length && offset < end);
+      if (!result) return;
       if (!alive.current || session !== graphSession.current || generation !== identity.current.generation) return;
-      setGraph(before => append && before?.graphRevision === result.graphRevision ? { ...result, nodes: [...new Map([...before.nodes, ...result.nodes].map(n => [n.id, n])).values()], relations: result.relations } : result);
-    } catch (error) { if (alive.current && session === graphSession.current) setGraphError(taskError(error)); }
-    finally { if (alive.current && session === graphSession.current) setGraphLoading(false); }
+      graphScope.current.count = Math.max(end,nodes.size);
+      setGraph({ ...result, nodes:[...nodes.values()], relations:[...relations.values()] });
+      setGraphLayer(input.layer);
+    } catch (error) { if (alive.current && session === graphSession.current && generation === identity.current.generation) setGraphError(taskError(error)); }
+    finally { if (alive.current && session === graphSession.current && generation === identity.current.generation) setGraphLoading(false); }
   }
   function setProjectFilter(id: string) {
     setProject(id); setRepositoryFilter(''); select(null); selectNode(null); setGraphCenter(null); setGraph(null); setGraphLoading(false); setMemoryTarget(''); ++graphSession.current;
@@ -195,6 +285,24 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
     ++projectSession.current; setActionError(''); setProjectOpen(true);
   }
   function closeProject(open: boolean) { ++projectSession.current; setProjectOpen(open); }
+  async function setProjectDeleted(project: TaskProject, deleted: boolean) {
+    const result = await mutate({ type: 'project_deleted', id: project.id, deleted, approved: true }, project.revision, deleted ? '删除项目' : '恢复项目');
+    if (!result) return null;
+    const cached = projectDrafts.current[project.id];
+    if (cached) projectDrafts.current[project.id] = { ...cached, expectedRevision: result.revision };
+    setProjectDraft(before => before.id === project.id ? { ...before, expectedRevision: result.revision } : before);
+    if (deleted) { selectNode(null); setGraph(null); setGraphCenter(null); setGraphLoading(false); ++graphSession.current; }
+    if (deleted && projectScope.current === project.id) setProjectFilter('');
+    if (deleted && projectCurrent.current.id === project.id) closeProject(false);
+    return result;
+  }
+  useEffect(() => {
+    const deleted = allSnapshot?.projects.filter(project => project.deleted) ?? [];
+    if (deleted.some(project => project.id === projectFilter)) setProjectFilter('');
+    if (deleted.some(project => project.repositoryIds.includes(repositoryFilter))) setRepositoryFilter('');
+    const selectedProject = allSnapshot?.tasks.find(task => task.id === selectedId)?.plan.projectId;
+    if (selectedProject && deleted.some(project => project.id === selectedProject)) select(null);
+  }, [allSnapshot, projectFilter, repositoryFilter, selectedId]);
   async function saveProject() {
     const submitted = { ...projectDraft }, session = projectSession.current;
     const result = await mutate({ type: 'project', id: submitted.id, name: submitted.name, summary: submitted.summary, repositoryIds: submitted.repositoryIds }, submitted.expectedRevision, '保存项目');
@@ -208,10 +316,10 @@ export function useTaskPanel(_businessRoot: string | null, enabled = true) {
     }
     return result;
   }
-  return { root, workspaces, openingWorkspace, openWorkspace, snapshot, loading, loadError, refresh, action, actionError, setActionError, mutate, selectedId, select, tab, setTab, query, setQuery, repositoryFilter, setRepositoryFilter, branchFilter, setBranchFilter, showDone, setShowDone, showCancelled, setShowCancelled,
-    editorOpen, closeEditor, draft, updateDraft, openEditor, saveTask, intakeOpen, setIntakeOpen, intake, setIntake, saveRepository, graph, graphLoading, graphError, graphMode, setGraphMode, loadGraph,
+  return { isPreview:false, root, workspaces, openingWorkspace, openWorkspace, snapshot, loading, loadError, refresh, action, actionError, setActionError, mutate, selectedId, select, tab, setTab, query, setQuery, repositoryFilter, setRepositoryFilter, branchFilter, setBranchFilter, showDone, setShowDone, showCancelled, setShowCancelled,
+    editorOpen, closeEditor, draft, updateDraft, openEditor, saveTask, refinement, feedbackText, updateFeedback, sendFeedback, cancelFeedback, feedbackError, setFeedbackError, draftStorageError:draftStorage.error, draftSaving:draftStorage.saving, intakeOpen, setIntakeOpen, intake, setIntake, saveRepository, graph, graphLayer, graphLoading, graphError, graphMode, setGraphMode, loadGraph,
     selectedNode, selectNode, graphCenter, setGraphCenter, graphDepth, setGraphDepth, graphFilter, setGraphFilter, memoryDraft, setMemoryDraft, memoryDrafts, setMemoryDrafts, memoryEdits, setMemoryEdits, memoryTarget, setMemoryTarget, memoryFilter, setMemoryFilter,
-    projectFilter, setProjectFilter, projectOpen, projectDraft, setProjectDraft, openProject, closeProject, saveProject,
+    projectFilter, setProjectFilter, projectOpen, projectDraft, setProjectDraft, openProject, closeProject, saveProject, projectCatalog, projectTaskCounts, projectManagerOpen, setProjectManagerOpen, setProjectDeleted,
     resumeDrafts, setResumeDrafts, semanticDrafts, setSemanticDrafts, relationDraft, setRelationDraft, workflow };
 }
 export type TaskPanelController = ReturnType<typeof useTaskPanel>;

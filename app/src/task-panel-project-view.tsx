@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { RotateCcw, Settings2, Trash2, Plus } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
@@ -11,8 +12,28 @@ import { Feedback } from './components/ui/feedback.tsx';
 import { FormDialog } from './components/ui/form-dialog.tsx';
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs.tsx';
 import type { TaskPanelController } from './use-task-panel.ts';
-import type { AgentAccess, ContextPackage, Memory, TaskView } from './task-panel-contract.ts';
+import type { AgentAccess, ContextPackage, Memory, TaskProject, TaskView } from './task-panel-contract.ts';
 import { taskNumber } from './task-panel-contract.ts';
+
+export function ProjectManagerDialog({ model }: { model: TaskPanelController }) {
+  const [mode, setMode] = useState('active');
+  const [candidate, setCandidate] = useState<TaskProject | null>(null);
+  const session = useRef(0);
+  useEffect(() => { ++session.current; setCandidate(null); setMode('active'); }, [model.root, model.projectManagerOpen]);
+  const busy = !!model.action || !!model.workflow.action || model.openingWorkspace;
+  const projects = model.projectCatalog.filter(project => mode === 'deleted' ? project.deleted : !project.deleted);
+  const changeOpen = (open: boolean) => { ++session.current; model.setProjectManagerOpen(open); };
+  const edit = (project?: TaskProject) => { changeOpen(false); model.openProject(project); };
+  const footer = <div className="tp-create-footer"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => edit()}><Plus />新建项目</Button><span className="tp-project-footer-spacer" /><Button type="button" variant="outline" onClick={() => changeOpen(false)}>关闭</Button></div>;
+  return <FormDialog open={model.projectManagerOpen} onOpenChange={changeOpen} title="项目管理" description="管理当前仓库中的项目。删除可恢复，任务记录和仓库文件保留。" footer={footer}>
+    <div className="tp-project-manager">
+      <Tabs value={mode} onValueChange={value => { setMode(value); setCandidate(null); model.setActionError(''); }}><TabsList aria-label="项目列表"><TabsTrigger value="active">现有项目</TabsTrigger><TabsTrigger value="deleted">已删除 {model.projectCatalog.filter(project => project.deleted).length || ''}</TabsTrigger></TabsList></Tabs>
+      {candidate && <section className="tp-project-confirm" aria-label="确认删除项目"><h3>删除“{candidate.name}”？</h3><p className="tp-meta">此项目及关联任务会移出当前面板；完整记录保留，可在“已删除”中恢复。</p><div className="tp-acts"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => { setCandidate(null); model.setActionError(''); }}>取消</Button><Button type="button" variant="destructive" size="sm" disabled={busy} onClick={async () => { const currentSession = session.current; const result = await model.setProjectDeleted(candidate, true); if (result && currentSession === session.current) setCandidate(null); }}>{model.action || '确认删除'}</Button></div></section>}
+      {model.actionError && <Feedback tone="error" role="alert">{model.actionError}</Feedback>}
+      <div className="tp-project-list">{projects.map(project => <article className="tp-project-row" key={project.id}><div className="tp-project-row-copy"><strong>{project.name}</strong>{project.summary && <p className="tp-meta">{project.summary}</p>}<span className="tp-meta">{model.projectTaskCounts[project.id] ?? 0} 个任务 · {project.repositoryIds.length} 个工作区</span></div><div className="tp-acts">{project.deleted ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void model.setProjectDeleted(project, false)}><RotateCcw />恢复</Button> : <><Button type="button" variant="ghost" size="icon-sm" aria-label={`设置项目 ${project.name}`} title="项目设置" disabled={busy || !!candidate} onClick={() => edit(project)}><Settings2 /></Button><Button data-task-project-delete type="button" variant="ghost" size="icon-sm" aria-label={`删除项目 ${project.name}`} title="删除项目" disabled={busy || !!candidate} onClick={() => { model.setActionError(''); setCandidate({ ...project }); }}><Trash2 /></Button></>}</div></article>)}{!projects.length && <p className="tp-meta">{mode === 'deleted' ? '没有已删除的项目。' : '还没有项目，可以新建一个。'}</p>}</div>
+    </div>
+  </FormDialog>;
+}
 
 export function ProjectDialog({ model }: { model: TaskPanelController }) {
   const d = model.projectDraft;
@@ -50,7 +71,7 @@ export function TaskAgentAccess({ model, task }: { model: TaskPanelController; t
     }}>生成本任务接入命令</Button>
     {!task.plan.projectId && <p className="tp-meta">先在任务中选择所属项目。</p>}
     {result && <section className="tp-next"><p>{result.reason}</p><pre className="tp-source">{result.command}</pre><Button size="sm" variant="outline" onClick={() => void w.perform('复制本任务查询命令', async () => { await navigator.clipboard.writeText(result.command); return true; }, true)}>复制给原 Herdr 会话</Button>
-      <details className="tp-disclosure"><summary>可查询和回填的内容</summary><p className="tp-meta">frontier 查看项目进度；task 查看本任务；context 保存上下文快照；graph 查询两图；source 按对象 ID 回读原件；propose_memory 提交候选；submit_result 提交已绑定执行的回执。</p><p className="tp-meta">将命令末尾 frontier 换成 help 可查看参数示例。输入放在 JSON 文件，通过 --input 指定。context、propose_memory、submit_result 使用固定 --request-id；超时后保留同一 ID 核对。接入文件只交给本任务，不加入 Git 或分享产物。</p></details></section>}
+      <details className="tp-disclosure"><summary>可查询和回填的内容</summary><p className="tp-meta">frontier 查看项目进度；task 查看本任务；context 保存上下文快照；graph 查询两图；source 按对象 ID 回读原件；feedback 查询本人补充意见；acknowledge_feedback 确认收到或回报处理结果；propose_memory 提交候选；submit_result 提交已绑定执行的回执。</p><p className="tp-meta">将命令末尾 frontier 换成 help 可查看参数示例。输入放在 JSON 文件，通过 --input 指定。context、acknowledge_feedback、propose_memory、submit_result 使用固定 --request-id；超时后保留同一 ID 核对。接入文件只交给本任务，不加入 Git 或分享产物。</p></details></section>}
     {rows.map(a => <div className="tp-memory-item" key={a.id}><p>{a.active ? '接入有效' : '接入已失效'} · r{a.taskRevision}</p><p className="tp-meta">{a.reason}</p>{a.active && <Button size="sm" variant="ghost" disabled={!!w.action} onClick={async () => { const result = await w.input('agent_revoke', '撤销本任务接入', { id: a.id }); if (result) await w.loadAccesses(); }}>撤销接入</Button>}</div>)}
   </div></details>;
 }

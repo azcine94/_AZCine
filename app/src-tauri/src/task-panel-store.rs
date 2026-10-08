@@ -183,12 +183,12 @@ pub(crate) fn bindings(db:&Connection) -> Result<Vec<Binding>,StorageError> {
         .map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
 }
 pub(crate) fn executions(db:&Connection) -> Result<Vec<Execution>,StorageError> {
-    db.prepare("SELECT id,task_id,task_revision,context_id,binding_id,binding_generation,state,attempt,request_id,authorization,snapshot_id,reason,created_at,updated_at FROM tp_executions ORDER BY created_at DESC,id").map_err(db_error)?.query_map([], |r|
+    db.prepare("SELECT id,task_id,task_revision,context_id,binding_id,binding_generation,state,attempt,request_id,authorization,snapshot_id,reason,created_at,updated_at FROM tp_executions ORDER BY created_at DESC,attempt DESC,rowid DESC").map_err(db_error)?.query_map([], |r|
         Ok(Execution{id:r.get(0)?,task_id:r.get(1)?,task_revision:r.get(2)?,context_id:r.get(3)?,binding_id:r.get(4)?,binding_generation:r.get(5)?,state:r.get(6)?,attempt:r.get(7)?,request_id:r.get(8)?,authorization:json_column(r,9)?,snapshot_id:r.get(10)?,reason:r.get(11)?,created_at:r.get(12)?,updated_at:r.get(13)?}))
         .map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
 }
 pub(crate) fn evidence(db:&Connection) -> Result<Vec<Evidence>,StorageError> {
-    db.prepare("SELECT id,task_id,execution_id,task_revision,kind,level,status,path,hash,detail,snapshot_id,created_at FROM tp_evidence ORDER BY created_at DESC,id").map_err(db_error)?.query_map([], |r|
+    db.prepare("SELECT id,task_id,execution_id,task_revision,kind,level,status,path,hash,detail,snapshot_id,created_at FROM tp_evidence ORDER BY created_at DESC,rowid DESC").map_err(db_error)?.query_map([], |r|
         Ok(Evidence{id:r.get(0)?,task_id:r.get(1)?,execution_id:r.get(2)?,task_revision:r.get(3)?,kind:r.get(4)?,level:r.get(5)?,status:r.get(6)?,path:r.get(7)?,hash:r.get(8)?,detail:json_column(r,9)?,snapshot_id:r.get(10)?,created_at:r.get(11)?}))
         .map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)
 }
@@ -220,16 +220,37 @@ impl Store {
         let tasks=self.db.prepare(&format!("SELECT {TASK_COLUMNS} FROM tp_tasks WHERE (?1 IS NULL OR id IN (SELECT task_id FROM tp_task_plans WHERE project_id=?1)) ORDER BY number")).map_err(db_error)?.query_map([project],task_row).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
         let task_ids:HashSet<_>=tasks.iter().map(|t|t.id.clone()).collect();
         let repositories=self.db.prepare("SELECT id,label,path,scope,revision,created_at FROM tp_repositories WHERE (?1 IS NULL OR id IN (SELECT repository_id FROM tp_project_repositories WHERE project_id=?1)) ORDER BY label,id").map_err(db_error)?.query_map([project],repository_row).map_err(db_error)?.collect::<Result<Vec<_>,_>>().map_err(db_error)?;
-        let relations=relations(&self.db)?;let executions=executions(&self.db)?;let evidence=evidence(&self.db)?;
+        let relations=relations(&self.db)?;let executions=executions(&self.db)?;let mut evidence=evidence(&self.db)?;
+        // A broken execution directory is a per-task fact, never a reason to
+        // discard all other tasks. Cache paths/snapshots for this read.
+        let mut execution_paths=std::collections::HashMap::new();
+        let mut workspace_errors=std::collections::HashMap::new();
+        let mut current_snapshots=std::collections::HashMap::new();
+        let mut sampled=std::collections::HashMap::<String,Result<crate::task_panel_snapshots::WorkspaceSnapshot,String>>::new();
+        for t in &tasks {if t.repository_id.is_some(){
+            match crate::task_panel_locations::execution_repository(&self.db,t){
+                Ok(repo)=>{execution_paths.insert(t.id.clone(),repo.path.clone());
+                    if evidence.iter().any(|e|e.task_id==t.id)||self.db.query_row("SELECT EXISTS(SELECT 1 FROM tp_acceptances WHERE task_id=?1)",[&t.id],|r|r.get::<_,bool>(0)).map_err(db_error)? {
+                        let key=encode(&(&repo.id,&repo.path,&t.scope))?;
+                        let result=sampled.entry(key).or_insert_with(||crate::task_panel_snapshots::sample(&repo,&t.scope).map_err(|error|error.message));
+                        match result{Ok(snapshot)=>{current_snapshots.insert(t.id.clone(),snapshot.clone());},Err(error)=>{workspace_errors.insert(t.id.clone(),error.clone());}}
+                    }
+                },Err(error)=>{workspace_errors.insert(t.id.clone(),error.message);}
+            }
+        }}
+        for item in &mut evidence {if let Some(t)=tasks.iter().find(|t|t.id==item.task_id){
+            let reason=crate::task_panel_evidence::evidence_invalid_reason(&self.db,item,t,current_snapshots.get(&t.id));
+            if let Some(detail)=item.detail.as_object_mut(){detail.insert("validity".into(),serde_json::json!({"current":reason.is_none(),"reason":reason}));}
+        }}
         let mut accepted=HashSet::new();let mut technical=HashSet::new();
         for t in &tasks {
             let prior:Option<(bool,Option<String>)>=self.db.query_row("SELECT accepted,snapshot_id FROM tp_acceptances WHERE task_id=?1 AND task_revision=?2 ORDER BY rowid DESC LIMIT 1",params![t.id,t.revision],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(db_error)?;
             let candidate=prior.as_ref().is_some_and(|(a,_)|*a)||evidence.iter().any(|e|e.task_id==t.id&&e.task_revision==t.revision&&e.kind=="check"&&["observed","user_confirmed"].contains(&e.level.as_str()));
             if !candidate{continue;}
-            let current=t.repository_id.as_ref().and_then(|_|crate::task_panel_locations::execution_repository(&self.db,t).ok()).and_then(|r|crate::task_panel_snapshots::sample(&r,&t.scope).ok());
+            let current=current_snapshots.get(&t.id);
             let matches=|sid:&str|current.as_ref().is_some_and(|c|crate::task_panel_evidence::snapshot(&self.db,sid).is_ok_and(|s|s.fingerprint==c.fingerprint));
             if prior.is_some_and(|(a,sid)|a&&sid.as_ref().is_some_and(|s|matches(s))){accepted.insert(t.id.clone());}
-            if evidence.iter().find(|e|e.task_id==t.id&&e.task_revision==t.revision&&e.kind=="check"&&["observed","user_confirmed"].contains(&e.level.as_str())&&e.snapshot_id.as_ref().is_some_and(|s|matches(s))).is_some_and(|e|e.status=="passed"&&(e.path.is_empty()||crate::task_panel_paths::protected_absolute(std::path::Path::new(&e.path),8_000_000).is_ok_and(|b|crate::task_panel_paths::hash(&b)==e.hash))){technical.insert(t.id.clone());}
+            if executions.iter().find(|r|r.task_id==t.id&&r.task_revision==t.revision).is_some_and(|run|crate::task_panel_evidence::checks_status(&self.db,t,run,&evidence,current)=="passed"){technical.insert(t.id.clone());}
         }
         let monitor=crate::task_panel_monitor::read(self);
         let views=tasks.into_iter().map(|t| -> Result<TaskView,StorageError> {
@@ -246,6 +267,7 @@ impl Store {
             let execution_profile=self.task_setting(&format!("task-panel:profile:{}",t.id))?.unwrap_or_else(||if t.id.starts_with("analysis-task-"){"architecture"}else{"code"}.into());
             let recommended_actions=if execution_profile=="architecture"{vec!["read_scoped_files".into(),"write_delivery_artifacts".into(),"render_architecture".into()]}else{executions.iter().find(|r|r.task_id==t.id).map(|r|r.authorization.clone()).unwrap_or_else(||vec!["read_scoped_files".into(),"edit_task_files".into(),"write_delivery_artifacts".into()])};
             let mut reasons=Vec::new();
+            if workspace_errors.contains_key(&t.id){reasons.push("workspace_unavailable".into());}
             if observed_attention{reasons.push(if observation.as_ref().is_some_and(|o|o.state=="blocked"){"awaiting_answer"}else{"monitor_disconnected"}.into());}
             if pending_creation.is_some(){reasons.push("creation_pending".into());}
             if latest.is_some_and(|r|r.state=="failed"){reasons.push("execution_failed".into());}
@@ -266,20 +288,20 @@ impl Store {
             if t.repository_id.is_some(){
                 for run in &executions {if run.task_id!=t.id&&is_live(&run.state){
                     let other_repo:Option<String>=self.db.query_row("SELECT repository_id FROM tp_tasks WHERE id=?1",[&run.task_id],|r|r.get(0)).ok().flatten();
-                    if other_repo.is_some() {if crate::task_panel_locations::overlap(&crate::task_panel_locations::execution_repository(&self.db,&t)?.path,&crate::task_panel_locations::execution_repository(&self.db,&task(&self.db,&run.task_id)?)?.path){blockers.push(run.task_id.clone());reasons.push("workspace_busy".into());}}
+                    if other_repo.is_some() {if execution_paths.get(&t.id).zip(execution_paths.get(&run.task_id)).is_some_and(|(a,b)|crate::task_panel_locations::overlap(a,b)){blockers.push(run.task_id.clone());reasons.push("workspace_busy".into());}}
                 }}
             }
             let accepted_task=accepted.contains(&t.id);
             if !accepted.contains(&t.id)&&self.db.query_row("SELECT EXISTS(SELECT 1 FROM tp_acceptances WHERE task_id=?1 AND accepted=1)",[&t.id],|r|r.get::<_,bool>(0)).unwrap_or(false){reasons.push("evidence_stale".into());}
-            let lane=if observed_attention{"human"}else if live.is_some_and(|r|["sending","awaiting_receipt","accepted","running"].contains(&r.state.as_str())){"running"}
+            let lane=if observed_attention||workspace_errors.contains_key(&t.id){"human"}else if live.is_some_and(|r|["sending","awaiting_receipt","accepted","running"].contains(&r.state.as_str())){"running"}
                 else if live.is_some_and(|r|["blocked","uncertain","disconnected"].contains(&r.state.as_str()))||reasons.iter().any(|r|["missing_goal","missing_scope","missing_workspace","missing_criteria","draft","paused","cancelled","creation_pending","worktree_pending","execution_failed"].contains(&r.as_str())){"human"}
                 else if accepted_task{"done"}else if latest.is_some_and(|r|r.state=="reported_finished"){"verify"}
                 else if !blockers.is_empty(){"blocked"}else{"ready"};
             let retry_ready=lane=="human"&&live.is_none()&&blockers.is_empty()&&reasons.iter().all(|r|["creation_pending","execution_failed","evidence_stale"].contains(&r.as_str()));
             let allowed=if object_kind=="goal"{vec!["edit","context"]}else if lane=="ready"||retry_ready{vec!["edit","context","bind","dispatch"]}else if lane=="verify"{vec!["edit","evidence","accept"]}else{vec!["edit","context"]};
             let satisfied=dependencies.iter().filter(|r|if r.threshold=="technical"{technical.contains(&r.to_id)}else{accepted.contains(&r.to_id)}).count();
-            let check_state=if technical.contains(&t.id){"passed"}else if evidence.iter().any(|e|e.task_id==t.id&&e.task_revision==t.revision&&e.kind=="check"&&e.status=="failed"){"failed"}else{"not_run"};
-            Ok(TaskView{execution_workspace:crate::task_panel_locations::assigned(&self.db,&t.id)?,execution_profile,recommended_actions,observation,task:t,plan,object_kind,pending_creation,stop_pending,lane:lane.into(),reason_codes:reasons,blockers,allowed_actions:allowed.into_iter().map(String::from).collect(),prerequisites_total:dependencies.len(),prerequisites_satisfied:satisfied,execution_state:live.or(latest).map(|r|r.state.clone()),check_state:check_state.into(),acceptance_state:if accepted_task{"accepted"}else{"not_accepted"}.into()})
+            let check_state=latest.map(|run|crate::task_panel_evidence::checks_status(&self.db,&t,run,&evidence,current_snapshots.get(&t.id))).unwrap_or_else(||"not_run".into());
+            Ok(TaskView{workspace_error:workspace_errors.get(&t.id).cloned().unwrap_or_default(),execution_workspace:crate::task_panel_locations::assigned(&self.db,&t.id)?,execution_profile,recommended_actions,observation,task:t,plan,object_kind,pending_creation,stop_pending,lane:lane.into(),reason_codes:reasons,blockers,allowed_actions:allowed.into_iter().map(String::from).collect(),prerequisites_total:dependencies.len(),prerequisites_satisfied:satisfied,execution_state:live.or(latest).map(|r|r.state.clone()),check_state,acceptance_state:if accepted_task{"accepted"}else{"not_accepted"}.into()})
         }).collect::<Result<Vec<_>,StorageError>>()?;
         let last_sequence:i64=self.db.query_row("SELECT coalesce(max(sequence),0) FROM tp_events",[],|r|r.get(0)).map_err(db_error)?;
         let memories:Vec<_>=memories_scoped(&self.db,project)?.into_iter().filter(|m|project.is_none_or(|p|m.project_id.as_deref()==Some(p))).collect();
@@ -287,7 +309,7 @@ impl Store {
         let evidence=evidence.into_iter().filter(|e|task_ids.contains(&e.task_id)).collect();
         let mut scoped_relations=Vec::new();for relation in relations {if project.is_none()||crate::task_panel_projects::node_project(&self.db,&relation.from_id)?.as_deref()==project&&crate::task_panel_projects::node_project(&self.db,&relation.to_id)?.as_deref()==project{scoped_relations.push(relation);}}
         let events=events(&self.db,(last_sequence-250).max(0),250)?.into_iter().filter(|e|project.is_none()||task_ids.contains(&e.object_id)||executions.iter().any(|r|r.id==e.object_id)||memories.iter().any(|m|m.id==e.object_id)||project==Some(e.object_id.as_str())).collect();
-        Ok(PanelSnapshot{monitor,projects:crate::task_panel_projects::projects(&self.db)?.into_iter().filter(|p|project.is_none_or(|id|p.id==id)).collect(),graph_revision:graph_revision(&self.db)?,tasks:views,repositories,relations:scoped_relations,memories,executions,bindings:bindings(&self.db)?.into_iter().filter(|b|task_ids.contains(&b.task_id)).collect(),evidence,events,last_sequence})
+        Ok(PanelSnapshot{feedback:crate::task_panel_collaboration::feedback(&self.db)?.into_iter().filter(|f|task_ids.contains(&f.task_id)).collect(),monitor,projects:crate::task_panel_projects::projects(&self.db)?.into_iter().filter(|p|project.is_none_or(|id|p.id==id)).collect(),graph_revision:graph_revision(&self.db)?,tasks:views,repositories,relations:scoped_relations,memories,executions,bindings:bindings(&self.db)?.into_iter().filter(|b|task_ids.contains(&b.task_id)).collect(),evidence,events,last_sequence})
     }
 
     pub fn task_panel_mutate(&mut self,input:MutationInput) -> Result<MutationReceipt,StorageError> {
@@ -298,6 +320,10 @@ impl Store {
             Mutation::Project{id,name,summary,repository_ids}=>{
                 let revision=crate::task_panel_projects::save_project(&tx,id,name,summary,repository_ids,input.expected_revision)?;
                 (id.clone(),revision,"项目已保存；多个项目分别维护任务、记忆与执行位置".into())
+            },
+            Mutation::ProjectDeleted{id,deleted,approved}=>{
+                let revision=crate::task_panel_projects::set_deleted(&tx,id,*deleted,*approved,input.expected_revision)?;
+                (id.clone(),revision,if *deleted{"项目已删除，可恢复；任务、归属、历史与仓库文件保留"}else{"项目已恢复；原任务、归属与历史保留"}.into())
             },
             Mutation::Repository{id,label,path,scope,project_id}=>{
                 if let Some(workspace)=self.task_workspace.as_ref(){if crate::task_panel_workspace::repository_root(std::path::Path::new(path))?!=*workspace{return Err(invalid("请切换到目标仓库再登记；每个仓库的任务保存在自己的 .azcine。"));}}
@@ -313,6 +339,7 @@ impl Store {
                     None=>{if input.expected_revision.is_some(){return Err(conflict());}tx.execute("INSERT INTO tp_repositories VALUES(?1,?2,?3,?4,1,?5)",params![id,label.trim(),canonical,encode(scope)?,now()]).map_err(db_error)?;}
                 }
                 let existing=crate::task_panel_projects::repository_project(&tx,id)?;
+                if let Some(project)=existing.as_deref(){crate::task_panel_projects::require_active(&tx,project)?;}
                 if project_id.is_some()&&existing.is_some()&&project_id!=&existing{return Err(invalid("工作区已有项目归属，未静默移动历史记录。"));}
                 if existing.is_none(){
                     if let Some(project)=project_id {
@@ -328,6 +355,7 @@ impl Store {
                 if !id_ok(id)||title.trim().is_empty()||title.chars().count()>500||goal.chars().count()>20000||source.chars().count()>2000||!valid_scope(scope)||!strings_ok(criteria,100,2000){return Err(invalid("请检查标题、目标、范围及完成条件。范围使用仓库相对路径。"));}
                 if let Some(repo)=repository_id{repository(&tx,repo)?;}
                 let old:Option<i64>=tx.query_row("SELECT revision FROM tp_tasks WHERE id=?1",[id],|r|r.get(0)).optional().map_err(db_error)?;
+                if old.is_some()&&executions(&tx)?.iter().any(|r|r.task_id==*id&&is_live(&r.state)){return Err(invalid("原 Agent 仍在执行旧约定。请先发送补充意见，或核对停止原执行后再保存新要求并接续。"));}
                 if old.is_some()&&task(&tx,id)?.repository_id!=*repository_id&&crate::task_panel_locations::assigned(&tx,id)?.is_some(){return Err(invalid("任务已有分支执行位置，请保留总仓库归属；其他仓库工作请新建任务。"));}
                 if old.is_some()&&task(&tx,id)?.repository_id!=*repository_id&&executions(&tx)?.iter().any(|r|r.task_id==*id&&is_live(&r.state)){return Err(invalid("原工作区仍有执行，先核对原执行再更换目录。"));}
                 if let Some(r)=old{expected(r,input.expected_revision)?;tx.execute("UPDATE tp_tasks SET title=?1,goal=?2,scope=?3,criteria=?4,repository_id=?5,source=?6,revision=revision+1,updated_at=?7 WHERE id=?8",params![title.trim(),goal.trim(),encode(scope)?,encode(criteria)?,repository_id,source,now(),id]).map_err(db_error)?;}
@@ -337,6 +365,12 @@ impl Store {
                 if value.project_id.is_none(){value.project_id=repository_id.as_ref().map(|r|crate::task_panel_projects::repository_project(&tx,r)).transpose()?.flatten();}
                 crate::task_panel_projects::save_plan(&tx,id,&value)?;
                 (id.clone(),old.unwrap_or(0)+1,"任务内容已保存；旧执行与证据保留".into())
+            },
+            Mutation::KeepTaskWithoutWorktree{id,approved}=>{
+                let current=task(&tx,id)?;expected(current.revision,input.expected_revision)?;
+                if !approved||executions(&tx)?.iter().any(|r|r.task_id==*id&&is_live(&r.state)){return Err(invalid("请先核对原执行，再确认仅保留已保存任务。"));}
+                tx.execute("DELETE FROM app_meta WHERE key=?1",[format!("task-panel:worktree-intent:{id}")]).map_err(db_error)?;
+                (id.clone(),current.revision,"仅保留已保存任务；创建请求、分支目录和历史全部保留，未删除文件".into())
             },
             Mutation::CancelStoppedExecution{id,execution_id,reason,approved}=>{
                 let current=task(&tx,id)?;expected(current.revision,input.expected_revision)?;
@@ -412,6 +446,8 @@ impl Store {
                 (id.clone(),m.revision+1,encode(&serde_json::json!({"action":"memory_draft_edited","before":m,"after":{"body":body,"source":source,"kind":kind,"baseTaskRevision":base},"meaning":"本人修订草案；尚未应用为有效决定"}))?)
             },
             Mutation::MemoryDraft{id,task_id,repository_id,kind,body,source,supersedes,project_id}=>{
+                if let Some(task)=task_id.as_deref(){crate::task_panel_projects::require_task_active(&tx,task)?;}
+                if let Some(project)=project_id.as_deref(){crate::task_panel_projects::require_active(&tx,project)?;}
                 if !id_ok(id)||body.trim().is_empty()||body.chars().count()>20000||source.trim().is_empty()||source.chars().count()>2000||!["decision","memory","pause","goal","requirement"].contains(&kind.as_str())||task_id.is_none()&&repository_id.is_none()&&project_id.is_none(){return Err(invalid("请填写记忆正文、出处和所属项目、任务或仓库。"));}
                 if let Some(p)=project_id {if task_id.is_some()||repository_id.is_some()||!crate::task_panel_projects::projects(&tx)?.iter().any(|project|&project.id==p){return Err(invalid("项目级记忆需选择存在的项目，并与任务级范围分别保存。"));}}
                 let base=task_id.as_ref().map(|id|task(&tx,id).map(|t|t.revision)).transpose()?;

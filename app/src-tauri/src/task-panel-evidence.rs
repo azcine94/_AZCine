@@ -16,7 +16,7 @@ pub struct ResultInput {pub request_id:String,pub execution_id:String,pub path:S
 pub struct ResultReview {pub id:String,pub execution_id:String,pub status:String,pub errors:Vec<String>,pub original_hash:String,pub observed_snapshot_id:Option<String>,pub raw:Value}
 #[derive(Debug,Clone,Serialize,Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
-pub struct CheckInput {pub request_id:String,pub execution_id:String,pub expected_revision:i64,pub command:String,pub exit_code:Option<i64>,pub status:String,pub log_path:String,pub coverage:Vec<String>,pub approved:bool,pub reason:String}
+pub struct CheckInput {pub request_id:String,pub execution_id:String,pub expected_revision:i64,#[serde(default)]pub check_id:Option<String>,pub command:String,pub exit_code:Option<i64>,pub status:String,pub log_path:String,#[serde(default)]pub expected_log_hash:Option<String>,pub coverage:Vec<String>,pub approved:bool,pub reason:String}
 #[derive(Debug,Clone,Serialize,Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct AcceptInput {pub request_id:String,pub task_id:String,pub expected_revision:i64,pub execution_id:String,pub snapshot_id:String,pub accepted:bool,pub approved:bool,pub acknowledge_unverified:bool,pub reason:String}
@@ -34,12 +34,53 @@ pub(crate) fn add_evidence(db:&rusqlite::Connection,run:&Execution,kind:&str,lev
     Ok(e)
 }
 pub(crate) fn current_evidence(db:&rusqlite::Connection,e:&Evidence,t:&crate::task_panel_types::Task)->bool {
-    if e.task_revision!=t.revision{return false;}
-    if e.kind=="check"&&!e.path.is_empty()&&protected_absolute(Path::new(&e.path),8_000_000).map_or(true,|b|hash(&b)!=e.hash){return false;}
-    let Some(sid)=&e.snapshot_id else{return false;};
-    let Ok(old)=snapshot(db,sid) else{return false;};
-    if t.repository_id.is_none(){return false;}
-    crate::task_panel_locations::execution_repository(db,t).and_then(|r|sample(&r,&t.scope)).is_ok_and(|cur|cur.fingerprint==old.fingerprint)
+    let current=crate::task_panel_locations::execution_repository(db,t).and_then(|r|sample(&r,&t.scope)).ok();
+    evidence_invalid_reason(db,e,t,current.as_ref()).is_none()
+}
+pub(crate) fn evidence_invalid_reason(db:&rusqlite::Connection,e:&Evidence,t:&crate::task_panel_types::Task,current:Option<&WorkspaceSnapshot>)->Option<String>{
+    if e.task_revision!=t.revision{return Some("任务要求已修订，属于旧版本记录".into());}
+    if e.kind=="check"&&!e.path.is_empty()&&protected_absolute(Path::new(&e.path),8_000_000).map_or(true,|b|hash(&b)!=e.hash){return Some("检查原件不可读或内容已变化".into());}
+    let Some(sid)=&e.snapshot_id else{return Some("没有可核对的代码快照".into());};
+    let Ok(old)=snapshot(db,sid) else{return Some("原代码快照不可读".into());};
+    let Some(current)=current else{return Some("执行目录或当前代码不可读".into());};
+    if old.fingerprint!=current.fingerprint{return Some("当前代码已变化，需重新检查".into());}
+    None
+}
+pub(crate) fn check_identity(detail:&Value)->String{
+    for field in ["checkId","check_id","id","command","name","description"] {if let Some(value)=detail[field].as_str().map(str::trim).filter(|s|!s.is_empty()){return value.into();}}
+    String::new()
+}
+fn check_coverage_matches(required:&Value,confirmed:&Value)->bool{
+    let Some(paths)=required["coverage"].as_array() else{return true;};
+    let Some(actual)=confirmed["coverage"].as_array() else{return paths.is_empty();};
+    paths.iter().all(|path|path.as_str().is_some_and(|wanted|{
+        let wanted=wanted.replace('\\',"/");
+        actual.iter().any(|p|p.as_str().is_some_and(|p|{let p=p.replace('\\',"/");p=="."||p==wanted||wanted.strip_prefix(p.trim_end_matches('/')).is_some_and(|suffix|suffix.starts_with('/'))}))
+    }))
+}
+// Agent-reported `required` remains part of the technical status. Only a
+// requirement confirmed by the user may prevent the user's acceptance.
+pub(crate) fn acceptance_checks_satisfied(db:&rusqlite::Connection,t:&crate::task_panel_types::Task,run:&Execution,evidence:&[Evidence],current:Option<&WorkspaceSnapshot>)->bool{
+    let records:Vec<_>=evidence.iter().filter(|e|e.execution_id==run.id&&e.task_revision==t.revision&&e.kind=="check").collect();
+    let mut confirmations=std::collections::BTreeMap::new();
+    for e in &records{if ["observed","user_confirmed"].contains(&e.level.as_str()){confirmations.entry(check_identity(&e.detail)).or_insert(*e);}}
+    records.iter().filter(|e|e.level=="user_confirmed"&&e.detail["required"].as_bool()==Some(true)).all(|requirement|{
+        let identity=check_identity(&requirement.detail);
+        !identity.is_empty()&&confirmations.get(&identity).is_some_and(|e|e.status=="passed"&&evidence_invalid_reason(db,e,t,current).is_none()&&check_coverage_matches(&requirement.detail,&e.detail))
+    })
+}
+// Required checks accumulate within this execution; partial reports cannot erase them.
+pub(crate) fn checks_status(db:&rusqlite::Connection,t:&crate::task_panel_types::Task,run:&Execution,evidence:&[Evidence],current:Option<&WorkspaceSnapshot>)->String{
+    let records:Vec<_>=evidence.iter().filter(|e|e.execution_id==run.id&&e.task_revision==t.revision&&e.kind=="check").collect();
+    let mut confirmations=std::collections::BTreeMap::new();
+    for e in &records {if ["observed","user_confirmed"].contains(&e.level.as_str()) {confirmations.entry(check_identity(&e.detail)).or_insert(*e);}}
+    if confirmations.values().any(|e|evidence_invalid_reason(db,e,t,current).is_none()&&e.status=="failed"){return "failed".into();}
+    let required:Vec<&Evidence>=records.iter().copied().filter(|e|e.detail["required"].as_bool()==Some(true)).collect();
+    let satisfied=|requirement:&Evidence|{let identity=check_identity(&requirement.detail);!identity.is_empty()&&confirmations.get(&identity).is_some_and(|e|e.status=="passed"&&evidence_invalid_reason(db,e,t,current).is_none()&&check_coverage_matches(&requirement.detail,&e.detail))};
+    if !required.is_empty()&&required.iter().any(|e|!satisfied(e)){return if confirmations.values().any(|e|evidence_invalid_reason(db,e,t,current).is_some()){"stale"}else{"not_run"}.into();}
+    if confirmations.values().any(|e|e.status=="passed"&&evidence_invalid_reason(db,e,t,current).is_none()){return "passed".into();}
+    if confirmations.values().any(|e|evidence_invalid_reason(db,e,t,current).is_some()){return "stale".into();}
+    "not_run".into()
 }
 fn own_file(parent:&Path,relative:&str)->Result<(String,String),StorageError>{
     let path=scoped_file(parent,relative,&[".".into()])?;
@@ -106,7 +147,36 @@ impl Store {
                     let mut out=std::fs::OpenOptions::new().create_new(true).write(true).open(&saved).map_err(|_|invalid("产物副本保存失败。"))?;out.write_all(&bytes).and_then(|_|out.sync_all()).map_err(|_|invalid("产物副本保存失败。"))?;
                     add_evidence(&self.db,&run,"artifact","observed",if matches{"located"}else{"mismatch"},&saved.to_string_lossy(),&h,&json!({"source":"explicit_result","originalPath":p,"semanticStatus":"not_reviewed"}),observed.as_deref())?;},Err(e)=>errors.push(format!("产物 {relative}：{}",e.message)),}
             },_=>errors.push("交付缺少有效的 artifact_refs 清单。".into())}
-            if let Some(checks)=raw["checks"].as_array(){if checks.len()>100{errors.push("技术检查清单超过 100 项，原件保留；未静默忽略剩余必做检查。".into());}for check in checks.iter().take(100){add_evidence(&self.db,&run,"check","claim",check["status"].as_str().unwrap_or("not_run"),"","",check,observed.as_deref())?;}}
+            if let Some(checks)=raw["checks"].as_array(){
+                if checks.len()>100{errors.push("技术检查清单超过 100 项，原件保留；未静默忽略剩余必做检查。".into());}
+                for check in checks.iter().take(100){
+                    let mut detail=check.clone();
+                    // Logs are supplied with the delivery, never discovered in arbitrary
+                    // host directories. Saving a log does not prove an Agent's claim.
+                    if detail.is_object(){
+                        detail.as_object_mut().unwrap().remove("reportedLog");
+                        if let Some(log)=check.get("log_ref"){
+                            let saved=(||->Result<Value,StorageError>{
+                                let relative=log.as_str().or_else(||log["path"].as_str()).ok_or_else(||invalid("检查日志引用缺少路径。"))?;
+                                let folder=parent.as_ref().ok_or_else(||invalid("交付目录不可读。"))?;
+                                let file=scoped_file(folder,relative,&[".".into()])?;
+                                let bytes=read_limited(&file,8_000_000)?;let digest=hash(&bytes);
+                                if log["sha256"].as_str().is_some_and(|wanted|wanted!=digest){return Err(invalid("检查日志哈希不符。"));}
+                                let directory=self.root.join("task-panel/checks").join(new_id(&self.db,"reported-check")?);
+                                std::fs::create_dir_all(&directory).map_err(|_|invalid("检查日志保存失败。"))?;
+                                let path=directory.join("check.log");
+                                use std::io::Write;
+                                let mut out=std::fs::OpenOptions::new().create_new(true).write(true).open(&path).map_err(|_|invalid("检查日志保存失败。"))?;
+                                out.write_all(&bytes).and_then(|_|out.sync_all()).map_err(|_|invalid("检查日志保存失败。"))?;
+                                let text=String::from_utf8_lossy(&bytes);let preview:String=text.chars().take(12000).collect();
+                                Ok(json!({"path":path.to_string_lossy(),"hash":digest,"preview":preview,"truncated":text.chars().count()>12000}))
+                            })();
+                            match saved{Ok(log)=>{detail["reportedLog"]=log;},Err(e)=>{detail["logError"]=json!(e.message);}}
+                        }
+                    }
+                    add_evidence(&self.db,&run,"check","claim",check["status"].as_str().unwrap_or("not_run"),detail["reportedLog"]["path"].as_str().unwrap_or(""),detail["reportedLog"]["hash"].as_str().unwrap_or(""),&detail,observed.as_deref())?;
+                }
+            }
             else{errors.push("交付缺少技术检查/未运行说明。".into());}
         }
         let status=if !valid_identity{"quarantined"}else if !errors.is_empty(){"needs_review"}else{"matched"};
@@ -129,13 +199,14 @@ impl Store {
     pub fn task_panel_check(&mut self,input:CheckInput)->Result<Evidence,StorageError>{
         let encoded=encode(&input)?;if let Some(prior)=request(&self.db,&input.request_id,&encoded)?{return Ok(prior);}
         let run=executions(&self.db)?.into_iter().find(|r|r.id==input.execution_id).ok_or_else(||invalid("执行记录不存在。"))?;let t=task(&self.db,&run.task_id)?;expected(t.revision,Some(input.expected_revision))?;
-        if run.task_revision!=t.revision||!input.approved||input.command.trim().is_empty()||input.command.len()>2000||!crate::task_panel_store::valid_scope(&input.coverage)||input.coverage.is_empty()||!["passed","failed","not_run"].contains(&input.status.as_str())||input.status=="passed"&&input.exit_code!=Some(0)||input.reason.len()>5000{return Err(invalid("请本人核对原始检查记录、实际退出码和覆盖范围；不会执行报告中的命令。"));}
+        if run.task_revision!=t.revision||!input.approved||input.command.trim().is_empty()||input.command.len()>2000||input.check_id.as_ref().is_some_and(|id|id.trim().is_empty()||id.len()>2000)||!crate::task_panel_store::valid_scope(&input.coverage)||input.coverage.is_empty()||!["passed","failed","not_run"].contains(&input.status.as_str())||input.status=="passed"&&input.exit_code!=Some(0)||input.reason.len()>5000{return Err(invalid("请本人核对原始检查记录、实际退出码和覆盖范围；不会执行报告中的命令。"));}
         if input.coverage.iter().any(|p|p!="."&&!within_scope(p,&t.scope))||input.coverage.iter().any(|p|p=="."&&!t.scope.iter().any(|s|s==".")){return Err(invalid("检查覆盖超出任务范围。"));}
         let current=self.task_panel_snapshot_task(&t)?;
         let delivery=crate::task_panel_store::evidence(&self.db)?.into_iter().find(|e|e.execution_id==run.id&&e.kind=="file_check"&&e.status=="passed").ok_or_else(||invalid("请先接收并核对当前交付文件。"))?;
         if !current_evidence(&self.db,&delivery,&t){return Err(invalid("交付核对后代码已改变，请重新接收当前版本。"));}
         let (path,digest)=if input.status=="not_run"{(String::new(),String::new())}else{
             let bytes=protected_absolute(Path::new(&input.log_path),8_000_000)?;
+            if input.expected_log_hash.as_ref().is_some_and(|wanted|wanted!=&hash(&bytes)){return Err(invalid("检查日志在查看后改变，请重新核对。"));}
             let directory=self.root.join("task-panel/checks").join(new_id(&self.db,"check-original")?);
             std::fs::create_dir_all(&directory).map_err(|_|invalid("检查原件保存失败。"))?;
             let saved=directory.join("check.log");use std::io::Write;
@@ -144,7 +215,7 @@ impl Store {
             (saved.to_string_lossy().into_owned(),hash(&bytes))
         };
         let tx=self.db.transaction().map_err(db_error)?;
-        let evidence=add_evidence(&tx,&run,"check","user_confirmed",&input.status,&path,&digest,&json!({"command":input.command,"exitCode":input.exit_code,"coverage":input.coverage,"reason":input.reason,"source":"manually_reviewed_external_check","originalPath":input.log_path,"fingerprint":current.fingerprint}),Some(&current.id))?;
+        let evidence=add_evidence(&tx,&run,"check","user_confirmed",&input.status,&path,&digest,&json!({"checkId":input.check_id,"command":input.command,"exitCode":input.exit_code,"coverage":input.coverage,"reason":input.reason,"source":"manually_reviewed_external_check","originalPath":input.log_path,"fingerprint":current.fingerprint}),Some(&current.id))?;
         event(&tx,&input.request_id,&run.id,"check_confirmed","user","本人核对技术检查原件；检查命令未由报告自动执行")?;receipt(&tx,&input.request_id,&encoded,&evidence)?;tx.commit().map_err(db_error)?;Ok(evidence)
     }
     pub fn task_panel_accept(&mut self,input:AcceptInput)->Result<String,StorageError>{
@@ -157,14 +228,14 @@ impl Store {
             if run.state!="reported_finished"||t.lifecycle!="active"{return Err(invalid("尚无当前交付，或任务已暂停/取消，不能验收为完成。"));}
             let old=snapshot(&self.db,&input.snapshot_id)?;
             let repo=crate::task_panel_locations::execution_repository(&self.db,&t)?;
-            if sample(&repo,&t.scope)?.fingerprint!=old.fingerprint{return Err(invalid("代码版本在核对后改变，旧证据不能验收当前版本。"));}
-            let current:Vec<_>=evidence.iter().filter(|e|e.execution_id==run.id&&current_evidence(&self.db,e,&t)).collect();
+            let workspace=sample(&repo,&t.scope)?;
+            if workspace.fingerprint!=old.fingerprint{return Err(invalid("代码版本在核对后改变，旧证据不能验收当前版本。"));}
+            let current:Vec<_>=evidence.iter().filter(|e|e.execution_id==run.id&&evidence_invalid_reason(&self.db,e,&t,Some(&workspace)).is_none()).collect();
             if !current.iter().find(|e|e.kind=="file_check"&&e.level=="observed").is_some_and(|e|e.status=="passed")||!current.iter().find(|e|e.kind=="receipt").is_some_and(|e|e.status=="matched"){return Err(invalid("回执或文件仍有缺项，不能验收。"));}
-            let last_check=current.iter().find(|e|e.kind=="check"&&["observed","user_confirmed"].contains(&e.level.as_str()));
-            if last_check.is_some_and(|e|e.status=="failed"){return Err(invalid("本版本技术检查失败，需补做后核对。"));}
-            let confirmed=last_check.is_some_and(|e|e.status=="passed");
-            let required=current.iter().any(|e|e.kind=="check"&&e.detail["required"].as_bool()==Some(true));
-            if !confirmed&&(required||!input.acknowledge_unverified){return Err(invalid("指定技术检查尚未核对；无指定检查时也需明确记录未验证决定。"));}
+            let status=checks_status(&self.db,&t,&run,&evidence,Some(&workspace));
+            if status=="failed"{return Err(invalid("本版本存在技术检查失败，需逐项补做后核对。"));}
+            if !acceptance_checks_satisfied(&self.db,&t,&run,&evidence,Some(&workspace)){return Err(invalid("本人明确确认的必做检查尚未通过，请补齐对应当前代码的检查记录。"));}
+            if status!="passed"&&!input.acknowledge_unverified{return Err(invalid("技术检查尚未核对通过；如本人决定接受当前交付，请明确确认按未验证结果验收。"));}
         }
         let tx=self.db.transaction().map_err(db_error)?;let id=new_id(&tx,"acceptance")?;
         tx.execute("INSERT INTO tp_acceptances VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![id,t.id,t.revision,run.id,if input.snapshot_id.is_empty(){None}else{Some(input.snapshot_id.as_str())},input.accepted,input.reason,now()]).map_err(db_error)?;

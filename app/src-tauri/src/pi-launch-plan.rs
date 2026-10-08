@@ -72,6 +72,7 @@ impl PiPaths {
         let agent = owned_dir(&pi_root, "agent")?; let sessions = owned_dir(&pi_root, "sessions")?;
         owned_dir(&agent, "skills")?; owned_dir(&agent, "extensions")?;
         crate::pi_session_title::provision(&pi_root,&agent)?;
+        crate::pi_resources::provision_task_refinement(&pi_root,&agent)?;
         let home = owned_dir(&pi_root, "home")?; let appdata = owned_dir(&pi_root, "appdata")?; let localappdata = owned_dir(&pi_root, "localappdata")?; let temp = owned_dir(&pi_root, "temp")?;
         let workspaces = owned_dir(&pi_root, "workspaces")?; let default_cwd = owned_dir(&workspaces, "default")?;
         Ok(Self { root, pi_root, agent, sessions, home, appdata, localappdata, temp, default_cwd })

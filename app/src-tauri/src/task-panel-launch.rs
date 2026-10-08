@@ -17,6 +17,7 @@ impl Store {
         if !input.approved || !["codex","openpi"].contains(&input.kind.as_str()) {return Err(invalid("请确认执行工具和窗格名称后开始。"));}
         crate::task_panel_execution::validate_actions(&input.allowed_actions,input.approved)?;
         let current=task(&self.db,&input.task_id)?;expected(current.revision,Some(input.expected_revision))?;
+        crate::task_panel_projects::require_task_active(&self.db,&input.task_id)?;
         let view=self.task_panel_snapshot()?.tasks.into_iter().find(|t|t.task.id==input.task_id).ok_or_else(||invalid("任务不存在。"))?;
         if !view.allowed_actions.iter().any(|a|a=="dispatch") {return Err(invalid("任务前置尚未满足或原执行待核对，未新建其他窗格。"));}
         if view.execution_profile=="architecture"&&(!input.allowed_actions.iter().any(|a|a=="render_architecture")||input.allowed_actions.iter().any(|a|a=="edit_task_files")) {return Err(invalid("建图任务需要允许 Archify 渲染，且保持源码只读；请核对任务范围。"));}
@@ -24,7 +25,7 @@ impl Store {
         // that has not received any run instead of creating a second workspace.
         let pending=crate::task_panel_execution::pending_creation(&self.db,&input.task_id)?;
         let previous=crate::task_panel_store::executions(&self.db)?.into_iter().find(|r|r.task_id==input.task_id);
-        let retry_binding=if previous.is_some_and(|r|["failed","cancelled","superseded"].contains(&r.state.as_str())){
+        let retry_binding=if previous.as_ref().is_some_and(|r|["failed","cancelled","superseded"].contains(&r.state.as_str())||r.state=="reported_finished"&&r.task_revision!=current.revision){
             crate::task_panel_store::bindings(&self.db)?.into_iter().filter(|b|b.task_id==input.task_id).max_by_key(|b|b.generation).filter(|b|if input.kind=="codex"{b.kind=="codex"}else{["pi","openpi","opi"].contains(&b.kind.as_str())})
         }else{None};
         let binding=if let Some((old,_))=pending {
