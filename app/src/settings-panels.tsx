@@ -104,7 +104,7 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
   else if (route === 'settings/news') page = <NewsSourceManager model={news} />;
   else if (route === 'settings/news/materials') page = <NewsFeed model={news} />;
   else if (route === 'settings/news/processing') page = <NewsProcessingPanel model={editorial} news={news} processing={processing} />;
-  else page = <>{pi.modelCatalogError&&<Feedback tone="error" role="alert">{pi.modelCatalogError}</Feedback>}<NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.modelCatalog ?? pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} /></>;
+  else page = <>{pi.modelCatalogError&&<Feedback tone="error" role="alert">{pi.modelCatalogError}<Button type="button" variant="app-quiet" disabled={pi.modelCatalogLoading} onClick={()=>void pi.refreshModels()}>{pi.modelCatalogLoading?'正在重试…':'重试读取模型'}</Button></Feedback>}<NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.modelCatalog ?? pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} /></>;
 
   return <div className="settings-layout">
     <aside className="settings-sidebar"><nav aria-label="设置分类">{settingsGroups.map((group, index) => <section className="settings-nav-group" key={group.title} aria-labelledby={`settings-group-${index}`}>

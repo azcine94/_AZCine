@@ -201,7 +201,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
         </div>
       </div>{!atBottom&&<Button variant="app-control" type="button" className="pi-latest" onClick={latest}>回到最新 ↓</Button>}</div>
       {model.queue&&<AgentQueuePanel model={model.queue} conversationKey={model.conversationKey} sessionId={state?.sessionId} onContinue={model.continueQueue}/>}
-      {model.modelCatalogError&&<Feedback tone="error" role="alert">{model.modelCatalogError}</Feedback>}
+      {model.modelCatalogError&&<Feedback tone="error" role="alert">{model.modelCatalogError}<Button type="button" variant="app-quiet" disabled={model.modelCatalogLoading} onClick={()=>void model.refreshModels()}>{model.modelCatalogLoading?'正在重试…':'重试读取模型'}</Button></Feedback>}
       <AgentObjectPicker model={model.objects} returnFocus={addTrigger.current}/><PiExtensionPanel model={model}/><form className="pi-composer" onSubmit={event=>{event.preventDefault();if(!sendDisabled)void model.send(running?'followUp':null);}}>
         <div className="pi-composer-surface">
           {(!!model.draft.images.length||!!model.files.length)&&<div className="pi-attachment-tray">{model.draft.images.map(image=><AttachmentPreview key={image.id} value={{name:image.name,imageUrl:`data:${image.mimeType};base64,${image.data}`}} disabled={attaching||busy} onRemove={()=>model.setImages(model.draft.images.filter(v=>v.id!==image.id))}/>)}{model.files.map(file=><AttachmentPreview key={file.id} value={file} disabled={attaching||busy} onRemove={()=>model.removeFile(file.id)}/>)}</div>}

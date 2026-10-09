@@ -272,21 +272,21 @@ impl PiManager{
     }
     pub fn model_catalog(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
         let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
-        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let lease=crate::pi_config_lock::ConfigLease::acquire_catalog(&paths,&runtime)?;
         let documents=ConfigStore::open(&paths.root)?.private_documents()?;
         let models=crate::pi_resources::models(&runtime,&paths)?;lease.check()?;Ok(Redactor::from_documents(&documents[0],&documents[1]).value(models,false))
     }
     pub fn providers(&self, root:&Path,resources:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let _lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
-        Ok(ConfigStore::open(&paths.root)?.providers()?)
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let providers=ConfigStore::open(&paths.root)?.providers()?;lease.check()?;Ok(providers)
     }
     pub fn model_list_key(&self,root:&Path,resources:&Path,provider:&str,base_url:&str)->Result<Option<String>,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let _lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
-        Ok(ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?)
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let key=ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?;lease.check()?;Ok(key)
     }
     pub fn save_model(&self,root:&Path,resources:&Path,input:ModelSettingsInput,notify:Notify)->Result<Value,PiError>{
         self.save_configuration(root,resources,notify,move|config|serde_json::to_value(config.save(&input)?).map_err(|_|interrupted()))

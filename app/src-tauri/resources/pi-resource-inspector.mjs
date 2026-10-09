@@ -104,7 +104,20 @@ for await (const line of lines) {
     let data;
     if (request.type === 'models') {
       const { ModelRuntime } = await import(pathToFileURL(join(request.input.package, 'dist/core/model-runtime.js')).href);
-      const runtime = await ModelRuntime.create({ modelsPath: join(request.input.agent, 'models.json'), authPath: join(request.input.agent, 'auth.json'), allowModelNetwork: false });
+      const { ReadOnlyAuthStorage } = await import(pathToFileURL(join(request.input.package, 'dist/core/auth-storage.js')).href);
+      // Rust already holds the native config/cache locks. FileAuthStorage would
+      // reacquire auth.json and deadlock against our caller. Use upstream's
+      // read-only credential API and a read-only cache snapshot; no nested locks,
+      // credential refresh, cache writes or network are needed to list models.
+      const cachePath = join(request.input.agent, 'models-store.json');
+      const cache = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, 'utf8').replace(/^\uFEFF/, '')) : {};
+      const modelsStore = {
+        async read(providerId, options) { options?.signal?.throwIfAborted(); return structuredClone(cache[providerId]); },
+        async write() { throw new Error('read-only model catalog'); },
+        async delete() { throw new Error('read-only model catalog'); },
+      };
+      const runtime = await ModelRuntime.create({ modelsPath: join(request.input.agent, 'models.json'),
+        credentials: new ReadOnlyAuthStorage(join(request.input.agent, 'auth.json')), modelsStore, allowModelNetwork: false });
       if (runtime.getError()) throw new Error('models');
       data = runtime.getAvailableSnapshot().map(model => ({ id: model.id, name: model.name, provider: model.provider, api: model.api, input: model.input, reasoning: model.reasoning, contextWindow: model.contextWindow, maxTokens: model.maxTokens, ...(model.thinkingLevelMap ? {thinkingLevelMap:model.thinkingLevelMap} : {}) }));
     }

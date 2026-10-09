@@ -8,9 +8,11 @@ import { bookkeepingExampleId } from './bookkeeping-fixture.ts';
 import { project, event, source, idea, uuid } from './data.ts';
 
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
+const catalogStates=['catalog-busy','catalog-lost','catalog-permission','catalog-io'];
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
+  'catalog-busy':'模型目录 · 占用与重试','catalog-lost':'模型目录 · 锁中断保留','catalog-permission':'模型目录 · 权限失败','catalog-io':'模型目录 · 文件系统失败',
   'works-image':'作品 · 图像分类','works-web':'作品 · 编程分类','works-hardware':'作品 · 硬件分类',
   'works-history':'作品 · 快照历史回看','works-restore':'作品 · 启动恢复本地快照','works-snapshot-error':'作品 · 快照保存失败保留内容',
   'works-stability':'作品 · 稳定度排行','works-latest':'作品 · 最新排行','works-overview':'作品 · 榜单总览',
@@ -104,7 +106,7 @@ function states(route:string) {
   if (route==='bookkeeping'||route.startsWith('bookkeeping/')) return [...base,'dirty','pending','filtered','conflict','undo','bookkeeping-selected','bookkeeping-confirm','bookkeeping-delete','bookkeeping-saving',...(route==='bookkeeping'?['month-open','bookkeeping-validation','bookkeeping-create','bookkeeping-edit','bookkeeping-save-feedback','bookkeeping-refresh','bookkeeping-refresh-fast']:[]),'bookkeeping-fx','bookkeeping-fx-loading','bookkeeping-fx-error'];
   if (route==='jobs'||route==='settings/news/processing') return [...base,...(route==='jobs'?['jobs-agent']:[]),'jobs-refresh','jobs-history','translation-parallel','detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','processing-config-draft','processing-config-version','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
   if (route==='settings/news') return [...base,'news-source-states','source-create','paused',...Object.keys(statusLabels),'folds-open'];
-  if (route==='settings/models') return [...base,'dirty','models','advanced','provider-thinking','remote','disconnected','connecting','provider-interface','provider-fetching','provider-saving','provider-multiple'];
+  if (route==='settings/models') return [...base,...catalogStates,'dirty','models','advanced','provider-thinking','remote','disconnected','connecting','provider-interface','provider-fetching','provider-saving','provider-multiple'];
   if (route==='settings/news/automation') return [...base,'dirty','pending','proxy','folds-open'];
   if(route==='settings/news/ai'||route==='settings/news/rules')return [...base,'news-rules-many','dirty','pending','processing-config-draft','processing-config-version','folds-open'];
   if (route==='resources') return [...base,'editing','dirty','disconnected','connecting','resource-waiting','windows-paths'];
@@ -113,7 +115,7 @@ function states(route:string) {
   if (route==='settings/about') return ['normal','update-current','update-ready','update-downloading','update-error','update-development'];
   if (route==='settings/data') return [...base,'no-root','data-migrate','data-switch','data-change-pending','data-change-failed','data-path-prefixed','data-path-long'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open','windows-paths'];
-  if (route==='agent') return [...base,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
+  if (route==='agent') return [...base,...catalogStates,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
   if(route==='news/daily'||route.startsWith('news/daily/'))return [...base,'daily-empty','daily-failed','daily-running','daily-waiting','daily-paused','daily-versions','daily-refreshing','daily-menu','incomplete'];
   if (route==='news') return [...base,'all','featured','hot','daily','filtered','review','incomplete'];
   if (route==='ideas'||route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','undo','conflict','conflict-details'];

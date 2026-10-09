@@ -44,6 +44,8 @@ fn copy_directory(base: &Path, source: &Path, destination: &Path) -> Result<(), 
         let path = entry.map_err(|_| failure())?.path();
         let relative = path.strip_prefix(base).map_err(|_| failure())?;
         if relative == Path::new(".azcine.lock") || relative == Path::new("pi/session-locks") ||
+            ["models.json", "auth.json", "settings.json", "models-store.json"].iter()
+                .any(|name| relative == Path::new("pi/agent").join(format!("{name}.lock"))) ||
             ["db/azcine.sqlite3", "db/azcine.sqlite3-journal", "db/azcine.sqlite3-wal", "db/azcine.sqlite3-shm"].iter().any(|skip| relative == Path::new(skip)) { continue; }
         crate::pi_launch_plan::no_link(&path).map_err(|_| failure())?;
         let output = destination.join(path.file_name().ok_or_else(failure)?);
@@ -99,6 +101,32 @@ mod tests {
         // New computer: a new local config selects the copied existing root.
         let mut third=Manager::new(base.join("new-computer-config"),base.join("unused")).unwrap();
         assert!(third.workspace().unwrap().root.is_none());assert_eq!(third.select_root(&moved).unwrap().todos.len(),1);
+    }
+    #[test]
+    fn migration_skips_only_known_pi_config_locks_and_preserves_user_lock_files() {
+        let base=fixture();let mut first=manager(&base);first.select_root(&base.join("original")).unwrap();record(&mut first);
+        let original=first.store().unwrap().root.clone();
+        let paths=crate::pi_launch_plan::PiPaths::prepare(&original).unwrap();
+        for name in ["models.json","auth.json","settings.json","models-store.json"] {
+            fs::write(paths.agent.join(name),b"{}").unwrap();
+            fs::create_dir(paths.agent.join(format!("{name}.lock"))).unwrap();
+        }
+        fs::write(paths.agent.join("user.lock"),b"keep user file").unwrap();
+        fs::create_dir(paths.agent.join("custom.lock")).unwrap();
+        fs::write(paths.agent.join("custom.lock/note.txt"),b"keep user directory").unwrap();
+        fs::create_dir_all(original.join("files/models.json.lock")).unwrap();
+        fs::write(original.join("files/models.json.lock/note.txt"),b"same name outside agent").unwrap();
+        first.schedule_root_change(&base.join("migrated"),"migrate").unwrap();drop(first);
+        let mut second=manager(&base);assert_eq!(second.workspace().unwrap().todos.len(),1);
+        let moved=second.store().unwrap().root.clone();
+        for name in ["models.json","auth.json","settings.json","models-store.json"] {
+            assert!(!moved.join("pi/agent").join(format!("{name}.lock")).exists());
+            assert!(paths.agent.join(format!("{name}.lock")).exists());
+            assert_eq!(fs::read(moved.join("pi/agent").join(name)).unwrap(),b"{}");
+        }
+        for name in ["pi/agent/user.lock","pi/agent/custom.lock/note.txt","files/models.json.lock/note.txt"] {
+            assert_eq!(fs::read(moved.join(name)).unwrap(),fs::read(original.join(name)).unwrap());
+        }
     }
     #[test]
     fn switch_does_not_merge_cancel_preserves_root_and_invalid_targets_are_rejected() {
