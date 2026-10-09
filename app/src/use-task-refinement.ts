@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { callPi, desktopPi, parseSnapshot, piError } from './pi-client.ts';
 import type { AgentBinding, PiSnapshot, SendReceipt } from './pi-client.ts';
-import { parseProviders } from './pi-provider-client.ts';
+import { parsePiModels } from './pi-contract.ts';
 import { assistantOutcome } from './pi-contract.ts';
 import type { PiResourceIndex } from './use-pi-resources.ts';
 import type { PanelSnapshot, TaskDraft } from './task-panel-contract.ts';
@@ -72,15 +72,15 @@ export function useTaskRefinement(businessRoot: string | null, workspaceRoot: st
     setLoadingModels(true); setModelError('');
     try {
       if (!root || !desktopPi()) throw new Error('请在桌面版配置工作台 Agent 的模型。');
-      const providers = parseProviders(await callPi('pi_providers', { conversationKey: 'task-refinement-models' }));
+      const catalog = parsePiModels({models:await callPi('pi_model_catalog')});
       if (!alive.current || request !== modelRequest.current || current.current.businessRoot !== root) return;
-      const options = providers.flatMap(provider => provider.models.map(model => ({ key: JSON.stringify([provider.provider, model.id]), provider: provider.provider, id: model.id, name: model.name })));
+      const options = catalog.map(model => ({ key: JSON.stringify([model.provider, model.id]), provider: model.provider, id: model.id, name: model.name }));
       setModels(options);
       let preferred = '';
       try { preferred = window.localStorage.getItem(preferenceKey) ?? ''; } catch { /* Preference storage is optional. */ }
       if (!current.current.draft.refinementModel && options.some(model => model.key === preferred)) current.current.updateDraft({ refinementModel: preferred });
       if (!options.length) setModelError('还没有配置模型，请到工作台 Agent 的模型设置中添加。');
-    } catch (failure) { if (alive.current && request === modelRequest.current) { setModels([]); setModelError(piError(failure)); } }
+    } catch (failure) { if (alive.current && request === modelRequest.current) { setModelError(piError(failure)); } }
     finally { if (alive.current && request === modelRequest.current) setLoadingModels(false); }
   }
   useEffect(() => { ++modelRequest.current; setModels([]); setLoadingModels(false); setModelError(''); if (enabled) void refreshModels(); }, [enabled, businessRoot]);

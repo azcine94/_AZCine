@@ -155,3 +155,61 @@ fn model_cache_lock_only_blocks_catalog_not_unrelated_config_access(){
     native.shutdown(Duration::from_secs(2)).unwrap();
     ConfigLease::acquire_catalog(&paths,&runtime).unwrap().check().unwrap();
 }
+
+#[test]
+#[ignore="concurrent catalog regression; real bundled runtime; explicit isolated AZCINE_PI_LOCK_TEST_BASE"]
+fn concurrent_catalog_readers_share_a_successful_snapshot(){
+    let (root,paths,_)=fixture();
+    fs::write(paths.agent.join("models.json"),br#"{"providers":{}}"#).unwrap();
+    let gate=std::sync::Arc::new(std::sync::Barrier::new(8));
+    let workers:Vec<_>=(0..8).map(|_|{
+        let root=root.clone();let gate=gate.clone();
+        thread::spawn(move||{
+            let manager=crate::pi_manager::PiManager::default();gate.wait();
+            manager.model_catalog(&root,Path::new("unused"))
+        })
+    }).collect();
+    let results:Vec<_>=workers.into_iter().map(|worker|worker.join().unwrap()).collect();
+    let succeeded=results.iter().filter(|value|value.is_ok()).count();
+    let failures:Vec<_>=results.iter().filter_map(|value|value.as_ref().err().map(|e|e.code)).collect();
+    println!("catalog concurrent callers=8 succeeded={succeeded} failures={failures:?}");
+    assert_eq!(succeeded,8,"every catalog caller must receive the shared list");
+    assert!(failures.is_empty(),"normal concurrent reads must not report busy");
+    assert!(failures.iter().all(|code|*code=="pi_config_busy"),"unexpected failure beyond lock contention");
+    assert_eq!(crate::pi_manager::PiManager::default().model_catalog(&root,Path::new("unused")).unwrap(),json!([]),"retry after all readers finish must recover");
+}
+
+#[test]
+#[ignore="real bundled runtime; explicit isolated AZCINE_PI_LOCK_TEST_BASE"]
+fn catalog_cache_tracks_changed_config_and_keeps_roots_separate(){
+    let (root,paths,_)=fixture();let (other,other_paths,_)=fixture();
+    let manager=crate::pi_manager::PiManager::default();
+    for p in [&paths,&other_paths]{fs::write(p.agent.join("models.json"),br#"{"providers":{}}"#).unwrap();}
+    assert_eq!(manager.model_catalog(&root,Path::new("unused")).unwrap(),json!([]));
+    let document=json!({"providers":{"fixture":{"baseUrl":"http://127.0.0.1:1/v1","api":"openai-completions","apiKey":"fictional-key","models":[{"id":"new-model","name":"New model","contextWindow":4096,"maxTokens":512}]}}});
+    fs::write(paths.agent.join("models.json"),serde_json::to_vec(&document).unwrap()).unwrap();
+    assert!(manager.model_catalog(&root,Path::new("unused")).unwrap().as_array().unwrap().iter().any(|m|m["id"]=="new-model"));
+    assert_eq!(manager.model_catalog(&other,Path::new("unused")).unwrap(),json!([]));
+    fs::write(paths.agent.join("models.json"),b"invalid fixture").unwrap();
+    assert!(manager.model_catalog(&root,Path::new("unused")).is_err(),"must not return an obsolete successful result as current");
+    fs::write(paths.agent.join("models.json"),br#"{"providers":{}}"#).unwrap();
+    assert_eq!(manager.model_catalog(&root,Path::new("unused")).unwrap(),json!([]));
+}
+
+#[test]
+#[ignore="real bundled runtime; explicit isolated AZCINE_PI_LOCK_TEST_BASE"]
+fn foreground_connections_and_catalog_readers_can_start_together(){
+    let (root,paths,_)=fixture();fs::write(paths.agent.join("models.json"),br#"{"providers":{}}"#).unwrap();
+    let runtime=std::sync::Arc::new(crate::agent_runtime::AgentRuntime::default());
+    let gate=std::sync::Arc::new(std::sync::Barrier::new(8));
+    let workers:Vec<_>=(0..8).map(|i|{let root=root.clone();let runtime=runtime.clone();let gate=gate.clone();thread::spawn(move||{
+        gate.wait();if i<6{runtime.connect(&format!("chat-{i}"),&root,Path::new("unused"),None,None,false,std::sync::Arc::new(||{})).map(|snapshot|{assert_eq!(snapshot["connection"],"ready");})}
+        else{crate::pi_manager::PiManager::default().model_catalog(&root,Path::new("unused")).map(|_|())}
+    })}).collect();
+    let results:Vec<_>=workers.into_iter().map(|worker|worker.join().unwrap()).collect();
+    let failures:Vec<_>=results.iter().filter_map(|v|v.as_ref().err().cloned()).collect();
+    runtime.manager("chat-0").unwrap().disconnect(std::sync::Arc::new(||{})).unwrap();
+    for i in 1..6{assert_eq!(runtime.manager(&format!("chat-{i}")).unwrap().snapshot().unwrap()["connection"],"ready");}
+    runtime.shutdown(std::sync::Arc::new(||{})).unwrap();
+    assert!(failures.is_empty(),"concurrent connect/catalog failures: {failures:?}");
+}

@@ -65,8 +65,8 @@ async function inspect(input) {
   for (const path of [join(input.agent, 'AGENTS.md'), join(input.cwd, 'AGENTS.md'), join(input.agent, 'SYSTEM.md'), join(input.agent, 'APPEND_SYSTEM.md')]) {
     if (!owned(path, roots) || (!existsSync(path) && path !== join(input.agent, 'AGENTS.md'))) continue;
     const name = basename(path), doc = document(path, roots);
-    entries.push({ id: `rule:${path}`, kind: 'rule', name, path, description: name === 'AGENTS.md' ? '工作规则文件；当前启动使用 --no-context-files，保存不会自动注入会话。' : '原生系统提示词配置，重新连接后由 Pi 读取。', ...doc,
-      enabled: name !== 'AGENTS.md', loaded: false, toggleable: false, commands: [] });
+    entries.push({ id: `rule:${path}`, kind: 'rule', name, path, description: name === 'AGENTS.md' ? (samePath(path, join(input.agent, 'AGENTS.md')) ? '工作台自有 AGENTS.md 会在连接或新建对话时明确加载；当前对话需重新连接。' : '工作目录的规则仅供查看；通用规则使用工作台自有 AGENTS.md。') : '原生系统提示词配置，重新连接后由 Pi 读取。', ...doc,
+      enabled: name !== 'AGENTS.md' || samePath(path, join(input.agent, 'AGENTS.md')), loaded: false, toggleable: false, commands: [] });
   }
   const skills = loadSkills({ cwd: input.cwd, agentDir: input.agent, skillPaths: paths.skills.filter(item => item.enabled).map(item => item.path), includeDefaults: false });
   const disabledSkills = paths.skills.filter(item => !item.enabled).map(item => loadSkills({ cwd: input.cwd, agentDir: input.agent, skillPaths: [item.path], includeDefaults: false }));

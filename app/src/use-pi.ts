@@ -218,7 +218,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     await operate('连接',async()=>{const v=parseSnapshot(await callPi('pi_connect',{cwd:session?.cwd??binding.cwd??(cwd.trim()||null),sessionPath:session?.path??binding.sessionPath,reconnect},key));
       if(!mounted.current||rootRef.current!==targetRoot)return;
       if(v.state){transferDraft(pendingKey,v.state.sessionId);if(reconnect&&priorSession)transferDraft(priorSession,v.state.sessionId);}
-      acceptSnapshot(v,key);if(v.state){bindings.current[key]={...binding,sessionId:v.state.sessionId,sessionPath:v.state.sessionFile,cwd:v.cwd??binding.cwd,title:v.state.sessionName??binding.title};if(pendingConversation.current?.conversationKey===key)pendingConversation.current=null;}await invokePi('agent_remember',{conversationKey:key});resources.invalidate();await refreshModels();await reloadSessions();await refreshRuntime();});
+      acceptSnapshot(v,key);if(v.state){bindings.current[key]={...binding,sessionId:v.state.sessionId,sessionPath:v.state.sessionFile,cwd:v.cwd??binding.cwd,title:v.state.sessionName??binding.title};if(pendingConversation.current?.conversationKey===key)pendingConversation.current=null;}await invokePi('agent_remember',{conversationKey:key});resources.invalidate();void refreshModels();await reloadSessions();await refreshRuntime();});
   }
   async function connect(session?:PiSession,reconnect=false,automatic=false){
     if(actionRef.current||viewingEpoch.current!==null)return;

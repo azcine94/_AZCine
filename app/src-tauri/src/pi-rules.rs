@@ -3,6 +3,19 @@ use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{fs::File,io::Read};
 pub const SUGGESTED:&str=include_str!("../resources/APPEND_SYSTEM.md");
+/// Explicit, application-owned context. Do not discover ancestors or migrate APPEND_SYSTEM.
+pub fn context(paths:&PiPaths)->Result<(String,Value),PiError>{
+    let mut text=String::new();let mut files=Vec::new();
+    for name in ["APPEND_SYSTEM.md","AGENTS.md"]{
+        let path=paths.agent.join(name);
+        let content=crate::self_evolution::text_file(&path).map_err(|e|PiError::new(e.code,&e.message))?;
+        if let Some(content)=content{
+            if !content.trim().is_empty(){text.push_str(&format!("\n# Context file: {name}\n{content}\n"));}
+            files.push(json!({"path":path,"hash":format!("{:x}",Sha256::digest(content.as_bytes())),"status":if content.trim().is_empty(){"empty"}else{"loaded"}}));
+        }
+    }
+    Ok((text,json!({"status":if files.is_empty(){"missing"}else{"loaded"},"files":files,"loadedAt":chrono::Utc::now().to_rfc3339()})))
+}
 pub fn read(paths:&PiPaths)->Result<(String,Value),PiError>{
     let path=paths.agent.join("APPEND_SYSTEM.md");no_link(&path)?;
     let file=match File::open(&path){Ok(f)=>f,Err(e) if e.kind()==std::io::ErrorKind::NotFound=>return Ok(("\n".into(),json!({"status":"missing","path":path,"hash":null}))),Err(_)=>return Err(PiError::new("pi_rules_read","自定义工作规则无法读取；未忽略规则继续连接。"))};

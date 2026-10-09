@@ -1,7 +1,8 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
-            "goodcase_fetch", "goodcase_favorites", "goodcase_favorite_save",
+            "github_projects_snapshot", "github_projects_refresh", "github_project_avatar", "github_project_open",
+            "evolution_snapshot", "evolution_mutate", "evolution_source", "evolution_open_source", "evolution_extract", "evolution_cancel", "goodcase_fetch", "goodcase_favorites", "goodcase_favorite_save",
             "goodcase_snapshot_index", "goodcase_snapshot_read", "goodcase_snapshot_save",
             "dev_environment_inspect", "dev_environment_status", "dev_environment_export", "dev_environment_cancel", "dev_environment_open",
             "server_credentials_load", "server_credentials_save", "server_credentials_receipt", "server_credentials_add_file", "server_credentials_open_folder",

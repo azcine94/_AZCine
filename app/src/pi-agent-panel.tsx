@@ -62,10 +62,9 @@ export function AgentPanel({model,onDock,agentData}:{model:PiController;onDock?:
 export function AgentChat({model,preview=false,compact=false,onExpand,onClose,onDock,agentData}:{model:PiController;preview?:boolean;compact?:boolean;onExpand?:()=>void;onClose?:()=>void;onDock?:()=>void;agentData?:AgentDataController}) {
   const s=model.snapshot,state=s?.state,projection=s?.projection,currentModel=state?.model;
   const [attachmentError,setAttachmentError]=useState<string|null>(null),[attaching,setAttaching]=useState(false);
-  const [sessionsOpen,setSessionsOpen]=useState(false),[narrow,setNarrow]=useState(()=>window.innerWidth<=1100),[atBottom,setAtBottom]=useState(true),[limit,setLimit]=useState('3');
+  const [sessionsOpen,setSessionsOpen]=useState(false),[narrow,setNarrow]=useState(()=>window.innerWidth<=1100),[atBottom,setAtBottom]=useState(true);
   const [moreOpen,setMoreOpen]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[navVisible,setNavVisible]=useState(true),[addOpen,setAddOpen]=useState(false);
   const [dragging,setDragging]=useState(false),dragDepth=useRef(0),importInFlight=useRef(false);
-  useEffect(()=>{if(model.runtimeSummary)setLimit(String(model.runtimeSummary.replyLimit));},[model.runtimeSummary?.replyLimit]);
   const composing=useRef(false),fileInput=useRef<HTMLInputElement>(null),documentInput=useRef<HTMLInputElement>(null),textarea=useRef<HTMLTextAreaElement>(null);
   const viewport=useRef<HTMLDivElement>(null),flow=useRef<HTMLDivElement>(null),sessionsTrigger=useRef<HTMLButtonElement>(null),moreTrigger=useRef<HTMLButtonElement>(null),addTrigger=useRef<HTMLButtonElement>(null);
   useEffect(()=>{textarea.current?.focus({preventScroll:true});},[]);
@@ -186,7 +185,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
       <FormDialog returnFocus={moreTrigger.current} open={detailsOpen} onOpenChange={setDetailsOpen} title="会话设置" description="调整当前会话名称、查看连接与用量。">
         <div className="pi-agent-layout pi-session-settings">
           <form onSubmit={event=>{event.preventDefault();void model.sessionAction('pi_name_session',{name:model.sessionName});}}><label className="pi-field">会话名称<Input value={model.sessionName} maxLength={1000} onChange={event=>model.setSessionName(event.target.value)}/></label><Button variant="outline" size="sm" disabled={!ready||busy||running||!model.sessionName.trim()}>保存名称</Button></form>
-          {preview?<p className="pi-preview-note">界面示例，不调用模型或保存记录。</p>:<><div className="agent-runtime-strip"><form onSubmit={e=>{e.preventDefault();void model.saveLimit(Number(limit));}}><label>同时回复上限<Input type="number" min={1} max={64} value={limit} onChange={e=>setLimit(e.target.value)}/><Button variant="outline" size="sm">保存</Button></label></form></div><RuntimeInfo model={model}/><Button size="sm" variant="ghost" onClick={()=>void model.refreshStats()}>读取会话用量</Button>{model.stats!==null&&<pre className="agent-context-block">{JSON.stringify(model.stats,null,2)}</pre>}</>}
+          {preview?<p className="pi-preview-note">界面示例，不调用模型或保存记录。</p>:<><p className="meta">各会话独立并发运行。</p><RuntimeInfo model={model}/><Button size="sm" variant="ghost" onClick={()=>void model.refreshStats()}>读取会话用量</Button>{model.stats!==null&&<pre className="agent-context-block">{JSON.stringify(model.stats,null,2)}</pre>}</>}
         </div>
       </FormDialog>
       <div className="pi-chat-feedback" aria-live="polite">{(model.error??s?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{model.error??s?.error?.message}</Feedback>}{projection?.notice&&<p>{projection.notice}</p>}

@@ -1,28 +1,27 @@
-//! Two background slots, separate from interactive replies. Queue ownership is
+//! Independently tracked background tasks. Queue ownership is
 //! app-side; Pi has no invented spawn/child capability. Batch parents wait outside
 //! slots and all children obtain their own slot.
 use crate::{storage::StorageError,pi_rpc::RpcProcess,pi_launch_plan::PiPaths,pi_redactor::Redactor};
 use serde::Deserialize;
 use serde_json::{Value,json};
 use tauri::{Manager as _,Emitter as _};
-use std::{collections::{HashMap,HashSet,VecDeque},sync::{Arc,Mutex,Condvar,atomic::{AtomicBool,Ordering}},time::{Duration,Instant},path::PathBuf};
+use std::{collections::{HashMap,HashSet},sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}},time::{Duration,Instant},path::PathBuf};
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
-#[derive(Default)]struct SlotState{active:HashSet<String>,waiting:VecDeque<String>,exiting:bool}
-#[derive(Default)]struct Slots{state:Mutex<SlotState>,changed:Condvar}
+#[derive(Default)]struct SlotState{active:HashSet<String>,exiting:bool}
+#[derive(Default)]struct Slots{state:Mutex<SlotState>}
 #[derive(Clone,Default)]pub struct BackgroundSlots(Arc<Slots>);
 pub struct BackgroundLease{slots:Arc<Slots>,key:String}
-impl Drop for BackgroundLease{fn drop(&mut self){if let Ok(mut state)=self.slots.state.lock(){state.active.remove(&self.key);self.slots.changed.notify_all();}}}
+impl Drop for BackgroundLease{fn drop(&mut self){if let Ok(mut state)=self.slots.state.lock(){state.active.remove(&self.key);}}}
 impl BackgroundSlots{
     pub fn acquire(&self,key:&str,cancel:&AtomicBool,deadline:Instant)->Result<BackgroundLease,StorageError>{
-        let mut state=self.0.state.lock().map_err(|_|error("agent_queue_interrupted","后台调度中断。"))?;state.waiting.push_back(key.into());
-        loop{
-            if cancel.load(Ordering::Acquire)||state.exiting||Instant::now()>=deadline{state.waiting.retain(|k|k!=key);self.0.changed.notify_all();return Err(error(if cancel.load(Ordering::Acquire)||state.exiting{"agent_job_cancelled"}else{"agent_job_timeout"},"后台任务已取消或等待超时；输入与已有结果保留。"));}
-            if state.active.len()<2&&state.waiting.front().is_some_and(|k|k==key){state.waiting.pop_front();state.active.insert(key.into());return Ok(BackgroundLease{slots:self.0.clone(),key:key.into()});}
-            state=self.0.changed.wait_timeout(state,Duration::from_millis(250)).map_err(|_|error("agent_queue_interrupted","后台调度中断。"))?.0;
-        }
+        let mut state=self.0.state.lock().map_err(|_|error("agent_queue_interrupted","后台任务状态中断。"))?;
+        if cancel.load(Ordering::Acquire)||state.exiting{return Err(error("agent_job_cancelled","任务已取消，未启动进程。"));}
+        if Instant::now()>=deadline{return Err(error("agent_job_timeout","任务已超过期限，未启动进程。"));}
+        if !state.active.insert(key.into()){return Err(error("agent_job_busy","同一任务已经运行，未重复启动。"));}
+        Ok(BackgroundLease{slots:self.0.clone(),key:key.into()})
     }
-    pub fn summary(&self)->Value{self.0.state.lock().map(|s|json!({"limit":2,"active":s.active,"queued":s.waiting})).unwrap_or(Value::Null)}
-    pub fn set_exiting(&self,value:bool){if let Ok(mut s)=self.0.state.lock(){s.exiting=value;self.0.changed.notify_all();}}
+    pub fn summary(&self)->Value{self.0.state.lock().map(|s|json!({"limit":0,"active":s.active,"queued":[]})).unwrap_or(Value::Null)}
+    pub fn set_exiting(&self,value:bool){if let Ok(mut s)=self.0.state.lock(){s.exiting=value;}}
 }
 #[derive(Default)]pub struct JobsControl{pub cancel:Mutex<HashMap<String,Arc<AtomicBool>>>,pub active:Mutex<HashMap<String,Arc<RpcProcess>>>,recovered:Mutex<HashSet<PathBuf>>}
 #[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]
@@ -107,6 +106,6 @@ pub fn shutdown(app:&tauri::AppHandle)->Result<(),StorageError>{app.state::<Back
 
 #[cfg(test)]mod tests{
  use super::*;
- #[test]fn background_third_job_waits_until_a_slot_is_released(){let slots=BackgroundSlots::default();let cancel=AtomicBool::new(false);let deadline=Instant::now()+Duration::from_secs(3);let first=slots.acquire("first",&cancel,deadline).unwrap();let _second=slots.acquire("second",&cancel,deadline).unwrap();let waiting=slots.clone();let (tx,rx)=std::sync::mpsc::channel();let worker=std::thread::spawn(move||{let lease=waiting.acquire("third",&AtomicBool::new(false),deadline).unwrap();tx.send(()).unwrap();lease});assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());assert_eq!(slots.summary()["active"].as_array().unwrap().len(),2);drop(first);rx.recv_timeout(Duration::from_secs(2)).unwrap();drop(worker.join().unwrap());assert_eq!(slots.summary()["active"].as_array().unwrap().len(),1);}
+ #[test]fn background_tasks_do_not_share_a_fixed_execution_limit(){let slots=BackgroundSlots::default();let cancel=AtomicBool::new(false);let deadline=Instant::now()+Duration::from_secs(3);let leases:Vec<_>=(0..8).map(|i|slots.acquire(&format!("job-{i}"),&cancel,deadline).unwrap()).collect();assert_eq!(slots.summary()["active"].as_array().unwrap().len(),8);assert_eq!(slots.acquire("job-0",&cancel,deadline).err().unwrap().code,"agent_job_busy");drop(leases);assert_eq!(slots.summary()["active"],json!([]));}
  #[test]fn cancelled_and_expired_waiters_do_not_hold_a_slot(){let slots=BackgroundSlots::default();assert_eq!(slots.acquire("cancelled",&AtomicBool::new(true),Instant::now()+Duration::from_secs(1)).err().unwrap().code,"agent_job_cancelled");assert_eq!(slots.acquire("expired",&AtomicBool::new(false),Instant::now()-Duration::from_secs(1)).err().unwrap().code,"agent_job_timeout");assert_eq!(slots.summary()["queued"],json!([]));assert_eq!(slots.summary()["active"],json!([]));}
 }

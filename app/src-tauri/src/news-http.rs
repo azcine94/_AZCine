@@ -82,7 +82,7 @@ fn fetch_for(value: &str, proxy: Option<&str>, article: bool) -> Result<FeedResp
     let url = public_url(value)?;
     let proxy = proxy.map(proxy_server).transpose()?;
     #[cfg(windows)]
-    { windows_http::fetch(url, proxy.as_deref(), article, false, false) }
+    { windows_http::fetch(url, proxy.as_deref(), article, false, false, false) }
     #[cfg(not(windows))]
     { let _ = (url, proxy, article); Err(StorageError::new("feed_platform_unsupported", "资讯采集目前仅接入 Windows 桌面版，没有执行采集或保存。")) }
 }
@@ -95,7 +95,7 @@ pub fn fetch_exchange(value: &str) -> Result<FeedResponse, StorageError> {
         return Err(invalid());
     }
     #[cfg(windows)]
-    { windows_http::fetch(url, None, false, true, false) }
+    { windows_http::fetch(url, None, false, true, false, false) }
     #[cfg(not(windows))]
     { let _ = url; Err(StorageError::new("exchange_platform", "汇率读取目前仅接入 Windows 桌面版。")) }
 }
@@ -106,9 +106,16 @@ pub fn fetch_goodcase(value:&str)->Result<FeedResponse,StorageError>{
     let url=public_url(value)?;
     if url.scheme()!="https"||url.host_str()!=Some("goodcase.ai"){return Err(invalid());}
     #[cfg(windows)]
-    {windows_http::fetch(url,None,true,false,true)}
+    {windows_http::fetch(url,None,true,false,true,false)}
     #[cfg(not(windows))]
     {let _=url;Err(StorageError::new("goodcase_platform","作品采集目前仅接入 Windows 桌面版。"))}
+}
+
+pub fn fetch_github(value:&str)->Result<FeedResponse,StorageError>{
+    let url=public_url(value)?;
+    if url.scheme()!="https" || !matches!(url.host_str(),Some("api.hellogithub.com"|"avatars.githubusercontent.com")){return Err(invalid());}
+    #[cfg(windows)] {windows_http::fetch(url,None,false,false,false,true)}
+    #[cfg(not(windows))] {let _=url;Err(StorageError::new("github_platform","请在Windows桌面版读取项目。"))}
 }
 
 #[cfg(windows)]
@@ -188,16 +195,16 @@ mod windows_http {
         let milliseconds = remaining(deadline)?.as_millis().clamp(1, 10_000) as i32;
         unsafe { WinHttpSetTimeouts(handle.0, milliseconds, milliseconds, milliseconds, milliseconds) }.map_err(|e| network_error(e, "配置订阅超时"))
     }
-    pub fn fetch(mut url: Url, proxy: Option<&str>, article: bool, exchange: bool, goodcase: bool) -> Result<FeedResponse, StorageError> {
+    pub fn fetch(mut url: Url, proxy: Option<&str>, article: bool, exchange: bool, goodcase: bool, github: bool) -> Result<FeedResponse, StorageError> {
         let deadline = Instant::now() + Duration::from_secs(45);
         let proxy_name = proxy.map(wide);
-        let mode = if goodcase { "GoodCase 作品请求" } else if exchange { "汇率请求" } else { match (proxy.is_some(), article) {(true,true)=>"代理原文",(false,true)=>"直连原文",(true,false)=>"代理订阅",(false,false)=>"直连订阅"} };
+        let mode = if github { "GitHub 项目请求" } else if goodcase { "GoodCase 作品请求" } else if exchange { "汇率请求" } else { match (proxy.is_some(), article) {(true,true)=>"代理原文",(false,true)=>"直连原文",(true,false)=>"代理订阅",(false,false)=>"直连订阅"} };
         for redirects in 0..=5 {
             // The explicitly trusted proxy resolves targets; local Fake-IP DNS must not be pinned into its requests.
             // Every target/redirect still passes public_url. Proxy DNS/IP routing is controlled by the user's proxy.
-            let ip = if proxy.is_none() && !exchange && !goodcase { Some(resolve(&url, remaining(deadline)?)?) } else { None };
+            let ip = if proxy.is_none() && !exchange && !goodcase && !github { Some(resolve(&url, remaining(deadline)?)?) } else { None };
             remaining(deadline)?;
-            let access = if exchange || goodcase { WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY } else if proxy.is_some() { WINHTTP_ACCESS_TYPE_NAMED_PROXY } else { WINHTTP_ACCESS_TYPE_NO_PROXY };
+            let access = if exchange || goodcase || github { WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY } else if proxy.is_some() { WINHTTP_ACCESS_TYPE_NAMED_PROXY } else { WINHTTP_ACCESS_TYPE_NO_PROXY };
             let proxy_pointer = proxy_name.as_ref().map_or(PCWSTR::null(), |name| PCWSTR(name.as_ptr()));
             let session = Handle::new(unsafe { WinHttpOpen(w!("AZCine/0.0 RSS reader"), access, proxy_pointer, PCWSTR::null(), 0) }, "创建订阅网络会话")?;
             option(&session, WINHTTP_OPTION_DISABLE_GLOBAL_POOLING, &1u32.to_ne_bytes())?;
@@ -217,7 +224,7 @@ mod windows_http {
             }
             option(&request, WINHTTP_OPTION_DECOMPRESSION, &(WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE).to_ne_bytes())?;
             set_timeout(&request, deadline)?;
-            let accept = if exchange { "Accept: application/json\r\n" } else if article { "Accept: text/html, application/xhtml+xml;q=0.9, */*;q=0.5\r\n" } else { "Accept: application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9\r\n" };
+            let accept = if github { "Accept: application/json, image/*, */*;q=0.5\r\n" } else if exchange { "Accept: application/json\r\n" } else if article { "Accept: text/html, application/xhtml+xml;q=0.9, */*;q=0.5\r\n" } else { "Accept: application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9\r\n" };
             let headers: Vec<u16> = accept.encode_utf16().collect();
             unsafe { WinHttpSendRequest(request.0, Some(&headers), None, 0, 0, 0) }.map_err(|e| network_error(e, &format!("{mode}发送请求")))?;
             set_timeout(&request, deadline)?;
@@ -234,6 +241,7 @@ mod windows_http {
                 if exchange && (next.scheme() != "https" || next.host_str() != Some("api.frankfurter.dev")) {
                     return Err(StorageError::new("exchange_redirect", "汇率服务重定向到了其他地址，已停止请求。"));
                 }
+                if github && (next.scheme()!="https" || next.host_str()!=url.host_str()){return Err(StorageError::new("github_redirect","项目来源重定向到其他网站，未继续请求。"));}
                 if url.scheme() == "https" && next.scheme() != "https" { return Err(StorageError::new("feed_insecure_redirect", "HTTPS订阅转向不安全的HTTP地址，已停止请求。")); }
                 url = next; continue;
             }

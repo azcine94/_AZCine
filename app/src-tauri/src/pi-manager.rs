@@ -21,7 +21,10 @@ fn accepted(response:Value)->Result<Value,PiError>{
     if response.get("success").and_then(Value::as_bool)==Some(true){Ok(response.get("data").cloned().unwrap_or(Value::Null))}
     else{Err(PiError::new("pi_command_rejected","原版 Pi 拒绝了本次操作。请检查模型配置、会话和能力；输入保留，原始诊断未回传以免暴露认证。"))}
 }
-fn request(rpc:&RpcProcess,command:&str,fields:Value,timeout:Duration)->Result<Value,PiError>{accepted(rpc.request(command,fields,timeout)?)}
+fn request(rpc:&RpcProcess,command:&str,fields:Value,timeout:Duration)->Result<Value,PiError>{
+    let started=std::time::Instant::now();
+    accepted(rpc.request(command,fields,timeout).map_err(|e|PiError::new(e.code,&format!("会话请求 {command}（{} ms）：{}",started.elapsed().as_millis(),e.message)))?)
+}
 #[derive(Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct ImageInput{pub data:String,pub mime_type:String}
@@ -111,7 +114,7 @@ impl PiManager{
     // News runs in its own process, but must not race configuration recovery.
     pub fn news_documents(&self,root:&Path,resources:&Path)->Result<[Value;3],PiError>{
         let _operation=self.operation.try_lock().map_err(|_|busy())?;
-        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;lease.check()?;Ok(docs)
     }
     pub fn set_exiting(&self,value:bool){if let Ok(mut c)=self.core.lock(){c.exiting=value;}}
@@ -141,13 +144,13 @@ impl PiManager{
             let cwd=paths.checked_cwd(cwd)?;
             if let Some(file)=session{let info=pi_sessions::validate_session(&paths,file)?;if paths.checked_cwd(Some(Path::new(&info.cwd)))?!=cwd{return Err(PiError::new("pi_session_cwd","原生会话的工作目录与所选目录不同，未切换；请使用会话原目录。"));}}
             let session_lease=session.map(|s|crate::pi_session_lock::SessionLease::acquire(&paths,s)).transpose()?;
-            let docs={let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;lease.check()?;docs};
+            let docs={let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;lease.check()?;docs};
             let mut redactor=Redactor::from_documents(&docs[0],&docs[1]);
             let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(||PiError::new("pi_windows_path","无法确定 Windows 系统目录，未启动 Pi。"))?;
             let mut program_files=Vec::new();if let Some(path)=std::env::var_os("ProgramFiles"){program_files.push(PathBuf::from(path));if let Some(path)=std::env::var_os("ProgramFiles(x86)"){program_files.push(PathBuf::from(path));}}
             let mut env=paths.environment(&runtime,&windows,&program_files)?;let mut args=paths.arguments(&runtime,session)?;
             let business=self.business_environment.lock().map_err(|_|interrupted())?.clone();if let Some(environment)=business{let business=environment(generation,&paths,&runtime)?;for (name,value) in &business{if name.to_str()==Some("AZCINE_MCP_GRANT"){if let Some(value)=value.to_str(){redactor.add(value);}}}env.extend(business);}
-            let (rules_text,rules)=crate::pi_rules::read(&paths)?;if !rules_text.trim().is_empty(){args.push("--append-system-prompt".into());args.push(rules_text.into());}
+            let (rules_text,rules)=crate::pi_rules::context(&paths)?;if !rules_text.trim().is_empty(){args.push("--append-system-prompt".into());args.push(rules_text.into());}
             {let c=locked(&self.core)?;if c.generation!=generation||c.stopping{return Err(cancelled());}}
             let core=Arc::downgrade(&self.core);let changed=notify.clone();
             let process=Arc::new(RpcProcess::spawn(&runtime.node,&args,&cwd,&env,move|event|on_event(&core,generation,event,&changed))?);
@@ -271,21 +274,18 @@ impl PiManager{
         Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
     }
     pub fn model_catalog(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
-        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
-        let lease=crate::pi_config_lock::ConfigLease::acquire_catalog(&paths,&runtime)?;
-        let documents=ConfigStore::open(&paths.root)?.private_documents()?;
-        let models=crate::pi_resources::models(&runtime,&paths)?;lease.check()?;Ok(Redactor::from_documents(&documents[0],&documents[1]).value(models,false))
+        crate::pi_model_catalog::read(root,resources)
     }
     pub fn providers(&self, root:&Path,resources:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let providers=ConfigStore::open(&paths.root)?.providers()?;lease.check()?;Ok(providers)
     }
     pub fn model_list_key(&self,root:&Path,resources:&Path,provider:&str,base_url:&str)->Result<Option<String>,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let key=ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?;lease.check()?;Ok(key)
     }
     pub fn save_model(&self,root:&Path,resources:&Path,input:ModelSettingsInput,notify:Notify)->Result<Value,PiError>{
@@ -302,7 +302,7 @@ impl PiManager{
         let _operation=self.operation()?;
         if locked(&self.core)?.exiting{return Err(cancelled());}
         let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
-        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let config=ConfigStore::open(&paths.root)?;let view=save(&config)?;lease.check()?;
         let connected=locked(&self.core)?.connection=="ready";notify();
         Ok(json!({"saved":true,"view":view,"connected":connected,"message":"配置已保存，正在运行的会话继续使用原配置；各会话下次连接时加载新配置。"}))

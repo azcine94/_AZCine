@@ -1,3 +1,4 @@
+import {usePreviewGithub} from './github-fixture.ts';
 import { GoodcasePreview } from '../goodcase-panel.tsx';
 import { goodcaseFixture } from './goodcase-fixture.ts';
 import { useCalendarFixture } from './issue-fixes-fixture.ts';
@@ -33,6 +34,7 @@ function usePreviewTheme() {
   return useTheme({initialTheme:params.get('theme')==='dark'?'dark':'light',persist:false});
 }
 function PreviewScene({scene,state}:{scene:Scene;state:string}) {
+  const githubPreview=usePreviewGithub(state);
   const goodcasePreview=useMemo(()=>goodcaseFixture(state),[state]);
   const updatePreview=usePreviewUpdate(state);
   const calendarPreview=useCalendarFixture(state);
@@ -66,7 +68,7 @@ function PreviewScene({scene,state}:{scene:Scene;state:string}) {
     else location.search=`?scene=${encodeURIComponent(route)}&state=normal&theme=${theme.theme}`;
   }}>
     <div className="catalog-fixture-banner"><span>UI 总览 · 虚构资料 · 不执行真实操作</span><span>{scene.title} / {stateLabels[state]??state}</span>{stateError&&<span className="form-error" role="alert">预设未完整展开：{stateError}</span>}</div>
-    <GoodcasePreview.Provider value={goodcasePreview}><TodayHotTopicsPreview.Provider value={hotTopics}><AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView calendarPreview={calendarPreview} updatePreview={updatePreview} {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider></TodayHotTopicsPreview.Provider></GoodcasePreview.Provider>
+    <GoodcasePreview.Provider value={goodcasePreview}><TodayHotTopicsPreview.Provider value={hotTopics}><AttachmentPreviewImages.Provider value={{[uuid(210)]:`data:image/png;base64,${attachmentImageData}`}}>{scene.route ? <WorkspaceView navigationPreview={state} githubPreview={githubPreview} calendarPreview={calendarPreview} updatePreview={updatePreview} {...models} {...theme} serverManagerPreview={state} readerPreview={newsReader.reader} articlePreview={newsReader.detail} route={resolveRoute(`#${previewRoute??scene.route}`)} /> : <Components state={state}/>}</AttachmentPreviewImages.Provider></TodayHotTopicsPreview.Provider></GoodcasePreview.Provider>
   </div>;
 }
 const tokenNames=['--bg','--island','--island-2','--island-3','--text','--t2','--acc','--acc-soft','--ink','--ok','--warn','--bad','--line','--line-2'];

@@ -9,12 +9,14 @@
 @import '../components/ui/month-grid.css' layer(components);
 @import './delivery-calendar.css' layer(components);
 @import './agent-queue.css' layer(components);
+@import './self-evolution.css' layer(components);
 @import './theme-transition.css' layer(components);
 @import './workspace.css' layer(components);
 @import './projects.css' layer(components);
 @import './pi.css' layer(components);
 @import './agent-foundation.css' layer(components);
 @import './model-ranking.css' layer(components);
+@import './github-projects.css' layer(components);
 @import './goodcase.css' layer(components);
 @import './news.css' layer(components);
 @import './ideas.css' layer(components);
