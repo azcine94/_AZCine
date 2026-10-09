@@ -1,0 +1,206 @@
+<!doctype html>
+<!-- 2026-10-09 用户需求：“你做一个demo html 接入这个rss，名字就叫GitHub 放到模型榜下面”。
+     2026-10-09 用户纠正：直接显示截图中的具体项目内容，点击跳转 GitHub 仓库。
+     本轮设计落点：本页；来源改为 HelloGitHub 首页精选项目公开数据。
+     HTML demo，不改生产导航/业务库；需求真源由主目录文档维护会话登记。未运行验证，未用户验收。
+     浏览器离线打开使用有日期的真实快照；实时读取运行 node design/github-demo.mjs 后打开其输出地址。
+     直接复用生产 tokens/base/controls/app 样式，原生 HTML 使用现有控件类，不引入第二套组件主题。 -->
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub · AZCine Demo</title>
+  <link rel="stylesheet" href="../app/src/styles/tokens.css">
+  <link rel="stylesheet" href="../app/src/styles/base.css">
+  <link rel="stylesheet" href="../app/src/components/ui/controls.css">
+  <link rel="stylesheet" href="../app/src/styles/app.css">
+  <style>
+    .gh-demo .nav-entry{display:flex;align-items:center;gap:12px}
+    .gh-demo .nav-entry[aria-current=page]{background:var(--accent);font-weight:600}
+    .gh-demo .nav-entry:disabled{cursor:default}
+    .gh-demo .main-column{display:flex;flex-direction:column;min-width:0;min-height:0}
+    .gh-demo .workspace{flex:1;margin-right:8px;border-radius:var(--r-island)}
+    .gh-demo .site-header{background:var(--sidebar)}
+    .gh-demo .gh-heading{align-items:center;flex-wrap:wrap}
+    .gh-demo .gh-heading p{color:var(--muted-foreground);margin-top:4px}
+    .gh-demo .gh-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--border)}
+    .gh-demo .gh-toolbar .input{width:280px;max-width:100%}
+    .gh-demo .gh-toolbar .select{width:152px}
+    .gh-demo .gh-count{margin-left:auto;color:var(--muted-foreground);font-size:var(--fs-s)}
+    .gh-demo .gh-list{display:flex;flex-direction:column}
+    .gh-demo .gh-project{display:grid;grid-template-columns:60px minmax(0,1fr) auto;gap:16px;padding:18px 12px;border-bottom:1px solid var(--border);color:var(--foreground);text-decoration:none;align-items:start;transition:background var(--dur)}
+    .gh-demo .gh-project:hover{background:var(--muted);text-decoration:none}
+    .gh-demo .gh-project:focus-visible{outline-offset:-3px}
+    .gh-demo .gh-avatar{width:60px;height:60px;border-radius:var(--r-ctl);object-fit:contain;background:var(--muted);display:grid;place-items:center;color:var(--muted-foreground);font:600 22px var(--mono)}
+    .gh-demo .gh-project-body{min-width:0;overflow-wrap:anywhere}
+    .gh-demo .gh-project h2{font:400 var(--fs-body)/var(--lh-body) var(--font)}
+    .gh-demo .gh-project h2 strong{font-weight:650}
+    .gh-demo .gh-project h2 .gh-project-title{color:var(--foreground)}
+    .gh-demo .gh-summary{margin-top:5px;color:var(--muted-foreground);font-size:var(--fs-s);line-height:var(--lh-body);white-space:pre-wrap}
+    .gh-demo .gh-meta{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px;color:var(--muted-foreground);font-size:var(--fs-xs);align-items:center}
+    .gh-demo .gh-stats{display:flex;flex-direction:column;align-items:flex-end;gap:12px;color:var(--muted-foreground);font-size:var(--fs-xs);padding-top:3px;white-space:nowrap}
+    .gh-demo .gh-stat{display:flex;align-items:center;gap:4px}
+    .gh-demo .gh-stats svg{width:14px;height:14px}
+    .gh-demo .gh-open{opacity:0;transition:opacity var(--dur)}
+    .gh-demo .gh-project:is(:hover,:focus-visible) .gh-open{opacity:1}
+    .gh-demo .gh-notice{color:var(--muted-foreground);font-size:var(--fs-xs);line-height:var(--lh-s);margin-bottom:16px;overflow-wrap:anywhere}
+    .gh-demo .gh-notice[data-error=true]{color:var(--warn)}
+    .gh-demo .gh-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 0;flex-wrap:wrap}
+    .gh-demo .gh-empty{padding:48px 24px;text-align:center}
+    .gh-demo .gh-empty p{color:var(--muted-foreground);margin-top:8px}
+    .gh-demo [hidden]{display:none!important}
+    .gh-demo .app-shell[data-sidebar-collapsed=true] .nav-entry{justify-content:center}
+    .gh-demo .app-shell[data-sidebar-collapsed=true] .nav-entry span{display:none}
+    @media(hover:none){.gh-demo .gh-open{opacity:1}}
+    @media(max-width:700px){.gh-demo .gh-project{grid-template-columns:44px minmax(0,1fr);gap:12px;padding-inline:0}.gh-demo .gh-avatar{width:44px;height:44px}.gh-demo .gh-stats{grid-column:2;flex-direction:row;padding:0}.gh-demo .gh-open{opacity:1}.gh-demo .gh-toolbar .input{width:100%}.gh-demo .gh-count{margin-left:0}}
+  </style>
+</head>
+<body class="gh-demo">
+<div id="root">
+  <div class="app-shell" id="shell">
+    <aside class="side" aria-label="主导航">
+      <div class="brand"><img class="brand-lockup" src="../assets/brand/logo-lockup.png" alt="AZCine"></div>
+      <nav id="navigation"></nav>
+      <div class="side-footer"><div class="side-footer-actions">
+        <button class="ui-menu-item nav-entry" disabled title="HTML demo 不包含设置"><span>设置</span></button>
+        <button class="icon-btn theme-button" id="theme" aria-label="切换亮暗主题" aria-pressed="false"></button>
+      </div></div>
+    </aside>
+    <div class="main-column">
+      <header class="site-header">
+        <button class="icon-btn" id="collapse" aria-label="收起导航" aria-expanded="true"></button>
+        <span class="subtle">工作台 / GitHub</span>
+        <div class="site-header-actions"><span class="meta">HTML Demo</span></div>
+      </header>
+      <main class="workspace" data-page="github">
+        <div class="page-heading gh-heading">
+          <div><h1>GitHub</h1><p>HelloGitHub 精选 · 点击项目直达 GitHub</p></div>
+          <div class="ui-action-group">
+            <a class="pill" href="https://hellogithub.com" target="_blank" rel="noopener noreferrer">HelloGitHub ↗</a>
+            <button class="pill on" id="refresh">刷新项目</button>
+          </div>
+        </div>
+        <div class="workspace-scroll" id="scroll" tabindex="0" aria-label="GitHub 订阅内容">
+          <p class="gh-notice" id="notice" role="status" aria-live="polite">正在读取项目…</p>
+          <div class="gh-toolbar">
+            <span class="ui-status-badge">最新精选</span>
+            <input class="input" id="search" type="search" aria-label="搜索项目" placeholder="搜索项目名称、介绍或作者…">
+            <select class="select" id="language" aria-label="按语言筛选"><option value="">全部语言</option></select>
+            <select class="select" id="month" aria-label="按发布时间筛选"><option value="">全部月份</option></select>
+            <span class="gh-count" id="count"></span>
+          </div>
+          <div class="gh-list" id="list" aria-label="开源项目列表"></div>
+          <div class="gh-footer">
+            <span class="meta">中文介绍来自 HelloGitHub · 浏览与评论数为该站数据</span>
+            <div class="ui-action-group"><span class="meta" id="page-info"></span><button class="pill" id="previous">上一页</button><button class="pill" id="next">下一页</button><button class="pill" id="more">获取更早项目</button></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+<script src="github-projects-snapshot.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const state = {items: [], page: 1, visiblePage: 1, pageSize: 20, hasMore: false, busy: false, mode: '', fetchedAt: ''};
+  const esc = text => String(text ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const paths = {
+    home:'M3 10 12 3l9 7v11h-6v-7H9v7H3Z', folder:'M3 7V4h6l3 3h9v14H3Z',
+    file:'M6 3h8l4 4v14H6Z M9 11h6 M9 15h6', models:'M5 20V12h3v8 M11 20V4h3v16 M17 20V8h3v12',
+    github:'M8 18c-4 1-4-2-6-2 M16 22v-4c0-1-.3-2-1-2 4-.5 6-2 6-6 0-1.5-.5-2.5-1.5-3.5.5-1.5.5-3 0-4-2 0-3 1-4 1.5a13 13 0 0 0-7 0C7.5 3 6.5 2 4.5 2c-.5 1-.5 2.5 0 4C3.5 7 3 8.5 3 10c0 4 2 5.5 6 6-1 1-1 2-1 3v3',
+    bulb:'M9 18h6 M10 21h4 M8 15C2 10 6 3 12 3s10 7 4 12l-1 3H9Z',
+    chat:'M3 4h18v13H8l-5 4Z', check:'m5 12 4 4L19 6', clock:'M12 8v5l3 2 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+    eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+    arrow:'M7 17 17 7 M7 7h10v10',
+    menu:'M4 5h16 M4 12h16 M4 19h16', theme:'M21 12A9 9 0 0 1 12 3a9 9 0 1 0 9 9'
+  };
+  const icon = key => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[key] || paths.file}"/></svg>`;
+  const groups = [['工作台',[['home','今天'],['folder','项目'],['file','资讯'],['models','模型榜'],['github','GitHub'],['bulb','灵感'],['file','记账'],['file','服务器和凭证']]],['工具',[['chat','Agent'],['check','任务面板'],['clock','后台任务'],['file','开发环境'],['folder','规则与资源']]]];
+  $('navigation').innerHTML = groups.map(([name, entries]) => `<div class="nav-group"><h2>${name}</h2>${entries.map(([key,label]) => `<button class="ui-menu-item nav-entry" ${key === 'github' ? 'id="github-nav" aria-current="page"' : 'disabled'} title="${label}${key === 'github' ? '' : '（本 demo 不包含此页面）'}">${icon(key)}<span>${label}</span></button>`).join('')}</div>`).join('');
+  $('theme').innerHTML = icon('theme'); $('collapse').innerHTML = icon('menu');
+  function setTheme(theme) { document.documentElement.dataset.theme = theme; $('theme').setAttribute('aria-pressed', String(theme === 'dark')); }
+  let initialTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  try { const saved = localStorage.getItem('azcine-github-demo-theme'); if (['light','dark'].includes(saved)) initialTheme = saved; } catch {}
+  setTheme(initialTheme);
+  $('theme').onclick = () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; setTheme(theme); try {localStorage.setItem('azcine-github-demo-theme', theme);} catch {} };
+  function collapse(value) { $('shell').dataset.sidebarCollapsed = String(value); $('collapse').setAttribute('aria-expanded', String(!value)); $('collapse').setAttribute('aria-label', value ? '展开导航' : '收起导航'); }
+  collapse(innerWidth <= 1100);
+  $('collapse').onclick = () => collapse($('shell').dataset.sidebarCollapsed !== 'true');
+  function safeUrl(value) {try {const url = new URL(value);return url.protocol === 'https:' && url.hostname === 'github.com' && /^\/[^/]+\/[^/]+\/?$/.test(url.pathname) && !url.username && !url.password ? url.href : '';} catch {return '';}}
+  function safeAvatar(value) {if (typeof value === 'string' && value.length < 3000000 && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value)) return value;try {const url = new URL(value);return url.protocol === 'https:' && ['img.hellogithub.com','avatars.githubusercontent.com'].includes(url.hostname) ? url.href : '';} catch {return '';}}
+  function date(value) {const d = new Date(value);return Number.isNaN(d.getTime()) ? '日期未提供' : d.toLocaleDateString('zh-CN');}
+  function stamp(value) {const d = new Date(value);return Number.isNaN(d.getTime()) ? '时间未提供' : d.toLocaleString('zh-CN', {hour12:false});}
+  function setNotice(text, error = false) {$('notice').textContent = text;$('notice').dataset.error = String(error);}
+  function applyData(data, mode, append = false) {
+    if (!Array.isArray(data.items)) throw new Error('项目数据格式无效');
+    const savedAvatars = new Map((window.AZCINE_GITHUB_PROJECTS?.items || []).map(item => [item.author,item.avatar]));
+    const items = data.items.map(item => {
+      const avatar = safeAvatar(savedAvatars.get(item.author)) || safeAvatar(item.avatar);
+      const owner = String(item.fullName || '').split('/')[0];
+      return {...item,link:safeUrl(item.link),avatar: avatar.startsWith('data:') || location.protocol === 'file:' ? avatar : `/api/github-avatar?owner=${encodeURIComponent(owner)}`};
+    }).filter(item => item.link && item.name);
+    if (!append && !items.length) throw new Error('来源没有返回有效项目');
+    const previousPage = state.page, previousHasMore = state.hasMore;
+    state.items = append ? [...new Map([...state.items,...items].map(item => [item.link,item])).values()] : [...items,...state.items.filter(item => !items.some(fresh => fresh.link === item.link))];
+    state.page = Math.max(previousPage,data.page || 1);state.hasMore = data.page >= previousPage ? data.hasMore === true : previousHasMore;state.mode = mode;state.fetchedAt = data.fetchedAt;
+    const selected = $('language').value;
+    $('language').innerHTML = '<option value="">全部语言</option>' + [...new Set(state.items.map(item => item.language).filter(Boolean))].sort().map(lang => `<option value="${esc(lang)}">${esc(lang)}</option>`).join('');
+    if ([...$('language').options].some(option => option.value === selected)) $('language').value = selected;
+    const month = $('month').value;
+    $('month').innerHTML = '<option value="">全部月份</option>' + [...new Set(state.items.map(item => String(item.published).slice(0,7)).filter(value => /^\d{4}-\d{2}$/.test(value)))].sort().reverse().map(value => `<option value="${value}">${value.replace('-',' 年 ')} 月</option>`).join('');
+    if ([...$('month').options].some(option => option.value === month)) $('month').value = month;
+    render();
+  }
+  function render() {
+    const query = $('search').value.trim().toLocaleLowerCase(), language = $('language').value, month = $('month').value;
+    const filtered = state.items.filter(item => (!language || item.language === language) && (!month || String(item.published).startsWith(month)) && `${item.name} ${item.title} ${item.summary} ${item.author} ${item.language}`.toLocaleLowerCase().includes(query));
+    const pages = Math.max(1,Math.ceil(filtered.length/state.pageSize));state.visiblePage = Math.min(state.visiblePage,pages);
+    const rows = filtered.slice((state.visiblePage-1)*state.pageSize,state.visiblePage*state.pageSize);
+    $('count').textContent = `${filtered.length} 个项目 · 已载入 ${state.items.length} 个`;
+    $('page-info').textContent = `第 ${state.visiblePage} / ${pages} 页 · 每页 ${state.pageSize} 条`;
+    $('previous').disabled = state.visiblePage <= 1;$('next').disabled = state.visiblePage >= pages;
+    const number = value => new Intl.NumberFormat('zh-CN').format(value);
+    $('list').innerHTML = rows.length ? rows.map(item => `<a class="gh-project" href="${esc(item.link)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(item.name)}：${esc(item.title)}，在新标签页打开 GitHub 仓库">
+      <div>${item.avatar ? `<img class="gh-avatar" src="${esc(item.avatar)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="gh-avatar" aria-hidden="true">${esc(item.name.slice(0,1).toUpperCase())}</span>`}</div>
+      <div class="gh-project-body"><h2><strong>${esc(item.name)}</strong>${item.title ? ` <span class="gh-project-title">— ${esc(item.title)}</span>` : ''}</h2><p class="gh-summary">${esc(item.summary || '来源暂未提供中文介绍')}</p><div class="gh-meta"><span>${esc(item.author)}</span>${item.language ? `<span>· ${esc(item.language)}</span>` : ''}<span>· ${date(item.published)}</span></div></div>
+      <div class="gh-stats">${item.comments > 0 ? `<span class="gh-stat" title="HelloGitHub 评论数">${icon('chat')}${number(item.comments)}</span>` : ''}${Number.isFinite(item.views) ? `<span class="gh-stat" title="HelloGitHub 浏览量">${icon('eye')}${number(item.views)}</span>` : ''}<span class="gh-stat gh-open">GitHub ${icon('arrow')}</span></div>
+    </a>`).join('') : '<div class="gh-empty"><h2>没有匹配的项目</h2><p>试试其他关键词，或切换到全部语言。</p></div>';
+    $('more').hidden = !state.hasMore;
+  }
+  $('list').addEventListener('error', event => {if (event.target.tagName === 'IMG') {const placeholder = document.createElement('span');placeholder.className = 'gh-avatar';placeholder.textContent = '↗';placeholder.setAttribute('aria-hidden','true');event.target.replaceWith(placeholder);}}, true);
+  $('github-nav').onclick = () => {$('scroll').scrollTop = 0;};
+  $('search').oninput = $('language').onchange = $('month').onchange = () => {state.visiblePage=1;render();};
+  $('previous').onclick = () => {state.visiblePage--;render();$('scroll').scrollTop=0;};
+  $('next').onclick = () => {state.visiblePage++;render();$('scroll').scrollTop=0;};
+  async function refresh(append = false) {
+    if (state.busy) return;
+    state.busy = true;$('refresh').disabled = true;$('more').disabled = true;
+    const button = append ? $('more') : $('refresh');button.textContent = '正在读取…';
+    setNotice('正在读取 HelloGitHub 项目，已有内容会保留。');
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 25000);
+    try {
+      const local = location.protocol === 'http:' && location.hostname === '127.0.0.1';
+      if (!local) throw new Error('local_adapter_required');
+      const page = append ? state.page + 1 : 1;
+      const response = await fetch(`/api/github-projects?page=${page}`, {signal:controller.signal,cache:'no-store',credentials:'omit'});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      applyData(await response.json(), '实时获取', append);
+      setNotice(`最新项目已刷新 · 保留 ${state.items.length} 个已载入项目可翻页查看。`);
+    } catch (error) {
+      const retained = state.items.length ? `现有 ${state.items.length} 个项目仍可查看和打开。` : '暂无项目内容。';
+      setNotice(error.message === 'local_adapter_required' ? `当前为项目快照。${retained}实时刷新或加载更多：运行 node design/github-demo.mjs，再打开输出的本机地址。` : `读取失败：${error.name === 'AbortError' ? '请求超时' : error.message}。${retained}`, true);
+    } finally {clearTimeout(timeout);state.busy = false;$('refresh').disabled = false;$('more').disabled = false;$('refresh').textContent = '刷新项目';$('more').textContent = '获取更早项目';}
+  }
+  $('refresh').onclick = () => refresh();$('more').onclick = () => refresh(true);
+  try {
+    if (window.AZCINE_GITHUB_PROJECTS) {applyData(window.AZCINE_GITHUB_PROJECTS, '真实项目快照');setNotice(`已载入 ${state.items.length} 个真实项目 · 快照时间 ${stamp(state.fetchedAt)}${state.hasMore ? '' : ' · 已到本次公开来源返回的末页'}。`);}
+    else {render();setNotice('尚无项目快照，请刷新项目。');}
+  } catch {render();setNotice('项目快照无法读取，请刷新项目。', true);}
+  if (location.protocol === 'http:' && location.hostname === '127.0.0.1') refresh();
+
+})();
+</script>
+</body>
+</html>
