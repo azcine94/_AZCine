@@ -8,9 +8,15 @@ import { bookkeepingExampleId } from './bookkeeping-fixture.ts';
 import { project, event, source, idea, uuid } from './data.ts';
 
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
-const base = ['normal','empty','loading','error','long','root-error','shell-collapsed'];
+const catalogStates=['catalog-busy','catalog-lost','catalog-permission','catalog-io'];
+const base = ['normal','empty','loading','error','long','root-error','shell-collapsed','tools-collapsed','navigation-reordered'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
+  'process-stop-confirm':'进程 · 停止确认','process-stop-error':'进程 · 停止失败',
+  'tools-collapsed':'导航 · 工具收起','navigation-reordered':'导航 · 自定义顺序',
+  'github-avatar-error':'GitHub · 头像加载失败','github-pagination':'GitHub · 多页项目',
+  'evolution-model-error':'自进化 · 模型选项失败（打开提取设置）','evolution-reverted':'自进化 · 已撤销与放回候选',
+  'catalog-busy':'模型目录 · 占用与重试','catalog-lost':'模型目录 · 锁中断保留','catalog-permission':'模型目录 · 权限失败','catalog-io':'模型目录 · 文件系统失败',
   'works-image':'作品 · 图像分类','works-web':'作品 · 编程分类','works-hardware':'作品 · 硬件分类',
   'works-history':'作品 · 快照历史回看','works-restore':'作品 · 启动恢复本地快照','works-snapshot-error':'作品 · 快照保存失败保留内容',
   'works-stability':'作品 · 稳定度排行','works-latest':'作品 · 最新排行','works-overview':'作品 · 榜单总览',
@@ -84,18 +90,21 @@ const files: Record<string,string[]> = {
   bookkeeping:['bookkeeping-panels.tsx'],
   'ai-works':['goodcase-panel.tsx','goodcase-detail.tsx','goodcase-shared.tsx','goodcase-store.ts','goodcase-source.ts','goodcase-types.ts','styles/goodcase.css'],
   today:['today-clock.tsx','ideas-panels.tsx','styles/ideas.css','delivery-calendar.tsx','month-grid.tsx','workspace-panels.tsx','projects-panels.tsx','today-news-panel.tsx'],
-  projects:['projects-panels.tsx'],
+  projects:['projects-panels.tsx'],github:['github-projects-panel.tsx','styles/github-projects.css'],
   news:['news-daily-panel.tsx','news-reader-panels.tsx','news-article-body.tsx','news-body-markdown.ts','news-reading-panels.tsx'],models:['model-ranking-panel.tsx','components/ui/brand-logo.tsx','components/ui/brand-logo.css'],ideas:['ideas-panels.tsx'],
   agent:['agent-queue-panel.tsx','components/ui/attachment-preview.tsx','agent-image-limits.ts','agent-object-picker.tsx','agent-drafts-panel.tsx','agent-draft-preview.tsx','pi-extension-panel.tsx','agent-sidebar.tsx','agent-session-navigation.tsx','use-agent-session-pins.ts','components/ui/status-dot.tsx','pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-process-view.ts','pi-messages.ts','agent-message-content.ts','agent-draft-review.ts','components/ui/message-markdown.tsx','pi-panels.tsx'],
   jobs:['background-jobs-panel.tsx','agent-jobs-panel.tsx','news-processing-panel.tsx'],settings:['settings-panels.tsx'],
   'settings/models':['pi-provider-panel.tsx','pi-provider-advanced.tsx','pi-panels.tsx'],
   resources:['pi-resources-panel.tsx'],
+  'self-evolution':['self-evolution-panel.tsx','use-self-evolution.ts','self-evolution-types.ts'],
   'settings/runtime':['pi-panels.tsx'],'settings/data':['workspace-panels.tsx'],
   'settings/news':['news-panels.tsx'],'settings/news/materials':['news-panels.tsx'],
   'settings/news/processing':['news-processing-panel.tsx'],'settings/news/rules':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
   'settings/news/ai':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],'settings/news/automation':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
 };
 function states(route:string) {
+  if(route==='settings/processes')return ['normal','empty','loading','error','long','process-stop-confirm','process-stop-error'];
+  if(route==='self-evolution')return [...base,'pending','evolution-model-error','evolution-reverted'];
   if(route==='ai-works')return [...base,...Object.keys(extraStateLabels).filter(key=>key.startsWith('works-'))];
   if (route==='servers-credentials') return ['normal','empty','long','manager-credentials','manager-credentials-many','manager-servers-many','manager-reminders-many','manager-renewals-many','manager-invalid-date','manager-reminders','manager-server-create','manager-key-create','manager-renew','manager-validation','manager-notice-warning','manager-notice-clear','manager-reminders-dismissed','manager-loading','manager-load-error','manager-save-pending','manager-delete-server','manager-delete-credential','manager-credentials-empty','shell-collapsed'];
   if (route.startsWith('servers-credentials/')) return ['normal','long'];
@@ -104,7 +113,7 @@ function states(route:string) {
   if (route==='bookkeeping'||route.startsWith('bookkeeping/')) return [...base,'dirty','pending','filtered','conflict','undo','bookkeeping-selected','bookkeeping-confirm','bookkeeping-delete','bookkeeping-saving',...(route==='bookkeeping'?['month-open','bookkeeping-validation','bookkeeping-create','bookkeeping-edit','bookkeeping-save-feedback','bookkeeping-refresh','bookkeeping-refresh-fast']:[]),'bookkeeping-fx','bookkeeping-fx-loading','bookkeeping-fx-error'];
   if (route==='jobs'||route==='settings/news/processing') return [...base,...(route==='jobs'?['jobs-agent']:[]),'jobs-refresh','jobs-history','translation-parallel','detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','processing-config-draft','processing-config-version','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
   if (route==='settings/news') return [...base,'news-source-states','source-create','paused',...Object.keys(statusLabels),'folds-open'];
-  if (route==='settings/models') return [...base,'dirty','models','advanced','provider-thinking','remote','disconnected','connecting','provider-interface','provider-fetching','provider-saving','provider-multiple'];
+  if (route==='settings/models') return [...base,...catalogStates,'dirty','models','advanced','provider-thinking','remote','disconnected','connecting','provider-interface','provider-fetching','provider-saving','provider-multiple'];
   if (route==='settings/news/automation') return [...base,'dirty','pending','proxy','folds-open'];
   if(route==='settings/news/ai'||route==='settings/news/rules')return [...base,'news-rules-many','dirty','pending','processing-config-draft','processing-config-version','folds-open'];
   if (route==='resources') return [...base,'editing','dirty','disconnected','connecting','resource-waiting','windows-paths'];
@@ -113,7 +122,7 @@ function states(route:string) {
   if (route==='settings/about') return ['normal','update-current','update-ready','update-downloading','update-error','update-development'];
   if (route==='settings/data') return [...base,'no-root','data-migrate','data-switch','data-change-pending','data-change-failed','data-path-prefixed','data-path-long'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open','windows-paths'];
-  if (route==='agent') return [...base,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
+  if (route==='agent') return [...base,...catalogStates,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
   if(route==='news/daily'||route.startsWith('news/daily/'))return [...base,'daily-empty','daily-failed','daily-running','daily-waiting','daily-paused','daily-versions','daily-refreshing','daily-menu','incomplete'];
   if (route==='news') return [...base,'all','featured','hot','daily','filtered','review','incomplete'];
   if (route==='ideas'||route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','undo','conflict','conflict-details'];
@@ -122,14 +131,15 @@ function states(route:string) {
   if(route.startsWith('projects/'))return [...base,'project-delete-confirm','project-removed','project-restore-confirm','project-delete-pending','project-delete-error','dirty','pending','conflict','conflict-details','discard-confirm','project-undo','project-saving','table-menu','table-stage-menu','table-date-menu','table-delivered-menu','table-text-menu','table-cell-selected','table-cell-editing','table-image-only','table-date-focus','table-images','table-image-preview','table-row-menu','add-menu','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open'];
   if(route.startsWith('news/events/')||route.startsWith('news/items/'))return [...base,'original-source','reader-linked-images','reader-summary-long','reader-summary-empty','reader-byline-single','reader-byline-multiple','folds-open'];
   if (route==='today') return [...base,'today-ideas-many','today-ideas-edit','today-ideas-saving','today-ideas-deleting','today-ideas-refreshing','idea-create','calendar-focused','calendar-today','calendar-six-weeks','calendar-empty','calendar-many','calendar-delete','calendar-create','calendar-edit','calendar-error','calendar-collapsed','today-news-many','today-news-long','today-news-empty','today-news-loading','today-news-error','agent-sidebar','agent-sidebar-sessions','agent-sidebar-long','agent-sidebar-running','agent-sidebar-extension','agent-sidebar-error','agent-draft-review','pending','undo','no-root'];
+  if (route==='github') return [...base,'busy','github-avatar-error','github-pagination'];
   if (route==='models') return [...base,'ranking-brands','ranking-image-brands','busy','no-root'];
   return [...base,'dirty','pending','no-root'];
 }
 function scene(route:Route,title:string,group:string,sources:string[] = files[route]??[]):Scene {
-  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx','workspace-header.tsx','loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
+  return {id:route,title,group,route,states:[...new Set(states(route))],sources:[...(route==='settings/processes'?['process-monitor-panel.tsx','styles/process-monitor.css','ui-preview/process-monitor-fixture.ts']:[]),'main.tsx','App.tsx','components/ui/workspace-navigation.tsx','workspace-header.tsx','components/ui/loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
 }
 export const scenes:Scene[] = [
-  {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open','image-viewer','image-viewer-error'],sources:['components/ui/image-viewer.tsx','components/ui/attachment-preview.tsx','components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
+  {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open','image-viewer','image-viewer-error'],sources:['components/ui/file-upload.tsx','components/ui/input.tsx','components/ui/image-viewer.tsx','components/ui/attachment-preview.tsx','components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
   ...pages.filter(page=>page.id!=='settings').map(page=>scene(page.id,page.title,'主页面')),
   scene('servers-credentials/servers/render-node','服务器资料与关联凭证','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),
   scene('servers-credentials/credentials/render-key','SSH 密钥详情','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),

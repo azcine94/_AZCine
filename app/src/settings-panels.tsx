@@ -16,6 +16,7 @@ import type { CheckState } from './desktop-contract.ts';
 import { DataSettings, WorkspaceGate } from './workspace-panels.tsx';
 import { RuntimeInfo } from './pi-panels.tsx';
 import { AppUpdatePanel } from './app-update-panel.tsx';
+import { ProcessMonitorPanel } from './process-monitor-panel.tsx';
 import type { AppUpdateController } from './use-app-update.ts';
 import { PiProviderPanel } from './pi-provider-panel.tsx';
 import type { PiProvidersController } from './use-pi-providers.ts';
@@ -62,6 +63,7 @@ function CheckResult({ state }: { state: CheckState }) {
 }
 
 interface SettingsProps {
+  processPreview?:string;
   updatePreview?: AppUpdateController;
   route: Route;
   sourceId: string | null;
@@ -76,7 +78,7 @@ interface SettingsProps {
   selectTheme: (theme: Theme) => void;
 }
 
-export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, news, editorial, processing, desktop, theme, selectTheme, updatePreview }: SettingsProps) {
+export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, news, editorial, processing, desktop, theme, selectTheme, updatePreview, processPreview }: SettingsProps) {
   const content = useRef<HTMLDivElement>(null);
   const positions = useRef<Record<string, number>>({});
   const title = sourceId ? (sourceId === 'new' ? '信源管理' : '编辑信源') : settingsTitle(route) ?? '设置';
@@ -91,12 +93,13 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
   let page: ReactNode;
   if (route === 'settings') page = <AppearanceSettings theme={theme} selectTheme={selectTheme} />;
   else if (route === 'settings/models') page = <PiProviderPanel model={providers} pi={pi} />;
-  else if (route === 'settings/runtime') page = <section className="settings-page"><header className="settings-page-header"><h2>工作目录与环境</h2><p className="subtle">查看本应用的原版 Pi，设置下次连接使用的工作目录。</p></header><p className="settings-help" role="status">{pi.action==='连接'||pi.snapshot?.connection==='connecting'?'正在自动连接本应用 Pi…':pi.snapshot?.connection==='ready'?'本应用 Pi 已连接。':'本应用 Pi 尚未连接，可在模型服务商页重试。'}</p>{(pi.error??pi.snapshot?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{pi.error??pi.snapshot?.error?.message}</Feedback>}<RuntimeInfo model={pi} expanded /><UILink variant="text" className="foundation-link" href="#settings/models">前往模型服务商 →</UILink></section>;
+  else if (route === 'settings/runtime') page = <section className="settings-page"><header className="settings-page-header"><h2>工作目录与环境</h2><p className="subtle">查看本应用的 Agent，设置下次连接使用的工作目录。</p></header><p className="settings-help" role="status">{pi.action==='连接'||pi.snapshot?.connection==='connecting'?'正在自动连接本应用 Agent…':pi.snapshot?.connection==='ready'?'本应用 Agent 已连接。':'本应用 Agent 尚未连接，可在模型服务商页重试。'}</p>{(pi.error??pi.snapshot?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{pi.error??pi.snapshot?.error?.message}</Feedback>}<RuntimeInfo model={pi} expanded /><UILink variant="text" className="foundation-link" href="#settings/models">前往模型服务商 →</UILink></section>;
   else if (route === 'settings/data') page = <DataSettings model={workspace} />;
   else if (route === 'settings/about') page = <AppUpdatePanel preview={updatePreview} />;
+  else if (route === 'settings/processes') page = <ProcessMonitorPanel preview={processPreview}/>;
   else if (route === 'settings/diagnostics') page = <section className="settings-page"><header className="settings-page-header"><h2>桌面连接检查</h2><p className="subtle">检查 Rust 与独立临时数据库，不修改业务记录。进入此页不会自动检查。</p></header>
     <div className="foundation-check" data-check-state={desktop.state.status} role="status" aria-live="polite" aria-busy={desktop.state.status === 'loading'}><CheckResult state={desktop.state} /></div>
-    <div className="check-actions"><Button variant="app-pill" className="pill on" onClick={() => void desktop.check()} disabled={!desktop.connected || desktop.state.status === 'loading'}>{desktop.state.status === 'loading' ? '正在检查…' : '检查桌面连接'}</Button>{!desktop.connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>
+    <div className="check-actions"><Button variant="app-pill" className="pill on" onClick={() => void desktop.check()} disabled={!desktop.connected || desktop.state.status === 'loading'} loading={!!(desktop.state.status === 'loading')} loadingText="正在检查…">检查桌面连接</Button>{!desktop.connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>
   </section>;
   else if (!workspace.workspace?.root || workspace.loadError) page = <WorkspaceGate model={workspace} />;
   else if (sourceId === 'new') page = <NewsSourceManager model={news} create />;
@@ -104,7 +107,7 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
   else if (route === 'settings/news') page = <NewsSourceManager model={news} />;
   else if (route === 'settings/news/materials') page = <NewsFeed model={news} />;
   else if (route === 'settings/news/processing') page = <NewsProcessingPanel model={editorial} news={news} processing={processing} />;
-  else page = <>{pi.modelCatalogError&&<Feedback tone="error" role="alert">{pi.modelCatalogError}</Feedback>}<NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.modelCatalog ?? pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} /></>;
+  else page = <>{pi.modelCatalogError&&<Feedback tone="error" role="alert">{pi.modelCatalogError}<Button type="button" variant="app-quiet" disabled={pi.modelCatalogLoading} onClick={()=>void pi.refreshModels()} loading={!!(pi.modelCatalogLoading)} loadingText="正在重试…">重试读取模型</Button></Feedback>}<NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.modelCatalog ?? pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} /></>;
 
   return <div className="settings-layout">
     <aside className="settings-sidebar"><nav aria-label="设置分类">{settingsGroups.map((group, index) => <section className="settings-nav-group" key={group.title} aria-labelledby={`settings-group-${index}`}>

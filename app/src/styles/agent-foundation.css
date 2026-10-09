@@ -139,7 +139,11 @@
 .pi-agent-layout .pi-chat{position:relative}
 .pi-agent-layout .pi-attachment-tray,.pi-agent-layout .pi-message-files{display:flex;flex-wrap:wrap;gap:var(--s-2);margin-block:var(--s-2);max-width:100%}
 .pi-agent-layout .pi-composer-surface{max-height:min(400px,50dvh);overflow:auto}
-.pi-agent-layout .pi-response-waiting{display:flex;align-items:center;gap:var(--s-3);padding-block:var(--s-3);color:var(--muted-foreground);font:13px/22px var(--font)}
+.pi-agent-layout .pi-response-waiting{height:28px;min-height:28px;flex:none;color:var(--muted-foreground);font:13px/22px var(--font)}
+.pi-response-waiting>span{display:flex;align-items:center;gap:var(--s-2)}
+.pi-history-placeholder{align-self:stretch;width:100%;display:grid;align-content:start;gap:var(--s-5);padding-top:var(--s-5)}
+.pi-history-placeholder>span{display:block;height:64px;max-width:80%;border-radius:var(--r-panel);background:var(--muted)}
+.pi-history-placeholder>span:nth-child(2){width:45%;justify-self:end}
 .pi-agent-layout .pi-process-symbol{color:var(--foreground)}
 .pi-agent-layout .pi-process-symbol svg{width:18px;height:18px;stroke-width:2}
 .pi-agent-layout .pi-attachment-drop{position:absolute;inset:64px 12px 12px;border:2px dashed var(--foreground);border-radius:var(--r-panel);z-index:20;display:grid;place-items:center;background:color-mix(in srgb,var(--background) 96%,transparent);pointer-events:none}

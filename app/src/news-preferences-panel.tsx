@@ -19,7 +19,7 @@ export function NewsPreferences({ model, models = [], sources=[], section = 'dom
   const formId = useId();
   const title = { domains: '分类与筛选', ai: 'AI 处理', automation: '采集与日报' }[section];
   const draft = model.draft; const config = draft?.config;
-  if (!draft || !config) return <section className="news-page"><h2 className="title">{title}</h2><EditorialFeedback model={model} /><Button variant="app-pill" className="pill" disabled={model.loading || !model.connected} onClick={() => void model.refresh()}>{model.loading ? '正在读取…' : '读取资讯配置'}</Button></section>;
+  if (!draft || !config) return <section className="news-page"><h2 className="title">{title}</h2><EditorialFeedback model={model} /><Button variant="app-pill" className="pill" disabled={model.loading || !model.connected} onClick={() => void model.refresh()} loading={!!(model.loading)} loadingText="正在读取…">读取资讯配置</Button></section>;
   const dirty = !!model.snapshot && !equalEditorial(config, model.snapshot.preferences.config);
   const update = (patch: Partial<typeof config>) => model.changeConfig({ ...config, ...patch });
   const pipeline=config.pipeline??defaultPipeline();
@@ -33,7 +33,7 @@ export function NewsPreferences({ model, models = [], sources=[], section = 'dom
       <div className="news-preferences-save">
         <StatusBadge tone={dirty || model.pending ? 'warning' : 'neutral'} role="status"><StatusDot aria-hidden="true" label={saveState} tone={dirty || model.pending ? 'warning' : 'neutral'} />{saveState}</StatusBadge>
         {model.pending && <Button variant="outline" type="button" disabled={!!model.busy} onClick={() => void model.reconcile()}>核对上次保存</Button>}
-        <Button form={formId} type="submit" disabled={!!model.busy || !model.connected}>{model.busy ? '正在保存…' : model.pending ? '重发上次保存请求' : '保存资讯配置'}</Button>
+        <Button form={formId} type="submit" disabled={!!model.busy || !model.connected} loading={!!model.busy} loadingText="正在保存…">{ model.pending ? '重发上次保存请求' : '保存资讯配置'}</Button>
       </div>
     </header>
     <div className="news-preferences-scroll">

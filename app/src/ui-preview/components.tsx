@@ -92,6 +92,9 @@ export function Components({state}:{state:string}) {
       </CardContent><CardFooter className="flex flex-wrap gap-2"><Badge>默认</Badge><Badge variant="secondary">处理中</Badge><Badge variant="outline">待确认</Badge><Badge variant="destructive">失败</Badge></CardFooter></Card>
       <Card><CardHeader><CardTitle>输入与选择</CardTitle><CardDescription>文字、长文本、下拉与错误反馈</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
         <Label htmlFor="kit-name">名称</Label><Input id="kit-name" placeholder="输入名称" aria-invalid={state==='error'} />
+        <Label htmlFor="kit-upload">上传文件</Label><Input id="kit-upload" type="file" multiple aria-invalid={state==='error'} fileName={state==='long'?'这是一份用于展示长文件名省略效果的公钥文件-public-key.pub':undefined}/>
+        <Input type="file" aria-label="已选文件示例" fileName="public-key.pub"/>
+        <Input type="file" aria-label="禁用上传示例" disabled/>
         <NativeSelect aria-label="示例选择"><NativeSelectOption>全部领域</NativeSelectOption><NativeSelectOption>视觉应用</NativeSelectOption></NativeSelect>
         <Label htmlFor="kit-month">中文月份筛选</Label><MonthInput id="kit-month" value={month} onChange={setMonth} />
         <MonthInput id="kit-month-disabled" value="" onChange={() => {}} disabled />
@@ -115,7 +118,7 @@ export function Components({state}:{state:string}) {
       </CardContent></Card>
       <Card><CardHeader><CardTitle>反馈与读取</CardTitle><CardDescription>失败保留输入；展示真实状态结构</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
         <LoadingStatus active={refreshing} delayMs={300}>正在刷新，已有内容保留…</LoadingStatus>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={refreshing} onClick={() => showRefresh(80)}>演示短刷新</Button><Button variant="outline" disabled={refreshing} onClick={() => showRefresh(1500)}>演示慢刷新</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={refreshing} onClick={() => showRefresh(80)}>演示短刷新</Button><Button variant="outline" disabled={refreshing} loading={refreshing} loadingText="正在刷新较长文案…" onClick={() => showRefresh(1500)}>演示慢刷新</Button></div>
         <Alert variant="destructive"><AlertTitle>示例失败</AlertTitle><AlertDescription>已有内容和输入保留，可以重新操作。</AlertDescription></Alert>
         <Progress value={40} aria-label="示例进度"/><div className="flex gap-3"><Skeleton className="size-10 rounded-full"/><div className="flex-1 space-y-2"><Skeleton className="h-4 w-3/4"/><Skeleton className="h-4 w-full"/></div></div>
       </CardContent></Card>

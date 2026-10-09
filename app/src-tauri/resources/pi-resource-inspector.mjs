@@ -59,14 +59,14 @@ async function inspect(input) {
   const paths = await manager.resolve(async source => { missing.push(source); return 'skip'; });
   const tools = createCodingTools(input.cwd);
   const entries = [{ id: 'official:system', kind: 'official', name: 'Pi 官方默认提示词', path: join(dist, 'core/system-prompt.js'),
-    description: '由当前安装的原版 Pi 构造，供只读查看；不代表扩展或用户配置修改后的会话最终提示词。',
+    description: '由当前安装的 Agent 构造，供只读查看；不代表扩展或用户配置修改后的会话最终提示词。',
     content: buildSystemPrompt({ cwd: input.cwd, selectedTools: tools.map(t => t.name), toolSnippets: Object.fromEntries(tools.map(t => [t.name, t.promptSnippet ?? ''])), toolGuidelines: Object.fromEntries(tools.map(t => [t.name, t.promptGuidelines ?? []])) }),
     hash: null, editable: false, enabled: true, loaded: false, toggleable: false, error: null, commands: [] }];
   for (const path of [join(input.agent, 'AGENTS.md'), join(input.cwd, 'AGENTS.md'), join(input.agent, 'SYSTEM.md'), join(input.agent, 'APPEND_SYSTEM.md')]) {
     if (!owned(path, roots) || (!existsSync(path) && path !== join(input.agent, 'AGENTS.md'))) continue;
     const name = basename(path), doc = document(path, roots);
-    entries.push({ id: `rule:${path}`, kind: 'rule', name, path, description: name === 'AGENTS.md' ? '工作规则文件；当前启动使用 --no-context-files，保存不会自动注入会话。' : '原生系统提示词配置，重新连接后由 Pi 读取。', ...doc,
-      enabled: name !== 'AGENTS.md', loaded: false, toggleable: false, commands: [] });
+    entries.push({ id: `rule:${path}`, kind: 'rule', name, path, description: name === 'AGENTS.md' ? (samePath(path, join(input.agent, 'AGENTS.md')) ? '工作台自有 AGENTS.md 会在连接或新建对话时明确加载；当前对话需重新连接。' : '工作目录的规则仅供查看；通用规则使用工作台自有 AGENTS.md。') : '原生系统提示词配置，重新连接后由 Pi 读取。', ...doc,
+      enabled: name !== 'AGENTS.md' || samePath(path, join(input.agent, 'AGENTS.md')), loaded: false, toggleable: false, commands: [] });
   }
   const skills = loadSkills({ cwd: input.cwd, agentDir: input.agent, skillPaths: paths.skills.filter(item => item.enabled).map(item => item.path), includeDefaults: false });
   const disabledSkills = paths.skills.filter(item => !item.enabled).map(item => loadSkills({ cwd: input.cwd, agentDir: input.agent, skillPaths: [item.path], includeDefaults: false }));
@@ -85,7 +85,7 @@ async function inspect(input) {
     const commands = input.commands.filter(cmd => cmd.source === 'extension' && samePath(cmd.sourceInfo?.path, resource.path)).map(cmd => cmd.name);
     const doc = builtin ? { content: builtin.factory.toString(), hash: null, editable: false, error: null } : document(resource.path, roots);
     entries.push({ id: `extension:${resource.path}`, kind: 'extension', name: builtin?.name ?? basename(resource.path), path: resource.path,
-      description: builtin ? 'Pi 原版内置扩展，预览为原版工厂函数。' : '原生扩展源码预览；读取不会执行扩展。', ...doc, editable: false,
+      description: builtin ? 'Agent 内置扩展，预览为 Agent 工厂函数。' : '原生扩展源码预览；读取不会执行扩展。', ...doc, editable: false,
       enabled: resource.enabled, loaded: commands.length > 0, toggleable: resource.metadata.scope === 'user' && (Boolean(builtin) || owned(resource.path, roots)), commands });
   }
   // Include registrations from extensions without a locally resolved file entry.
@@ -104,7 +104,20 @@ for await (const line of lines) {
     let data;
     if (request.type === 'models') {
       const { ModelRuntime } = await import(pathToFileURL(join(request.input.package, 'dist/core/model-runtime.js')).href);
-      const runtime = await ModelRuntime.create({ modelsPath: join(request.input.agent, 'models.json'), authPath: join(request.input.agent, 'auth.json'), allowModelNetwork: false });
+      const { ReadOnlyAuthStorage } = await import(pathToFileURL(join(request.input.package, 'dist/core/auth-storage.js')).href);
+      // Rust already holds the native config/cache locks. FileAuthStorage would
+      // reacquire auth.json and deadlock against our caller. Use upstream's
+      // read-only credential API and a read-only cache snapshot; no nested locks,
+      // credential refresh, cache writes or network are needed to list models.
+      const cachePath = join(request.input.agent, 'models-store.json');
+      const cache = existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, 'utf8').replace(/^\uFEFF/, '')) : {};
+      const modelsStore = {
+        async read(providerId, options) { options?.signal?.throwIfAborted(); return structuredClone(cache[providerId]); },
+        async write() { throw new Error('read-only model catalog'); },
+        async delete() { throw new Error('read-only model catalog'); },
+      };
+      const runtime = await ModelRuntime.create({ modelsPath: join(request.input.agent, 'models.json'),
+        credentials: new ReadOnlyAuthStorage(join(request.input.agent, 'auth.json')), modelsStore, allowModelNetwork: false });
       if (runtime.getError()) throw new Error('models');
       data = runtime.getAvailableSnapshot().map(model => ({ id: model.id, name: model.name, provider: model.provider, api: model.api, input: model.input, reasoning: model.reasoning, contextWindow: model.contextWindow, maxTokens: model.maxTokens, ...(model.thinkingLevelMap ? {thinkingLevelMap:model.thinkingLevelMap} : {}) }));
     }

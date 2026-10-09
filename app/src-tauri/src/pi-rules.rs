@@ -3,6 +3,30 @@ use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{fs::File,io::Read};
 pub const SUGGESTED:&str=include_str!("../resources/APPEND_SYSTEM.md");
+pub const DEFAULT_AGENTS:&str=include_str!("../resources/AGENTS.md");
+/// Seed once when absent; a newer application template never replaces user rules.
+pub fn provision_agents(agent:&std::path::Path)->Result<(),crate::pi_model_config::ConfigError>{
+    use std::io::Write;
+    let failed=||crate::pi_model_config::ConfigError{code:"pi_rules_init",message:"默认工作规则初始化失败；已有文件未覆盖。"};
+    let path=agent.join("AGENTS.md");no_link(&path)?;
+    if path.try_exists().map_err(|_|failed())?{return if path.is_file(){Ok(())}else{Err(failed())};}
+    let mut file=tempfile::NamedTempFile::new_in(agent).map_err(|_|failed())?;
+    file.write_all(DEFAULT_AGENTS.as_bytes()).and_then(|_|file.as_file().sync_all()).map_err(|_|failed())?;
+    match file.persist_noclobber(&path){Ok(_)=>Ok(()),Err(e) if e.error.kind()==std::io::ErrorKind::AlreadyExists=>{no_link(&path)?;if path.is_file(){Ok(())}else{Err(failed())}},Err(_)=>Err(failed())}
+}
+/// Explicit, application-owned context. Do not discover ancestors or migrate APPEND_SYSTEM.
+pub fn context(paths:&PiPaths)->Result<(String,Value),PiError>{
+    let mut text=String::new();let mut files=Vec::new();
+    for name in ["APPEND_SYSTEM.md","AGENTS.md"]{
+        let path=paths.agent.join(name);
+        let content=crate::self_evolution::text_file(&path).map_err(|e|PiError::new(e.code,&e.message))?;
+        if let Some(content)=content{
+            if !content.trim().is_empty(){text.push_str(&format!("\n# Context file: {name}\n{content}\n"));}
+            files.push(json!({"path":path,"hash":format!("{:x}",Sha256::digest(content.as_bytes())),"status":if content.trim().is_empty(){"empty"}else{"loaded"}}));
+        }
+    }
+    Ok((text,json!({"status":if files.is_empty(){"missing"}else{"loaded"},"files":files,"loadedAt":chrono::Utc::now().to_rfc3339()})))
+}
 pub fn read(paths:&PiPaths)->Result<(String,Value),PiError>{
     let path=paths.agent.join("APPEND_SYSTEM.md");no_link(&path)?;
     let file=match File::open(&path){Ok(f)=>f,Err(e) if e.kind()==std::io::ErrorKind::NotFound=>return Ok(("\n".into(),json!({"status":"missing","path":path,"hash":null}))),Err(_)=>return Err(PiError::new("pi_rules_read","自定义工作规则无法读取；未忽略规则继续连接。"))};

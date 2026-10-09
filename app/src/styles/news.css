@@ -5,6 +5,10 @@
 
 .news-feedback { display:grid; gap:var(--s-2); overflow-wrap:anywhere; }
 .news-feedback:empty { display:none; }
+.news-task-status { height:32px; min-height:32px; }
+.news-task-status>span { display:flex; align-items:center; gap:var(--s-2); }
+.news-task-status>span>span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.news-task-status button { flex:none; }
 .news-filter { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); min-width:0; }
 
 

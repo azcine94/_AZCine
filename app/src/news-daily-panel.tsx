@@ -103,7 +103,7 @@ export function NewsDailyPanel({model, editorial, news, editionId}: {model: News
     <div className="reader-toolbar"><NewsViewSelect daily/><div className="daily-top-actions">
       <UILink variant="text" href="#settings/news/materials">采集资料</UILink>
       <UILink variant="text" href="#settings/news/processing">整理资料</UILink>
-      <Button variant="app-pill" disabled={locked} onClick={() => void generate()}>{generating ? '正在生成…' : currentEdition ? '重新生成当前刊期' : '生成当前刊期'}</Button>
+      <Button variant="app-pill" disabled={locked} onClick={() => void generate()} loading={generating} loadingText="正在生成…">{ currentEdition ? '重新生成当前刊期' : '生成当前刊期'}</Button>
     </div></div>
     <div className="daily-status" role="status" aria-live="polite">
       <div><StatusBadge tone={generating ? 'neutral' : failedDate === cutoff ? 'warning' : currentEdition?.main.length || currentEdition?.flashes.length ? 'success' : 'neutral'}>{initialLoading ? '正在读取日报' : status}</StatusBadge>

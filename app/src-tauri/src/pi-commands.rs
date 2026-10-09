@@ -5,6 +5,20 @@ use std::{path::PathBuf,sync::{Arc,atomic::{AtomicU8,Ordering}}};
 use tauri::{Manager as _,Emitter as _};
 #[derive(Default)]
 pub struct PiExit(pub AtomicU8);
+#[tauri::command]
+pub async fn pi_processes(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Vec<crate::pi_rpc::monitor::ProcessInfo>,PiError>{
+    allowed(&app,&window)?;
+    tauri::async_runtime::spawn_blocking(crate::pi_rpc::monitor::snapshot).await
+        .map_err(|_|PiError::new("pi_monitor_failed","进程状态读取中断。"))?
+        .map_err(|e|PiError::new(e.code,e.message))
+}
+#[tauri::command]
+pub async fn pi_stop_process(app:tauri::AppHandle,window:tauri::WebviewWindow,id:String)->Result<(),PiError>{
+    allowed(&app,&window)?;
+    tauri::async_runtime::spawn_blocking(move||crate::pi_rpc::monitor::stop(&id)).await
+        .map_err(|_|PiError::new("pi_monitor_failed","停止进程未确认，请刷新查看。"))?
+        .map_err(|e|PiError::new(e.code,e.message))
+}
 fn allowed(app:&tauri::AppHandle,window:&tauri::WebviewWindow)->Result<(),PiError>{
     crate::main_window(window).map_err(|e|PiError::new(e.code,&e.message))?;
     if app.state::<PiExit>().0.load(Ordering::Acquire)!=0{return Err(PiError::new("pi_app_exiting","应用正在退出，未接受新操作；输入保留。"));}Ok(())
@@ -61,7 +75,17 @@ pub async fn pi_save_resource(app:tauri::AppHandle,window:tauri::WebviewWindow,i
     work(app,conversation_key,move|m,_|m.save_resource(&root,&resources,input)).await
 }
 #[tauri::command]
-pub async fn pi_new_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,move|m,n|m.session_action(generation,&session_id,"new_session",json!({}),n)).await}
+pub async fn pi_new_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,conversation_key:Option<String>)->Result<Value,PiError>{
+    allowed(&app,&window)?;let root=root(app.clone()).await?;
+    let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位运行资源。"))?;
+    work(app,conversation_key,move|m,n|{
+        let snapshot=m.session_action(generation,&session_id,"new_session",json!({}),n.clone())?;
+        let cwd=snapshot["cwd"].as_str().map(PathBuf::from);
+        let session=snapshot["state"]["sessionFile"].as_str().map(PathBuf::from).filter(|path|path.is_file());
+        // A fresh process rereads AGENTS.md/Skills, leaving the old session history intact.
+        m.connect(&root,&resources,cwd.as_deref(),session.as_deref(),n)
+    }).await
+}
 #[tauri::command]
 pub async fn pi_switch_session(app:tauri::AppHandle,window:tauri::WebviewWindow,generation:u64,session_id:String,path:String,conversation_key:Option<String>)->Result<Value,PiError>{
     allowed(&app,&window)?;let check_key=conversation_key.clone().unwrap_or_else(||"default".into());let check_path=path.clone();
@@ -111,7 +135,7 @@ pub async fn pi_fetch_models(app:tauri::AppHandle,window:tauri::WebviewWindow,mu
 }
 
 #[tauri::command]
-pub async fn pi_runtime_summary(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;tauri::async_runtime::spawn_blocking(move||{let runtime=app.state::<crate::agent_runtime::AgentRuntime>();runtime.load(&root)?;runtime.summary()}).await.map_err(|_|PiError::new("pi_worker_interrupted","调度状态读取中断。"))?}
+pub async fn pi_runtime_summary(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;tauri::async_runtime::spawn_blocking(move||{let runtime=app.state::<crate::agent_runtime::AgentRuntime>();let _=root;runtime.summary()}).await.map_err(|_|PiError::new("pi_worker_interrupted","调度状态读取中断。"))?}
 #[tauri::command]
 pub async fn pi_save_runtime(app:tauri::AppHandle,window:tauri::WebviewWindow,reply_limit:usize,revision:u64)->Result<Value,PiError>{allowed(&app,&window)?;let root=root(app.clone()).await?;tauri::async_runtime::spawn_blocking(move||app.state::<crate::agent_runtime::AgentRuntime>().save_limit(&root,reply_limit,revision)).await.map_err(|_|PiError::new("pi_worker_interrupted","并行设置保存中断。"))?}
 #[tauri::command]
@@ -126,6 +150,7 @@ pub fn start_reaper(app:tauri::AppHandle){let _=std::thread::Builder::new().name
 /// S03 closes the whole app, not a tray transition. S11 will add explicit tray
 /// ownership; the final exit must continue to call this same owned cleanup.
 pub fn stop_for_update(app:&tauri::AppHandle)->Result<(),PiError>{
+    crate::self_evolution_worker::cancel(&app.state::<crate::self_evolution_worker::Control>());
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);
     app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
     let active=app.state::<crate::news_ai::AiControl>().active.lock().map(|v|v.iter().filter_map(std::sync::Weak::upgrade).collect::<Vec<_>>()).unwrap_or_default();
@@ -145,6 +170,7 @@ fn begin_exit(app:&tauri::AppHandle){
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(true);
     app.state::<crate::news_ai::AiControl>().cancel.store(true,Ordering::Release);
     let app=app.clone();tauri::async_runtime::spawn_blocking(move||{
+        crate::self_evolution_worker::cancel(&app.state::<crate::self_evolution_worker::Control>());
         let active=app.state::<crate::news_ai::AiControl>().active.lock().map(|v|v.iter().filter_map(std::sync::Weak::upgrade).collect::<Vec<_>>()).unwrap_or_default();
         for active in active { if active.shutdown(std::time::Duration::ZERO).is_err(){app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(false);app.state::<crate::agent_jobs::BackgroundSlots>().set_exiting(false);app.state::<PiExit>().0.store(0,Ordering::Release);return;} }
         let result=crate::agent_jobs::shutdown(&app).map_err(|e|PiError::new(e.code,&e.message)).and_then(|_|app.state::<crate::agent_runtime::AgentRuntime>().shutdown(notify(&app)));

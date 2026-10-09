@@ -44,7 +44,7 @@ fn owned_file(root: &Path, relative: &str) -> Result<PathBuf, ConfigError> {
     let mut path = root.to_path_buf();
     for component in Path::new(relative).components() { path.push(component); no_link(&path)?; }
     let path = fs::canonicalize(path).map_err(io_error)?;
-    if !path.is_file() || !path.starts_with(root) { return Err(error("pi_runtime_invalid", "独立原版运行文件缺失或不属于本应用，未调用系统中的其他 Pi。")); } Ok(path)
+    if !path.is_file() || !path.starts_with(root) { return Err(error("pi_runtime_invalid", "独立 Agent 运行文件缺失或不属于本应用，未调用系统中的其他 Agent。")); } Ok(path)
 }
 #[derive(Clone)]
 pub struct RuntimePaths { pub root: PathBuf, pub node: PathBuf, pub pi: PathBuf, pub package: PathBuf }
@@ -56,7 +56,7 @@ impl RuntimePaths {
         no_link(root)?; let root = fs::canonicalize(root).map_err(io_error)?;
         let node = owned_file(&root, "node-v24.21.0-win-x64/node.exe")?;
         let pi = owned_file(&root, "pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")?;
-        let package = pi.parent().and_then(Path::parent).and_then(Path::parent).ok_or_else(|| error("pi_runtime_invalid", "Pi 原版运行文件路径不完整。"))?.to_path_buf();
+        let package = pi.parent().and_then(Path::parent).and_then(Path::parent).ok_or_else(|| error("pi_runtime_invalid", "Agent 运行文件路径不完整。"))?.to_path_buf();
         Ok(Self { root, node, pi, package })
     }
 }
@@ -88,6 +88,7 @@ impl PiPaths {
         let pi_root = owned_dir(&root, "pi")?;
         let agent = owned_dir(&pi_root, "agent")?; let sessions = owned_dir(&pi_root, "sessions")?;
         owned_dir(&agent, "skills")?; owned_dir(&agent, "extensions")?;
+        crate::pi_rules::provision_agents(&agent)?;
         crate::pi_session_title::provision(&pi_root,&agent)?;
         crate::pi_resources::provision_task_refinement(&pi_root,&agent)?;
         let home = owned_dir(&pi_root, "home")?; let appdata = owned_dir(&pi_root, "appdata")?; let localappdata = owned_dir(&pi_root, "localappdata")?; let temp = owned_dir(&pi_root, "temp")?;
@@ -106,7 +107,7 @@ impl PiPaths {
         // read foreign settings/auth and never rename the external directory.
         for name in ["commands", "hooks", "tools"] {
             if project.join(name).try_exists().map_err(io_error)? {
-                return Err(error("pi_cwd_migration", "所选工作目录有原版 Pi 的旧资源目录，启动可能迁移或等待交互。已拒绝启动，原目录未修改；请换用本应用工作目录或自行迁移后重试。"));
+                return Err(error("pi_cwd_migration", "所选工作目录有 Agent 的旧资源目录，启动可能迁移或等待交互。已拒绝启动，原目录未修改；请换用本应用工作目录或自行迁移后重试。"));
             }
         }
         Ok(cwd)

@@ -6,7 +6,8 @@
     "main"
   ],
   "permissions": [
-    "core:default",
+    "allow-pi-processes", "allow-pi-stop-process",
+    "core:default", "allow-github-projects-snapshot", "allow-github-projects-refresh", "allow-github-project-avatar", "allow-github-project-open", "allow-evolution-snapshot", "allow-evolution-mutate", "allow-evolution-source", "allow-evolution-open-source", "allow-evolution-extract", "allow-evolution-cancel",
     "allow-goodcase-fetch",
     "allow-goodcase-favorites",
     "allow-goodcase-favorite-save",

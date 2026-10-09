@@ -19,6 +19,7 @@
 .gc-history>span { white-space:nowrap; }
 .gc-history .ui-select { width:240px; max-width:100%; min-width:0; }
 .gc-status { flex:none; min-height:30px; font-size:11px; line-height:18px; color:var(--muted-foreground); padding:0 24px 12px; }
+.gc-status:not(.gc-error) { height:30px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .gc-error { color:var(--bad); }
 .gc-scroll { flex:1; min-height:0; overflow:auto; padding:8px 24px 28px; overscroll-behavior:contain; scrollbar-gutter:stable; }
 .gc-scroll:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }

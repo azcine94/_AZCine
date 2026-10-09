@@ -79,7 +79,7 @@ export function PiResourcesPanel({ model }: { model: PiController }) {
             <ActionGroup className="resource-actions">
               {item.toggleable && <Button variant="app-pill" disabled={busy} onClick={() => void r.save(item, !item.enabled)}>{item.enabled ? '停用扩展' : '启用扩展'}</Button>}
               {item.editable && !editing && <Button variant="app-pill" disabled={busy} onClick={() => r.edit(item)}>编辑文件</Button>}
-              {editing && <><Button variant="app-pill" disabled={r.saving} onClick={() => r.cancel(item)}>取消编辑</Button><Button variant="app-primary" disabled={busy || !draft} onClick={() => void r.save(item)}>{r.saving ? '保存中…' : '保存'}</Button></>}
+              {editing && <><Button variant="app-pill" disabled={r.saving} onClick={() => r.cancel(item)}>取消编辑</Button><Button variant="app-primary" disabled={busy || !draft} onClick={() => void r.save(item)} loading={!!(r.saving)} loadingText="保存中…">保存</Button></>}
             </ActionGroup>
           </div>
           <p className="subtle resource-description">{item.description}</p>

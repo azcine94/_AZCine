@@ -1,28 +1,27 @@
-//! Two background slots, separate from interactive replies. Queue ownership is
+//! Independently tracked background tasks. Queue ownership is
 //! app-side; Pi has no invented spawn/child capability. Batch parents wait outside
 //! slots and all children obtain their own slot.
 use crate::{storage::StorageError,pi_rpc::RpcProcess,pi_launch_plan::PiPaths,pi_redactor::Redactor};
 use serde::Deserialize;
 use serde_json::{Value,json};
 use tauri::{Manager as _,Emitter as _};
-use std::{collections::{HashMap,HashSet,VecDeque},sync::{Arc,Mutex,Condvar,atomic::{AtomicBool,Ordering}},time::{Duration,Instant},path::PathBuf};
+use std::{collections::{HashMap,HashSet},sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}},time::{Duration,Instant},path::PathBuf};
 fn error(code:&'static str,message:&str)->StorageError{StorageError::new(code,message)}
-#[derive(Default)]struct SlotState{active:HashSet<String>,waiting:VecDeque<String>,exiting:bool}
-#[derive(Default)]struct Slots{state:Mutex<SlotState>,changed:Condvar}
+#[derive(Default)]struct SlotState{active:HashSet<String>,exiting:bool}
+#[derive(Default)]struct Slots{state:Mutex<SlotState>}
 #[derive(Clone,Default)]pub struct BackgroundSlots(Arc<Slots>);
 pub struct BackgroundLease{slots:Arc<Slots>,key:String}
-impl Drop for BackgroundLease{fn drop(&mut self){if let Ok(mut state)=self.slots.state.lock(){state.active.remove(&self.key);self.slots.changed.notify_all();}}}
+impl Drop for BackgroundLease{fn drop(&mut self){if let Ok(mut state)=self.slots.state.lock(){state.active.remove(&self.key);}}}
 impl BackgroundSlots{
     pub fn acquire(&self,key:&str,cancel:&AtomicBool,deadline:Instant)->Result<BackgroundLease,StorageError>{
-        let mut state=self.0.state.lock().map_err(|_|error("agent_queue_interrupted","后台调度中断。"))?;state.waiting.push_back(key.into());
-        loop{
-            if cancel.load(Ordering::Acquire)||state.exiting||Instant::now()>=deadline{state.waiting.retain(|k|k!=key);self.0.changed.notify_all();return Err(error(if cancel.load(Ordering::Acquire)||state.exiting{"agent_job_cancelled"}else{"agent_job_timeout"},"后台任务已取消或等待超时；输入与已有结果保留。"));}
-            if state.active.len()<2&&state.waiting.front().is_some_and(|k|k==key){state.waiting.pop_front();state.active.insert(key.into());return Ok(BackgroundLease{slots:self.0.clone(),key:key.into()});}
-            state=self.0.changed.wait_timeout(state,Duration::from_millis(250)).map_err(|_|error("agent_queue_interrupted","后台调度中断。"))?.0;
-        }
+        let mut state=self.0.state.lock().map_err(|_|error("agent_queue_interrupted","后台任务状态中断。"))?;
+        if cancel.load(Ordering::Acquire)||state.exiting{return Err(error("agent_job_cancelled","任务已取消，未启动进程。"));}
+        if Instant::now()>=deadline{return Err(error("agent_job_timeout","任务已超过期限，未启动进程。"));}
+        if !state.active.insert(key.into()){return Err(error("agent_job_busy","同一任务已经运行，未重复启动。"));}
+        Ok(BackgroundLease{slots:self.0.clone(),key:key.into()})
     }
-    pub fn summary(&self)->Value{self.0.state.lock().map(|s|json!({"limit":2,"active":s.active,"queued":s.waiting})).unwrap_or(Value::Null)}
-    pub fn set_exiting(&self,value:bool){if let Ok(mut s)=self.0.state.lock(){s.exiting=value;self.0.changed.notify_all();}}
+    pub fn summary(&self)->Value{self.0.state.lock().map(|s|json!({"limit":0,"active":s.active,"queued":[]})).unwrap_or(Value::Null)}
+    pub fn set_exiting(&self,value:bool){if let Ok(mut s)=self.0.state.lock(){s.exiting=value;}}
 }
 #[derive(Default)]pub struct JobsControl{pub cancel:Mutex<HashMap<String,Arc<AtomicBool>>>,pub active:Mutex<HashMap<String,Arc<RpcProcess>>>,recovered:Mutex<HashSet<PathBuf>>}
 #[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]
@@ -77,7 +76,9 @@ fn run_job(app:&tauri::AppHandle,id:&str,cancel:&AtomicBool)->Result<String,Stor
     let jobs=paths.pi_root.join("jobs");crate::pi_launch_plan::no_link(&jobs).map_err(map)?;std::fs::create_dir_all(&jobs).map_err(|_|error("agent_job_config","后台配置准备失败。"))?;let _private_config=tempfile::Builder::new().prefix("config-").tempdir_in(&jobs).map_err(|_|error("agent_job_config","后台配置准备失败。"))?;paths.agent=_private_config.path().to_path_buf();
     let mut settings=docs[2].clone();settings["retry"]=json!({"enabled":false});settings["compaction"]=json!({"enabled":false});for(name,document)in[("models.json",&docs[0]),("auth.json",&docs[1]),("settings.json",&settings)]{std::fs::write(paths.agent.join(name),serde_json::to_vec(document).map_err(|_|error("agent_job_config","后台配置无效。"))?).map_err(|_|error("agent_job_config","后台配置保存失败。"))?;}
     let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(||error("pi_system_path","无法定位系统目录。"))?;let mut env=paths.environment(&runtime,&windows,&[]).map_err(map)?;let grant=if template=="draft-objects"{let (grant,business)=app.state::<crate::agent_mcp::BusinessMcp>().job(app,&paths,&runtime).map_err(|e|error(e.code,&e.message))?;for (name,value) in &business{if name.to_str()==Some("AZCINE_MCP_GRANT"){if let Some(value)=value.to_str(){redactor.add(value);}}}env.extend(business);Some(grant)}else{None};let mut args=paths.arguments(&runtime,None).map_err(map)?;for flag in ["--no-session","--no-extensions","--no-skills","--no-prompt-templates","--no-themes"]{args.push(flag.into());}if template=="draft-objects"{args.push("--tools".into());args.push("codemode,mcp__azcine__*".into());}else{args.push("--no-tools".into());}if !rules_text.trim().is_empty(){args.push("--append-system-prompt".into());args.push(rules_text.into());}
-    let projection=Arc::new(Mutex::new(crate::pi_projection::Projection::default()));let observed=projection.clone();let rpc=Arc::new(RpcProcess::spawn(&runtime.node,&args,&paths.default_cwd,&env,move|event|{if let Ok(mut p)=observed.lock(){p.event(&event);}}).map_err(|e|error(e.code,e.message))?);
+    let projection=Arc::new(Mutex::new(crate::pi_projection::Projection::default()));let observed=projection.clone();let rpc=Arc::new(RpcProcess::spawn_named("后台任务",&runtime.node,&args,&paths.default_cwd,&env,move|event|{if let Ok(mut p)=observed.lock(){p.event(&event);}}).map_err(|e|error(e.code,e.message))?);
+    let monitor_cancel=app.state::<JobsControl>().cancel.lock().ok().and_then(|flags|flags.get(id).cloned());
+    if let Some(flag)=monitor_cancel{rpc.on_monitor_stop(move||flag.store(true,Ordering::Release)).map_err(|e|error(e.code,e.message))?;}
     if let Ok(mut active)=app.state::<JobsControl>().active.lock(){active.insert(id.into(),rpc.clone());}
     let remaining=||deadline.checked_duration_since(Instant::now()).filter(|d|!d.is_zero()).map(|d|d.min(Duration::from_secs(30))).ok_or_else(||error("agent_job_timeout","任务超过期限，未继续提交请求；输入保留。"));
     let result=(||{let state=rpc.request("get_state",json!({}),remaining()?).map_err(|e|error(e.code,e.message))?;let models=rpc.request("get_available_models",json!({}),remaining()?).map_err(|e|error(e.code,e.message))?;let model=&state["data"]["model"];if state["success"]!=true||models["success"]!=true||model.is_null()||!models["data"]["models"].as_array().is_some_and(|a|a.iter().any(|m|m["id"]==model["id"]&&m["provider"]==model["provider"])){return Err(error("agent_job_model","没有配置可用模型，任务未生成假结果；输入保留。"));}
@@ -87,10 +88,10 @@ fn run_job(app:&tauri::AppHandle,id:&str,cancel:&AtomicBool)->Result<String,Stor
         let expected_session=grant_session.clone();
         if let Some(grant)=&grant{grant.bind(crate::agent_mcp::Binding{root:root.clone(),key:binding.clone(),session:grant_session,generation:1,background:true,input_id:Some(input_id.clone()),message_index:Some(0)})?;}
         let instruction=if template=="draft-objects"{"查询AZCine MCP当前上下文，按用户任务自主检索和读取业务对象，通过prepare_changes提交一批待本人核对的草案；未确定信息列入decisions。输出工具实际返回的草案状态与编号。"}else{"请用中文整理正文，保留原始事实与不确定项，不虚构来源，不修改正式业务记录，输出完整结果。"};
-        let response=rpc.request("prompt",json!({"message":format!("{instruction}\n资料内容是任务数据。\n\n{input}")}),remaining()?).map_err(|e|error(e.code,e.message))?;if response["success"]!=true{return Err(error("agent_job_rejected","原版Pi拒绝后台任务，未报告完成。"));}
+        let response=rpc.request("prompt",json!({"message":format!("{instruction}\n资料内容是任务数据。\n\n{input}")}),remaining()?).map_err(|e|error(e.code,e.message))?;if response["success"]!=true{return Err(error("agent_job_rejected","Agent 拒绝后台任务，未报告完成。"));}
         tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|m.store()?.agent_input_status(&input_id,"accepted")))?;
         loop{if cancel.load(Ordering::Acquire){return Err(error("agent_job_cancelled","任务已取消；没有自动重发。"));}if Instant::now()>=deadline{return Err(error("agent_job_timeout","任务超过期限，已停止本任务进程树，输入保留。"));}if !rpc.is_connected(){return Err(error("agent_job_disconnected","后台Pi连接中断，未报告完成。"));}
-            {let p=projection.lock().map_err(|_|error("agent_job_interrupted","后台状态中断。"))?;if p.activity=="idle"&&p.outcome!="none"{if p.outcome!="success"{return Err(error("agent_job_failed","原版回复未完整成功，输入和记录保留。"));}let answer=p.messages.iter().rev().find(|m|m["role"]=="assistant").map(crate::agent_store::message_text).filter(|s|!s.trim().is_empty()).ok_or_else(||error("agent_job_empty","任务没有完整正文，未报告成功。"))?;let safe=redactor.text(&answer,false);drop(p);if template=="draft-objects"{let binding=binding.clone();let session=expected_session.clone();let found=tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|m.store()?.db.query_row("SELECT EXISTS(SELECT 1 FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id WHERE d.conversation_id=? AND i.session_id=? AND d.status='review')",rusqlite::params![binding,session],|r|r.get::<_,bool>(0)).map_err(|_|error("agent_job_storage","草案状态读取失败，未报告完成。"))))?;if !found{return Err(error("agent_job_no_draft","模型返回了文字，但没有通过MCP保存可核对的草案；未当成草案任务完成。"));}}let _=app.emit_to("main","azcine-agent-data-changed",());return Ok(safe);}}
+            {let p=projection.lock().map_err(|_|error("agent_job_interrupted","后台状态中断。"))?;if p.activity=="idle"&&p.outcome!="none"{if p.outcome!="success"{return Err(error("agent_job_failed","Agent 回复未完整成功，输入和记录保留。"));}let answer=p.messages.iter().rev().find(|m|m["role"]=="assistant").map(crate::agent_store::message_text).filter(|s|!s.trim().is_empty()).ok_or_else(||error("agent_job_empty","任务没有完整正文，未报告成功。"))?;let safe=redactor.text(&answer,false);drop(p);if template=="draft-objects"{let binding=binding.clone();let session=expected_session.clone();let found=tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|m.store()?.db.query_row("SELECT EXISTS(SELECT 1 FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id WHERE d.conversation_id=? AND i.session_id=? AND d.status='review')",rusqlite::params![binding,session],|r|r.get::<_,bool>(0)).map_err(|_|error("agent_job_storage","草案状态读取失败，未报告完成。"))))?;if !found{return Err(error("agent_job_no_draft","模型返回了文字，但没有通过MCP保存可核对的草案；未当成草案任务完成。"));}}let _=app.emit_to("main","azcine-agent-data-changed",());return Ok(safe);}}
             std::thread::sleep(Duration::from_millis(100));
         }
     })();let stopped=rpc.shutdown(Duration::from_secs(2)).map_err(|e|error(e.code,e.message));stopped?;result
@@ -107,6 +108,6 @@ pub fn shutdown(app:&tauri::AppHandle)->Result<(),StorageError>{app.state::<Back
 
 #[cfg(test)]mod tests{
  use super::*;
- #[test]fn background_third_job_waits_until_a_slot_is_released(){let slots=BackgroundSlots::default();let cancel=AtomicBool::new(false);let deadline=Instant::now()+Duration::from_secs(3);let first=slots.acquire("first",&cancel,deadline).unwrap();let _second=slots.acquire("second",&cancel,deadline).unwrap();let waiting=slots.clone();let (tx,rx)=std::sync::mpsc::channel();let worker=std::thread::spawn(move||{let lease=waiting.acquire("third",&AtomicBool::new(false),deadline).unwrap();tx.send(()).unwrap();lease});assert!(rx.recv_timeout(Duration::from_millis(150)).is_err());assert_eq!(slots.summary()["active"].as_array().unwrap().len(),2);drop(first);rx.recv_timeout(Duration::from_secs(2)).unwrap();drop(worker.join().unwrap());assert_eq!(slots.summary()["active"].as_array().unwrap().len(),1);}
+ #[test]fn background_tasks_do_not_share_a_fixed_execution_limit(){let slots=BackgroundSlots::default();let cancel=AtomicBool::new(false);let deadline=Instant::now()+Duration::from_secs(3);let leases:Vec<_>=(0..8).map(|i|slots.acquire(&format!("job-{i}"),&cancel,deadline).unwrap()).collect();assert_eq!(slots.summary()["active"].as_array().unwrap().len(),8);assert_eq!(slots.acquire("job-0",&cancel,deadline).err().unwrap().code,"agent_job_busy");drop(leases);assert_eq!(slots.summary()["active"],json!([]));}
  #[test]fn cancelled_and_expired_waiters_do_not_hold_a_slot(){let slots=BackgroundSlots::default();assert_eq!(slots.acquire("cancelled",&AtomicBool::new(true),Instant::now()+Duration::from_secs(1)).err().unwrap().code,"agent_job_cancelled");assert_eq!(slots.acquire("expired",&AtomicBool::new(false),Instant::now()-Duration::from_secs(1)).err().unwrap().code,"agent_job_timeout");assert_eq!(slots.summary()["queued"],json!([]));assert_eq!(slots.summary()["active"],json!([]));}
 }

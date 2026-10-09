@@ -31,13 +31,13 @@ pub struct ResourceUpdate { pub generation:u64,pub id:String,pub hash:Option<Str
 #[derive(Serialize)]
 #[serde(rename_all="camelCase")]
 pub struct ResourceIndex { pub generation:u64,pub connected:bool,pub agent_dir:String,pub cwd:String,pub entries:Vec<Value>,pub diagnostics:Vec<String>,pub settings_hash:Option<String>,#[serde(skip)] pub settings_document:Value }
-fn error()->PiError{PiError::new("pi_resources_read","无法读取原版 Pi 资源，请检查资源配置、文件权限和运行环境；已有内容与草稿保留。")}
+fn error()->PiError{PiError::new("pi_resources_read","无法读取 Agent 资源，请检查资源配置、文件权限和运行环境；已有内容与草稿保留。")}
 fn conflict()->PiError{PiError::new("pi_resource_conflict","资源已被其他操作修改，未覆盖；请保留草稿，重新读取后核对。")}
 fn bridge(runtime:&RuntimePaths,paths:&PiPaths,cwd:&Path,command:&str,input:Value)->Result<Value,PiError>{
     let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(error)?;
     let env=paths.environment(runtime,&windows,&[])?;
     let args=vec!["--no-global-search-paths".into(),"--input-type=module".into(),"--eval".into(),include_str!("../resources/pi-resource-inspector.mjs").into()];
-    let process=RpcProcess::spawn(&runtime.node,&args,cwd,&env,|_|{})?;
+    let process=RpcProcess::spawn_named("模型与资源读取",&runtime.node,&args,cwd,&env,|_|{})?;
     let reply=process.request(command,json!({"input":input}),Duration::from_secs(15));
     let stopped=process.shutdown(Duration::from_secs(3));
     let reply=reply?;stopped?;

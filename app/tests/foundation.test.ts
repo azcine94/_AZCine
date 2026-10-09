@@ -9,7 +9,7 @@ test('Given已开放的工作台页面 When解析hash Then任务面板可达且�
   assert.equal(new Set(pages.map(page => page.id)).size, pages.length);
   assert.equal(resolveRoute('#task-panel'), 'task-panel');
   assert.equal(navigationPage('task-panel'), 'task-panel');
-  assert.deepEqual(pages.map(page=>page.id),['today','projects','news','models','ai-works','ideas','bookkeeping','servers-credentials','agent','task-panel','jobs','dev-environment','resources','settings']);
+  assert.deepEqual(pages.map(page=>page.id),['today','projects','news','models','github','ai-works','ideas','bookkeeping','servers-credentials','agent','self-evolution','task-panel','jobs','dev-environment','resources','settings']);
   for (const page of pages) {
     assert.equal(resolveRoute(`#${page.id}`), page.id);
     assert.equal(pageTitle(page.id), page.id === 'settings' ? '常用设置' : page.title);

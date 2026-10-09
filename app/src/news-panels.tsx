@@ -22,8 +22,7 @@ function NewsFeedback({ model, loadingStatus = true }: { model: NewsController; 
     {model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}
     {model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}
     
-    {loadingStatus && <LoadingStatus active={model.loading}>正在读取信源与采集记录，原列表保持可见…</LoadingStatus>}
-    {model.collecting && <p className="meta" role="status">正在采集，切页不影响本轮任务；本轮使用开始时的配置版本。<Button variant="app-text" className="text-action" onClick={() => void model.cancelCapture()}>取消采集（保留已取得输入）</Button></p>}
+    <LoadingStatus className="news-task-status" active={(loadingStatus && model.loading) || model.collecting}>{model.collecting ? <><span>正在采集，切页不影响任务，已有输入保留。</span><Button variant="app-text" className="text-action" onClick={() => void model.cancelCapture()}>取消采集</Button></> : '正在读取信源与采集记录，原列表保持可见…'}</LoadingStatus>
   </div>;
 }
 function OriginalLink({ url, model, children = '打开原文 ↗' }: { url: string; model: NewsController; children?: string }) {
@@ -63,7 +62,7 @@ export function NewsFeed({ model }: { model: NewsController }) {
   return <section className="news-page">
     <div className="news-toolbar"><div><h2 className="title">采集资料</h2><p className="subtle">按下方范围查看原始采集资料；清空待处理后原始资料仍留存，已整理报道在资讯阅读页。</p></div>
       <div className="form-actions"><UILink variant="pill" className="pill" href="#settings/news">管理信源</UILink><UILink variant="pill" className="pill" href="#settings/news/processing">筛选 / 整理 / 清空待处理</UILink>
-        <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)}>{model.collecting ? '正在采集…' : '手动采集'}</Button></div>
+        <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)} loading={!!(model.collecting)} loadingText="正在采集…">手动采集</Button></div>
     </div>
     <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
     <NewsResetControl model={model} disabled={model.collecting}/>
@@ -128,7 +127,7 @@ export function NewsSourceManager({ model, create = false }: { model: NewsContro
   }, [model.busy, model.drafts, model.errors, model.pending]);
   return <section className="news-page">
     <div className="news-toolbar"><div><UILink variant="text" className="foundation-link" href="#settings">← 返回设置</UILink><h2 className="title">信源管理</h2><p className="subtle">首批18个预置信源。保存的配置下次采集生效，暂停不删除历史。</p></div><div className="form-actions"><UILink variant="pill" className="pill" href="#settings/news/materials">查看采集资料</UILink><UILink variant="pill" className="pill" href="#settings/news/rules">领域与筛选</UILink><Button variant="app-pill" className="pill" data-create="source" onClick={() => { model.startNew(); creation.setOpen(true); }}>新增信源</Button>
-      <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)}>{model.collecting ? '正在采集…' : '采集已启用信源'}</Button></div></div>
+      <Button variant="app-pill" className="pill on" onClick={() => void model.collect()} disabled={!model.connected || model.collecting || !model.snapshot.sources.some(source => source.config.enabled)} loading={!!(model.collecting)} loadingText="正在采集…">采集已启用信源</Button></div></div>
     <NewsRangeControl collection value={model.collectionRange} onChange={model.setCollectionRange} disabled={model.collecting}/>
     {!creation.open && <NewsFeedback model={model} />}
     <div className="news-management-summary"><span className="meta">{model.snapshot.sources.length} 个来源 · {model.snapshot.sources.filter(source => source.config.enabled).length} 个已启用</span><Button variant="app-text" className="text-action" disabled={!model.connected || model.loading} onClick={() => void model.refresh()}>重新读取</Button></div>
@@ -173,7 +172,7 @@ export function NewsSourceEditor({ model, sourceId, embedded = false, onClose, o
       <label htmlFor="source-usage">参与用途</label><NativeSelect variant="app" id="source-usage" className="select" value={config.usage} onChange={event => model.changeDraft(id, { usage: event.target.value as NewsSource['config']['usage'] })}>{Object.entries(usageLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect>
       {draft.baseline !== null ? <label className="choice news-enabled"><Input variant="inline" type="checkbox" checked={config.enabled} onChange={event => model.changeDraft(id, { enabled: event.target.checked })} />启用此来源（暂停保留历史）</label> : <p className="meta">首次保存为暂停，不立即采集；仅预览不会保存资料。</p>}
       <Disclosure className="disclosure"><summary>高级：采集频率</summary><label htmlFor="source-interval">间隔分钟</label><Input variant="app" id="source-interval" className="input" type="number" min={15} max={10080} step={1} value={config.intervalMinutes || ''} onChange={event => model.changeDraft(id, { intervalMinutes: Number(event.target.value) })} /><p className="meta">自动采集开启后按此频率执行；未开启时仅手动采集。</p></Disclosure>
-      <div className="form-actions news-editor-actions"><Button variant="app-pill" className="pill on" type="submit" disabled={!model.connected || saving || !!model.pending[id] || !!conflict}>{saving ? '正在保存…' : '保存配置'}</Button><Button variant="app-pill" className="pill" type="button" disabled={!model.connected || previewing} onClick={() => void model.preview(id)}>{previewing ? '正在预览…' : '预览订阅（不入库）'}</Button>{embedded ? <Button type="button" variant="ghost" onClick={onClose}>关闭，保留草稿</Button> : <UILink variant="text" className="foundation-link" href="#settings/news">返回并保留草稿</UILink>}</div>
+      <div className="form-actions news-editor-actions"><Button variant="app-pill" className="pill on" type="submit" disabled={!model.connected || saving || !!model.pending[id] || !!conflict} loading={!!(saving)} loadingText="正在保存…">保存配置</Button><Button variant="app-pill" className="pill" type="button" disabled={!model.connected || previewing} onClick={() => void model.preview(id)} loading={!!(previewing)} loadingText="正在预览…">预览订阅（不入库）</Button>{embedded ? <Button type="button" variant="ghost" onClick={onClose}>关闭，保留草稿</Button> : <UILink variant="text" className="foundation-link" href="#settings/news">返回并保留草稿</UILink>}</div>
     </form>
     {preview && <section className="news-preview"><h2 className="title">订阅预览</h2><p className="meta">{preview.result.kind.toUpperCase()} · 取得 {preview.result.total} 条 · 显示前 {preview.result.entries.length} 条 · {formatNewsTime(preview.result.fetchedAt)} · 未入库</p>{stalePreview && <p className="warn-t s">表单已有新改动，这份预览对应上次请求，不代表当前草稿。</p>}{preview.result.warning && <p className="warn-t s">{preview.result.warning}</p>}
       {preview.result.entries.length ? <ol className="news-preview-list">{preview.result.entries.map((entry, index) => <li key={`${entry.url}:${index}`} className="news-entry"><EntryBody entry={entry} model={model} /></li>)}</ol> : <EmptyState as="div" className="foundation-empty"><h3>订阅解析正常，但目前没有条目</h3><p>预览未保存资料，不代表来源已采集或AI已处理。</p></EmptyState>}

@@ -1,6 +1,6 @@
 use super::*;
 #[test]
-fn shared_reply_limit_rejects_fourth_without_queue_or_process_request(){let pool=crate::agent_runtime::AgentRuntime::default();for key in ["one","two","three"]{let m=pool.manager(key).unwrap();let mut c=m.core.lock().unwrap();c.projection.activity="running".into();}let input=SendInput{generation:0,session_id:"fourth".into(),message:"保留输入".into(),images:vec![],behavior:None};assert_eq!(pool.send("fourth",input,Arc::new(||{})).err().unwrap().code,"pi_reply_limit");assert_eq!(pool.summary().unwrap()["active"],3);assert_eq!(pool.manager("fourth").unwrap().snapshot().unwrap()["projection"]["followUp"],json!([]));}
+fn other_active_sessions_do_not_reject_a_fourth_send(){let pool=crate::agent_runtime::AgentRuntime::default();for key in ["one","two","three"]{let m=pool.manager(key).unwrap();let mut c=m.core.lock().unwrap();c.projection.activity="running".into();}let input=SendInput{generation:0,session_id:"fourth".into(),message:"保留输入".into(),images:vec![],behavior:None};assert_eq!(pool.send("fourth",input,Arc::new(||{})).err().unwrap().code,"pi_stale_session");assert_eq!(pool.summary().unwrap()["active"],3);assert_eq!(pool.manager("fourth").unwrap().snapshot().unwrap()["projection"]["followUp"],json!([]));}
 #[test]
 fn news_configuration_does_not_race_connect_or_save(){
     let manager=PiManager::default();let _owned=manager.operation.lock().unwrap();

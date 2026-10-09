@@ -16,12 +16,15 @@ impl From<RpcError> for PiError{fn from(e:RpcError)->Self{Self::new(e.code,e.mes
 fn busy()->PiError{PiError::new("pi_busy","Pi 正在切换或处理请求，请先停止或等待当前操作；输入仍保留。")}
 fn interrupted()->PiError{PiError::new("pi_interrupted","Pi 状态意外中断，未报告成功，请重新连接并核对会话。")}
 fn cancelled()->PiError{PiError::new("pi_cancelled","本次连接或操作已停止，未继续发送。")}
-fn invalid()->PiError{PiError::new("pi_response_invalid","原版 Pi 返回的状态不完整，未当作成功；请重新连接并核对会话。")}
+fn invalid()->PiError{PiError::new("pi_response_invalid","Agent 返回的状态不完整，未当作成功；请重新连接并核对会话。")}
 fn accepted(response:Value)->Result<Value,PiError>{
     if response.get("success").and_then(Value::as_bool)==Some(true){Ok(response.get("data").cloned().unwrap_or(Value::Null))}
-    else{Err(PiError::new("pi_command_rejected","原版 Pi 拒绝了本次操作。请检查模型配置、会话和能力；输入保留，原始诊断未回传以免暴露认证。"))}
+    else{Err(PiError::new("pi_command_rejected","Agent 拒绝了本次操作。请检查模型配置、会话和能力；输入保留，原始诊断未回传以免暴露认证。"))}
 }
-fn request(rpc:&RpcProcess,command:&str,fields:Value,timeout:Duration)->Result<Value,PiError>{accepted(rpc.request(command,fields,timeout)?)}
+fn request(rpc:&RpcProcess,command:&str,fields:Value,timeout:Duration)->Result<Value,PiError>{
+    let started=std::time::Instant::now();
+    accepted(rpc.request(command,fields,timeout).map_err(|e|PiError::new(e.code,&format!("会话请求 {command}（{} ms）：{}",started.elapsed().as_millis(),e.message)))?)
+}
 #[derive(Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct ImageInput{pub data:String,pub mime_type:String}
@@ -54,7 +57,7 @@ fn on_event(core:&Weak<Mutex<Core>>,generation:u64,event:Value,notify:&Notify){
     if let Ok(mut c)=core.lock(){
         if c.generation!=generation{return;}
         let kind=event.get("type").and_then(Value::as_str).unwrap_or("");
-        if kind=="azcine_transport_error"{c.connection="error".into();c.error=Some(PiError::new("pi_disconnected","Pi 连接中断，未确认的请求不会自动重发；输入与已有消息保留。"));c.projection.event(&event);}
+        if kind=="azcine_transport_error"{c.connection="error".into();c.error=Some(if event["code"]=="pi_monitor_stopped"{PiError::new("pi_monitor_stopped","已从进程监控停止 Agent；输入与已有消息保留，可重新连接。")}else{PiError::new("pi_disconnected","Agent 连接中断，未确认的请求不会自动重发；输入与已有消息保留。")});c.projection.event(&event);}
         else if kind=="extension_ui_request"{if let Some(response)=c.extensions.event(&event){ui_cancel=c.process.clone().map(|process|(process,response));}}
         else if !c.session_changing{
             if kind=="message_end"&&event["message"]["role"]=="user"{
@@ -82,7 +85,7 @@ fn on_event(core:&Weak<Mutex<Core>>,generation:u64,event:Value,notify:&Notify){
 fn is_running(c:&Core)->bool{c.extensions.waiting()||c.projection.tools.iter().any(|t|matches!(t["status"].as_str(),Some("running")))||c.projection.activity!="idle"||c.state.get("isStreaming").and_then(Value::as_bool)==Some(true)||c.state.get("isCompacting").and_then(Value::as_bool)==Some(true)}
 fn check_idle(c:&Core)->Result<(),PiError>{if c.exiting||c.busy||c.stopping||c.sending||is_running(c){Err(busy())}else{Ok(())}}
 fn check_session(c:&Core,generation:u64,session_id:&str)->Result<(),PiError>{if c.generation!=generation||c.state.get("sessionId").and_then(Value::as_str)!=Some(session_id){Err(PiError::new("pi_stale_session","会话已经切换，原输入仍保留；本次没有发给另一个会话。"))}else{Ok(())}}
-fn connected(c:&Core)->Result<Arc<RpcProcess>,PiError>{if c.connection!="ready"{return Err(PiError::new("pi_not_ready","请先连接本应用的原版 Pi；输入仍保留。"));}c.process.clone().filter(|p|p.is_connected()).ok_or_else(interrupted)}
+fn connected(c:&Core)->Result<Arc<RpcProcess>,PiError>{if c.connection!="ready"{return Err(PiError::new("pi_not_ready","请先连接本应用的 Agent；输入仍保留。"));}c.process.clone().filter(|p|p.is_connected()).ok_or_else(interrupted)}
 fn validate_state_path(paths:&PiPaths,state:&Value)->Result<(),PiError>{
     let Some(raw)=state["sessionFile"].as_str()else{return Err(invalid());};let file=Path::new(raw);
     // Empty native sessions need not exist yet. Validate parent + normal basename.
@@ -111,7 +114,7 @@ impl PiManager{
     // News runs in its own process, but must not race configuration recovery.
     pub fn news_documents(&self,root:&Path,resources:&Path)->Result<[Value;3],PiError>{
         let _operation=self.operation.try_lock().map_err(|_|busy())?;
-        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;lease.check()?;Ok(docs)
     }
     pub fn set_exiting(&self,value:bool){if let Ok(mut c)=self.core.lock(){c.exiting=value;}}
@@ -141,16 +144,16 @@ impl PiManager{
             let cwd=paths.checked_cwd(cwd)?;
             if let Some(file)=session{let info=pi_sessions::validate_session(&paths,file)?;if paths.checked_cwd(Some(Path::new(&info.cwd)))?!=cwd{return Err(PiError::new("pi_session_cwd","原生会话的工作目录与所选目录不同，未切换；请使用会话原目录。"));}}
             let session_lease=session.map(|s|crate::pi_session_lock::SessionLease::acquire(&paths,s)).transpose()?;
-            let docs={let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;lease.check()?;docs};
+            let docs={let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;let config=ConfigStore::open(&paths.root)?;config.initialize_defaults()?;let docs=config.private_documents()?;validate_documents(&docs)?;lease.check()?;docs};
             let mut redactor=Redactor::from_documents(&docs[0],&docs[1]);
             let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(||PiError::new("pi_windows_path","无法确定 Windows 系统目录，未启动 Pi。"))?;
             let mut program_files=Vec::new();if let Some(path)=std::env::var_os("ProgramFiles"){program_files.push(PathBuf::from(path));if let Some(path)=std::env::var_os("ProgramFiles(x86)"){program_files.push(PathBuf::from(path));}}
             let mut env=paths.environment(&runtime,&windows,&program_files)?;let mut args=paths.arguments(&runtime,session)?;
             let business=self.business_environment.lock().map_err(|_|interrupted())?.clone();if let Some(environment)=business{let business=environment(generation,&paths,&runtime)?;for (name,value) in &business{if name.to_str()==Some("AZCINE_MCP_GRANT"){if let Some(value)=value.to_str(){redactor.add(value);}}}env.extend(business);}
-            let (rules_text,rules)=crate::pi_rules::read(&paths)?;if !rules_text.trim().is_empty(){args.push("--append-system-prompt".into());args.push(rules_text.into());}
+            let (rules_text,rules)=crate::pi_rules::context(&paths)?;if !rules_text.trim().is_empty(){args.push("--append-system-prompt".into());args.push(rules_text.into());}
             {let c=locked(&self.core)?;if c.generation!=generation||c.stopping{return Err(cancelled());}}
             let core=Arc::downgrade(&self.core);let changed=notify.clone();
-            let process=Arc::new(RpcProcess::spawn(&runtime.node,&args,&cwd,&env,move|event|on_event(&core,generation,event,&changed))?);
+            let process=Arc::new(RpcProcess::spawn_named("Agent 会话",&runtime.node,&args,&cwd,&env,move|event|on_event(&core,generation,event,&changed))?);
             {let mut c=locked(&self.core)?;if c.generation!=generation||c.stopping{drop(c);process.shutdown(Duration::from_secs(1))?;return Err(cancelled());}c.process=Some(process.clone());c.session_lease=session_lease;c.redactor=redactor;c.paths=Some(paths.clone());c.cwd=Some(cwd);c.runtime=Some(runtime);c.rules=rules;}
             let read=readback(&process,&paths)?;
             {let mut c=locked(&self.core)?;if c.session_lease.is_none(){c.session_lease=Some(crate::pi_session_lock::SessionLease::acquire(&paths,Path::new(read.state["sessionFile"].as_str().ok_or_else(invalid)?))?);}}
@@ -199,7 +202,7 @@ impl PiManager{
         let pending:RpcRequest={let mut c=locked(&self.core)?;if queued&&c.queue_paused{return Err(PiError::new("agent_queue_paused","队列已暂停，此消息未发送。"));}check_session(&c,input.generation,&input.session_id)?;if c.exiting||c.busy||c.stopping||c.sending{return Err(busy());}let rpc=connected(&c)?;
             let current=&c.state["model"];if current.is_null()||!c.models.iter().any(|m|m["id"]==current["id"]&&m["provider"]==current["provider"]){return Err(PiError::new("pi_model_required","请先配置并选择模型；消息和附件仍保留。"));}
             if !input.images.is_empty()&&!current["input"].as_array().is_some_and(|a|a.iter().any(|v|v=="image")){return Err(PiError::new("pi_images_unsupported","当前模型没有声明图片能力，请换模型或移除图片后发送；附件和文字仍保留。"));}
-            if let Some(command)=input.message.trim().strip_prefix('/').and_then(|s|s.split_whitespace().next()){if matches!(command,"login"|"logout"|"settings"|"reload"|"model"|"resume"|"new"|"tree"|"fork"|"clone"|"share"|"export"|"quit")&&!c.commands.iter().any(|v|v==command){return Err(PiError::new("pi_tui_command","这是原版终端专用命令，不会在 RPC 中假装执行；模型和会话请用本页入口，完整终端交接在资源阶段接入。"));}}
+            if let Some(command)=input.message.trim().strip_prefix('/').and_then(|s|s.split_whitespace().next()){if matches!(command,"login"|"logout"|"settings"|"reload"|"model"|"resume"|"new"|"tree"|"fork"|"clone"|"share"|"export"|"quit")&&!c.commands.iter().any(|v|v==command){return Err(PiError::new("pi_tui_command","这是 Agent 终端专用命令，不会在 RPC 中假装执行；模型和会话请用本页入口，完整终端交接在资源阶段接入。"));}}
             if is_running(&c)&&input.behavior.is_none(){return Err(PiError::new("pi_streaming_behavior","Pi 正在运行，请选择“插入当前任务”或“排在之后”。"));}
             if input_id.is_some()&&c.business_inputs.len()>=100{return Err(PiError::new("agent_input_limit","待处理的业务输入超过100条，请停止队列后重试；输入保留。"));}
             let priority=if !is_running(&c){0}else if input.behavior.as_deref()==Some("steer"){1}else{2};
@@ -223,7 +226,7 @@ impl PiManager{
             if !c.projection.restore(&read.messages){return Err(invalid());}c.projection.tools=tools;c.state=read.state;c.models=read.models;c.commands=read.commands;c.projection.interrupted("当前运行已停止。取消的排队文字可取回输入，不会自动重发。");Ok(())
         })();
         if result.is_err(){let _=rpc.shutdown(Duration::from_secs(1));}
-        {let mut c=locked(&self.core)?;if c.generation==generation{c.stopping=false;c.sending=false;if let Err(e)=&result{c.error=Some(e.clone());c.connection="error".into();c.projection.interrupted("停止时连接中断，已清理本应用 Pi 进程树；请核对原生会话。");}update_state_flags(&mut c);c.seq+=1;}}notify();result?;self.snapshot()
+        {let mut c=locked(&self.core)?;if c.generation==generation{c.stopping=false;c.sending=false;if let Err(e)=&result{c.error=Some(e.clone());c.connection="error".into();c.projection.interrupted("停止时连接中断，已清理本应用 Agent 进程树；请核对原生会话。");}update_state_flags(&mut c);c.seq+=1;}}notify();result?;self.snapshot()
     }
     pub fn session_action(&self,generation:u64,session_id:&str,command:&str,fields:Value,notify:Notify)->Result<Value,PiError>{
         let _operation=self.operation()?;
@@ -271,22 +274,19 @@ impl PiManager{
         Ok(json!({"saved":true,"message":"已保存。资源配置在下次连接时生效；工作规则是否加载以右侧说明为准。"}))
     }
     pub fn model_catalog(&self,root:&Path,resources:&Path)->Result<Value,PiError>{
-        let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
-        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
-        let documents=ConfigStore::open(&paths.root)?.private_documents()?;
-        let models=crate::pi_resources::models(&runtime,&paths)?;lease.check()?;Ok(Redactor::from_documents(&documents[0],&documents[1]).value(models,false))
+        crate::pi_model_catalog::read(root,resources)
     }
     pub fn providers(&self, root:&Path,resources:&Path)->Result<Value,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let _lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
-        Ok(ConfigStore::open(&paths.root)?.providers()?)
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
+        let providers=ConfigStore::open(&paths.root)?.providers()?;lease.check()?;Ok(providers)
     }
     pub fn model_list_key(&self,root:&Path,resources:&Path,provider:&str,base_url:&str)->Result<Option<String>,PiError>{
         let _operation=self.operation.lock().map_err(|_|interrupted())?;
         let paths=PiPaths::prepare(root)?;
-        let runtime=pi_runtime::resolve(resources)?;let _lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
-        Ok(ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?)
+        let runtime=pi_runtime::resolve(resources)?;let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
+        let key=ConfigStore::open(&paths.root)?.model_list_key(provider,base_url)?;lease.check()?;Ok(key)
     }
     pub fn save_model(&self,root:&Path,resources:&Path,input:ModelSettingsInput,notify:Notify)->Result<Value,PiError>{
         self.save_configuration(root,resources,notify,move|config|serde_json::to_value(config.save(&input)?).map_err(|_|interrupted()))
@@ -302,7 +302,7 @@ impl PiManager{
         let _operation=self.operation()?;
         if locked(&self.core)?.exiting{return Err(cancelled());}
         let paths=PiPaths::prepare(root)?;let runtime=pi_runtime::resolve(resources)?;
-        let lease=crate::pi_config_lock::ConfigLease::acquire(&paths,&runtime)?;
+        let lease=crate::pi_config_lock::ConfigLease::acquire_wait(&paths,&runtime)?;
         let config=ConfigStore::open(&paths.root)?;let view=save(&config)?;lease.check()?;
         let connected=locked(&self.core)?.connection=="ready";notify();
         Ok(json!({"saved":true,"view":view,"connected":connected,"message":"配置已保存，正在运行的会话继续使用原配置；各会话下次连接时加载新配置。"}))
@@ -321,7 +321,7 @@ impl PiManager{
     pub fn respond_ui(&self,input:crate::pi_extension_ui::UiResponse,notify:Notify)->Result<Value,PiError>{
         let mut c=locked(&self.core)?;check_session(&c,input.generation,&input.session_id)?;let rpc=connected(&c)?;
         let response=c.extensions.response(&input)?;rpc.send_notification(&response)?;c.extensions.answered(&input.id);c.seq+=1;drop(c);notify();
-        Ok(json!({"sent":true,"id":input.id,"message":"回答已发送给原版扩展；后续结果以实际事件为准。"}))
+        Ok(json!({"sent":true,"id":input.id,"message":"回答已发送给 Agent 扩展；后续结果以实际事件为准。"}))
     }
     pub fn stats(&self,generation:u64,session_id:&str)->Result<Value,PiError>{let (rpc,redactor)={let c=locked(&self.core)?;check_session(&c,generation,session_id)?;(connected(&c)?,c.redactor.clone())};let raw=request(&rpc,"get_session_stats",json!({}),REQUEST_TIMEOUT)?;let mut out=json!({});for name in ["userMessages","assistantMessages","toolCalls","toolResults","totalMessages","tokens","cost","contextUsage"]{if let Some(v)=raw.get(name){out[name]=v.clone();}}{let c=locked(&self.core)?;check_session(&c,generation,session_id)?;}Ok(redactor.value(out,false))}
 }

@@ -69,7 +69,7 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const switchSession=(session:PiSession)=>{setActive({...session,name:renamed[session.id]??session.name});setScenario('complete');setNotice(null);setSessionName('');};
   const queue=useAgentQueue(null);
   const controller:PiController={
-    queue,continueQueue:async()=>{},modelCatalog:MODELS,modelCatalogError:'',
+    queue,continueQueue:async()=>{},modelCatalog:MODELS,modelCatalogError:'',modelCatalogLoading:false,refreshModels:async()=>{},
     viewing:false,selectSession:async session=>{switchSession(session);},
     sessionPins,setSessionPinned:(sessionId,pinned)=>setSessionPins(before=>pinned?before.includes(sessionId)?before:[...before,sessionId]:before.filter(id=>id!==sessionId)),
     objects,prepareRedo:async()=>{},uiAnswers:{},setUiAnswer:()=>{},conversationKey:'ui-demo',source:{module:'agent',page:'agent',objectId:null},openSource:async()=>{},newConversation:async()=>{},selectConversation:async()=>{},runtimeSummary:null,refreshRuntime:async()=>{},saveLimit:async()=>{},files:[],attachFile:async()=>{},removeFile:()=>{},respondUi:async()=>{},stats:null,refreshStats:async()=>{},takeEditor:()=>{},

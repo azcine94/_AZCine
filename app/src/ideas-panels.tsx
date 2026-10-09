@@ -48,7 +48,7 @@ function IdeaForm({ model, draft, draftKey, projects, projectsLoading, projectsE
     </div>
     <footer className="idea-form-footer"><span className="meta">{waiting ? '正在保存，后续输入会保留' : `${[...draft.body].length.toLocaleString()} / 20,000 字 · Ctrl + Enter 保存`}</span><div>
       {onClose && <Button variant="ghost" type="button" onClick={onClose}>关闭，保留草稿</Button>}
-      <Button variant="app-pill" className="pill on" disabled={!!model.busy || model.loading}>{waiting ? '正在保存…' : model.pending[draftKey] ? '重试原保存' : isNew ? '收集灵感' : '保存修改'}<Mark kind="arrow"/></Button>
+      <Button variant="app-pill" className="pill on" disabled={!!model.busy || model.loading} loading={waiting} loadingText="正在保存…">{ model.pending[draftKey] ? '重试原保存' : isNew ? '收集灵感' : '保存修改'}<Mark kind="arrow"/></Button>
     </div></footer>
     {model.pending[draftKey] && <div className="idea-pending"><p>保存结果尚未确认，原请求和输入已保留。</p><Button variant="app-idea" type="button" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.reconcile(draftKey)}>核对保存结果</Button></div>}
   </form>;
