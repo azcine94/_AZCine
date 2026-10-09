@@ -29,7 +29,7 @@ export function AgentDraftsPanel({model,pi,conversationOnly=false,draft}:{model:
     {(model.error||active.validation.error)&&<Feedback tone="error" role="alert">{model.error||active.validation.error}</Feedback>}
     {confirming?<div className="agent-draft-confirm" role="group" aria-label="确认应用草案">
       <p>已核对这 {active.validation.items.length} 项变更？任何原记录已变化都会整批拒绝。{decisions.length>0?'待确认事项保留，不在本次应用中。':''}</p>
-      <div className="agent-draft-actions"><Button disabled={!!model.busy} onClick={async()=>{const session=review.session.current;if(await model.apply(active)&&review.session.current===session){setConfirm(null);review.finish(session);}}}>{model.busy===active.id?'正在应用…':'本人已核对，应用变更'}</Button><Button variant="outline" disabled={!!model.busy} onClick={()=>setConfirm(null)}>继续核对</Button></div>
+      <div className="agent-draft-actions"><Button disabled={!!model.busy} onClick={async()=>{const session=review.session.current;if(await model.apply(active)&&review.session.current===session){setConfirm(null);review.finish(session);}}} loading={!!(model.busy===active.id)} loadingText="正在应用…">本人已核对，应用变更</Button><Button variant="outline" disabled={!!model.busy} onClick={()=>setConfirm(null)}>继续核对</Button></div>
     </div>:<div className="agent-draft-footer-content">
       <p className="meta">{active.status==='applied'?'已记录正式保存回执':active.status==='discarded'?'此草案已作废':`${active.validation.items.length} 项变更${decisions.length?` · ${decisions.length} 项待确认`:' · 确认后才正式保存'}`}</p>
       <div className="agent-draft-actions">

@@ -1,6 +1,7 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "pi_processes", "pi_stop_process",
             "github_projects_snapshot", "github_projects_refresh", "github_project_avatar", "github_project_open",
             "evolution_snapshot", "evolution_mutate", "evolution_source", "evolution_open_source", "evolution_extract", "evolution_cancel", "goodcase_fetch", "goodcase_favorites", "goodcase_favorite_save",
             "goodcase_snapshot_index", "goodcase_snapshot_read", "goodcase_snapshot_save",

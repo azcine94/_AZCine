@@ -1,5 +1,5 @@
 .ui-operation-toast-region { position:fixed; top:var(--s-4); right:calc(132px + var(--s-4)); z-index:120; max-width:min(480px,calc(100vw - 200px)); pointer-events:none; }
-.ui-operation-toast { display:flex; align-items:center; gap:var(--s-2); min-height:40px; max-height:40px; padding:var(--s-1) var(--s-2); border:1px solid var(--border); border-radius:var(--r-ctl); background:var(--popover); color:var(--popover-foreground); box-shadow:var(--shadow-pop); font:400 var(--fs-xs)/var(--lh-xs) var(--font); pointer-events:auto; }
+.ui-operation-toast { display:flex; align-items:center; gap:var(--s-2); min-height:40px; max-height:40px; padding:var(--s-1) var(--s-2); border:1px solid var(--border); border-radius:var(--r-ctl); background:var(--popover); color:var(--popover-foreground); box-shadow:none; font:400 var(--fs-xs)/var(--lh-xs) var(--font); pointer-events:auto; }
 .ui-operation-toast>svg { flex:none; width:16px; height:16px; color:var(--muted-foreground); }
 .ui-operation-toast[data-tone=error] { color:var(--bad); }
 .ui-operation-toast-text { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

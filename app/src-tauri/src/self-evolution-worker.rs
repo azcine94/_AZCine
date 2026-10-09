@@ -6,7 +6,7 @@ use std::{path::{Path,PathBuf},sync::{Arc,Mutex,atomic::{AtomicBool,Ordering}},t
 pub struct Control{pub busy:AtomicBool,pub cancel:Arc<AtomicBool>,pub process:Mutex<Option<std::sync::Weak<RpcProcess>>>}
 pub fn request(rpc:&RpcProcess,command:&str,args:Value)->Result<Value>{
     let reply=rpc.request(command,args,Duration::from_secs(30)).map_err(|e|err(e.message))?;
-    if reply["success"]!=true{return Err(err("原版 Pi 拒绝了请求，请检查模型和会话状态。"));}
+    if reply["success"]!=true{return Err(err("Agent 拒绝了请求，请检查模型和会话状态。"));}
     Ok(reply["data"].clone())
 }
 pub struct Worker{rpc:Arc<RpcProcess>,settled:Arc<AtomicBool>,cancel:Arc<AtomicBool>,redactor:crate::pi_redactor::Redactor,_config:tempfile::TempDir}
@@ -27,7 +27,9 @@ impl Worker{
         let mut args=paths.arguments(runtime,None).map_err(|e|err(e.message))?;
         for arg in ["--no-session","--no-tools","--no-extensions","--no-skills","--no-prompt-templates","--no-themes","--append-system-prompt","\n"]{args.push(arg.into());}
         let settled=Arc::new(AtomicBool::new(false));let flag=settled.clone();
-        let rpc=Arc::new(RpcProcess::spawn(&runtime.node,&args,&paths.default_cwd,&env,move|event|{if event["type"]=="agent_settled"{flag.store(true,Ordering::Release);}}).map_err(|e|err(e.message))?);
+        let rpc=Arc::new(RpcProcess::spawn_named("自进化提取",&runtime.node,&args,&paths.default_cwd,&env,move|event|{if event["type"]=="agent_settled"{flag.store(true,Ordering::Release);}}).map_err(|e|err(e.message))?);
+        let monitor_cancel=control.cancel.clone();
+        rpc.on_monitor_stop(move||monitor_cancel.store(true,Ordering::Release)).map_err(|e|err(e.message))?;
         *control.process.lock().map_err(|_|err("提取进程状态中断。"))?=Some(Arc::downgrade(&rpc));
         let worker=Self{rpc,settled,cancel:control.cancel.clone(),redactor:crate::pi_redactor::Redactor::from_documents(&docs[0],&docs[1]),_config:config};
         if let Some(model)=model{request(&worker.rpc,"set_model",json!({"provider":model.provider,"modelId":model.id}))?;}

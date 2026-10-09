@@ -10,6 +10,7 @@
 @import './delivery-calendar.css' layer(components);
 @import './agent-queue.css' layer(components);
 @import './self-evolution.css' layer(components);
+@import './process-monitor.css' layer(components);
 @import './theme-transition.css' layer(components);
 @import './workspace.css' layer(components);
 @import './projects.css' layer(components);

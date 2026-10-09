@@ -157,7 +157,7 @@ impl Projection {
             Some("agent_start")=>{if self.activity=="idle"{self.run_start=self.messages.len();self.last_assistant=None;self.outcome="none".into();}self.activity="running".into();},
             Some("message_start")=>{if key(&event["message"],"role")==Some("assistant"){self.partial=Some(message(&event["message"]));}},
             Some("session_info_changed")=>{}, 
-            Some("message_update")=>{if !self.delta(&event["assistantMessageEvent"]){self.notice=Some("收到未识别的消息片段，等待原版完整消息核对。".into());}},
+            Some("message_update")=>{if !self.delta(&event["assistantMessageEvent"]){self.notice=Some("收到未识别的消息片段，等待 Agent 完整消息核对。".into());}},
             Some("message_end")=>{
                 let bytes=value_bytes(&event["message"]);
                 if !event["message"].is_object() || self.messages.len()>=MAX_MESSAGES||self.history_bytes.saturating_add(bytes)>MAX_HISTORY_BYTES||event["message"]["content"].as_array().is_some_and(|b|b.len()>MAX_BLOCKS){return self.limit();}

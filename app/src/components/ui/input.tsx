@@ -1,7 +1,9 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { FileUpload } from './file-upload.tsx';
 
-function Input({ variant = 'default', className, type, ...props }: React.ComponentProps<"input"> & { variant?: 'default' | 'app' | 'inline' }) {
+function Input({ variant = 'default', className, type, fileName, ...props }: React.ComponentProps<"input"> & { variant?: 'default' | 'app' | 'inline'; fileName?:string }) {
+  if(type==='file'&&!props.hidden)return <FileUpload {...props} className={className} fileName={fileName}/>;
   return (
     <input
       type={type}

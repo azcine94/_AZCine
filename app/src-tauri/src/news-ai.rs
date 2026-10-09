@@ -22,7 +22,7 @@ pub(crate) fn transient_failure(error:&StorageError)->bool {
 }
 fn request(rpc:&RpcProcess,command:&str,fields:Value)->Result<Value,StorageError>{
     let value=rpc.request(command,fields,Duration::from_secs(30)).map_err(|e|error(e.code,e.message))?;
-    if value["success"]!=true{return Err(error("news_ai_rejected","原版Pi拒绝资讯请求，未记录成功；请检查本应用模型配置。"));}
+    if value["success"]!=true{return Err(error("news_ai_rejected","Agent 拒绝资讯请求，未记录成功；请检查本应用模型配置。"));}
     Ok(value.get("data").cloned().unwrap_or(Value::Null))
 }
 impl AiWorker {
@@ -56,20 +56,22 @@ impl AiWorker {
         std::fs::create_dir_all(&cwd).map_err(|_|error("news_ai_workspace","无法创建本应用资讯任务目录。"))?;
         let settled=Arc::new(AtomicBool::new(false));let flag=settled.clone();let output=Arc::new(Mutex::new(String::new()));let streamed=output.clone();let public=observer.clone();let mask=Redactor::from_documents(&docs[0],&docs[1]);
         let stream_emit=Mutex::new(Instant::now()-Duration::from_secs(1));
-        let rpc=Arc::new(RpcProcess::spawn(&runtime.node,&args,&cwd,&env,move|event|{
+        let rpc=Arc::new(RpcProcess::spawn_named("资讯整理",&runtime.node,&args,&cwd,&env,move|event|{
             if event["type"]=="agent_settled"{flag.store(true,Ordering::Release);}
             if event["type"]=="message_update"&&event["assistantMessageEvent"]["type"]=="thinking_start"{public(crate::news_processing::ProgressEvent::Phase("thinking"));}
             if event["type"]=="message_update"&&event["assistantMessageEvent"]["type"]=="text_delta"{
                 if let Some(delta)=event["assistantMessageEvent"]["delta"].as_str(){if let Ok(mut text)=streamed.lock(){if text.len()+delta.len()<=2*1024*1024{text.push_str(delta);}let emit=stream_emit.lock().map(|mut at|{if at.elapsed()<Duration::from_millis(250){false}else{*at=Instant::now();true}}).unwrap_or(false);if emit{let count=text.chars().count();let safe=mask.text(&text,true);let preview:String=safe.chars().take(20000).collect();public(crate::news_processing::ProgressEvent::Text(preview,count));}}}
             }
         }).map_err(|e|error(e.code,e.message))?);
+        let monitor_cancel=cancelled.clone();
+        rpc.on_monitor_stop(move||monitor_cancel.store(true,Ordering::Release)).map_err(|e|error(e.code,e.message))?;
         {let control=app.state::<AiControl>();let mut active=control.active.lock().map_err(|_|invalid_reply())?;active.retain(|p|p.strong_count()>0);active.push(Arc::downgrade(&rpc));}
         observer(crate::news_processing::ProgressEvent::Process(rpc.id().map_err(|e|error(e.code,e.message))?,rpc.clone()));
         if cancelled.load(Ordering::Acquire){let _=rpc.shutdown(Duration::ZERO);return Err(error("news_cancelled","资讯任务已取消，未发送资料给模型。"));}
         observer(crate::news_processing::ProgressEvent::Phase("checkingModel"));
         let models=Self::available(&rpc)?;let state=request(&rpc,"get_state",json!({}))?;
         let choice=preferred.cloned().or_else(||state.get("model").and_then(|m|Some(ModelChoice{provider:m["provider"].as_str()?.into(),id:m["id"].as_str()?.into()}))).or_else(||models.first().cloned());
-        let Some(model)=choice.filter(|m|models.contains(m)) else {let _=rpc.shutdown(Duration::from_secs(1));return Err(error("news_model_unavailable","本应用原版Pi没有可用的资讯模型。请在设置中配置模型；材料、旧事件与旧刊保留，没有使用假回复。"));};
+        let Some(model)=choice.filter(|m|models.contains(m)) else {let _=rpc.shutdown(Duration::from_secs(1));return Err(error("news_model_unavailable","本应用 Agent 没有可用的资讯模型。请在设置中配置模型；材料、旧事件与旧刊保留，没有使用假回复。"));};
         request(&rpc,"set_model",json!({"provider":model.provider,"modelId":model.id}))?;
         observer(crate::news_processing::ProgressEvent::Model(model.clone()));
         Ok(Self{_slot:slot,rpc,settled,cancelled,redactor,model,observer,output,usage:Mutex::new(Value::Null)})
@@ -86,12 +88,12 @@ impl AiWorker {
         if let Ok(mut text)=self.output.lock(){text.clear();}
         (self.observer)(crate::news_processing::ProgressEvent::Phase("sending"));
         let session=request(&self.rpc,"new_session",json!({}))?;
-        if session["cancelled"]!=false{return Err(error("news_cancelled","原版Pi未确认新资讯会话，没有发送。"));}
+        if session["cancelled"]!=false{return Err(error("news_cancelled","Agent 未确认新资讯会话，没有发送。"));}
         request(&self.rpc,"set_model",json!({"provider":self.model.provider,"modelId":self.model.id}))?;
         // Native set_model applies the saved per-model thinking level (or global
         // default) and clamps it to this model's declared supported levels.
         let state=request(&self.rpc,"get_state",json!({}))?;
-        if state["model"]["provider"]!=self.model.provider||state["model"]["id"]!=self.model.id{return Err(error("news_model_unavailable","原版Pi未使用选定资讯模型，没有发送。"));}
+        if state["model"]["provider"]!=self.model.provider||state["model"]["id"]!=self.model.id{return Err(error("news_model_unavailable","Agent 未使用选定资讯模型，没有发送。"));}
         self.settled.store(false,Ordering::Release);
         let accepted=request(&self.rpc,"prompt",json!({"message":message}))?;
         if accepted["disposition"]!="started"{return Err(error("news_ai_not_started","资讯请求未开始，未把排队或接受回执当作完成。"));}

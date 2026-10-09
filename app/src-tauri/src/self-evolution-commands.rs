@@ -39,7 +39,7 @@ pub async fn evolution_mutate(app:tauri::AppHandle,window:tauri::WebviewWindow,i
                 else{
                     if c.status!="pending"{return Err(err("候选已处理，未修改。"));}
                     match action{
-                        "edit"=>{let text=input.content.ok_or_else(||err("缺少候选内容。"))?;if text.trim().is_empty()||text.len()>12000{return Err(err("候选不能为空或超过 12 KiB。"));}c.after=text;},
+                        "edit"=>{let text=input.content.ok_or_else(||err("缺少候选内容。"))?;if text.trim().is_empty()||text.len()>12000{return Err(err("候选不能为空或超过 12 KiB。"));}let mut edited=c.clone();edited.after=text;if edited.target=="AGENTS.md"{let current=text_file(&target(&paths,&edited.target)?)?;replace(current.as_deref().unwrap_or(""),&edited)?;}*c=edited;},
                         "dismiss"=>c.status="dismissed".into(),
                         "rebase"=>{let text=text_file(&target(&paths,&c.target)?)?;replace(text.as_deref().unwrap_or(""),c)?;c.base_hash=text.as_ref().map(|s|hash(s.as_bytes()));},
                         _=>{}

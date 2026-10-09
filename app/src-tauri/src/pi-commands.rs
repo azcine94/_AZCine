@@ -5,6 +5,20 @@ use std::{path::PathBuf,sync::{Arc,atomic::{AtomicU8,Ordering}}};
 use tauri::{Manager as _,Emitter as _};
 #[derive(Default)]
 pub struct PiExit(pub AtomicU8);
+#[tauri::command]
+pub async fn pi_processes(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Vec<crate::pi_rpc::monitor::ProcessInfo>,PiError>{
+    allowed(&app,&window)?;
+    tauri::async_runtime::spawn_blocking(crate::pi_rpc::monitor::snapshot).await
+        .map_err(|_|PiError::new("pi_monitor_failed","进程状态读取中断。"))?
+        .map_err(|e|PiError::new(e.code,e.message))
+}
+#[tauri::command]
+pub async fn pi_stop_process(app:tauri::AppHandle,window:tauri::WebviewWindow,id:String)->Result<(),PiError>{
+    allowed(&app,&window)?;
+    tauri::async_runtime::spawn_blocking(move||crate::pi_rpc::monitor::stop(&id)).await
+        .map_err(|_|PiError::new("pi_monitor_failed","停止进程未确认，请刷新查看。"))?
+        .map_err(|e|PiError::new(e.code,e.message))
+}
 fn allowed(app:&tauri::AppHandle,window:&tauri::WebviewWindow)->Result<(),PiError>{
     crate::main_window(window).map_err(|e|PiError::new(e.code,&e.message))?;
     if app.state::<PiExit>().0.load(Ordering::Acquire)!=0{return Err(PiError::new("pi_app_exiting","应用正在退出，未接受新操作；输入保留。"));}Ok(())

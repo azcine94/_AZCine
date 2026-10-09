@@ -54,10 +54,15 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  children,
+  loading,
+  loadingText = '处理中…',
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    loading?: boolean
+    loadingText?: React.ReactNode
   }) {
   const Comp = asChild ? Slot.Root : "button"
 
@@ -68,7 +73,11 @@ function Button({
       data-size={size}
       className={cn(buttonVariants({ variant, size: variant?.startsWith('app-') ? 'app' : size, className }))}
       {...props}
-    />
+      aria-busy={loading || props['aria-busy']}
+    >{loading !== undefined && !asChild ? <span className="ui-button-label-stack" data-loading={loading}>
+      <span aria-hidden={loading || undefined}>{children}</span>
+      <span aria-hidden={!loading || undefined}>{loadingText}</span>
+    </span> : children}</Comp>
   )
 }
 

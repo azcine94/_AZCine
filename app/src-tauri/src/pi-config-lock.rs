@@ -11,9 +11,9 @@ fn lost()->PiError{PiError::new("pi_config_lock_lost","配置锁已中断，未�
 fn response(value:&Value)->Result<(),PiError>{
     if value["success"]==true{return Ok(());}
     Err(match value["errorCode"].as_str(){
-        Some("busy")=>PiError::new("pi_config_busy","原版 Pi 正在更新配置或认证；输入保留，请稍后重试。异常退出留下的临时锁会在过期后重试获取，不要手动删除使用中的锁。"),
+        Some("busy")=>PiError::new("pi_config_busy","Agent 正在更新配置或认证；输入保留，请稍后重试。异常退出留下的临时锁会在过期后重试获取，不要手动删除使用中的锁。"),
         Some("lost")=>lost(),
-        Some("permission")=>PiError::new("pi_config_permission","无法访问 Pi 配置锁，请检查数据目录的读写权限；已有配置和输入保留。"),
+        Some("permission")=>PiError::new("pi_config_permission","无法访问 Agent 配置锁，请检查数据目录的读写权限；已有配置和输入保留。"),
         _=>PiError::new("pi_config_lock_io","Pi 配置锁的文件系统操作失败，请检查目录是否可用及同步状态后重试；已有配置和输入保留。"),
     })
 }
@@ -68,7 +68,7 @@ impl ConfigLease {
         let windows=std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(||PiError::new("pi_system_path","无法定位系统目录。"))?;
         let env=paths.environment(runtime,&windows,&[])?;
         let args=vec!["--no-global-search-paths".into(),"--input-type=module".into(),"--eval".into(),include_str!("../resources/pi-config-lock.mjs").into()];
-        let process=RpcProcess::spawn(&runtime.node,&args,&paths.default_cwd,&env,|_|{})?;
+        let process=RpcProcess::spawn_named("配置与认证锁",&runtime.node,&args,&paths.default_cwd,&env,|_|{})?;
         let value=process.request("acquire",json!({"package":runtime.package,"agent":paths.agent,"catalog":catalog}),Duration::from_secs(5))?;
         response(&value)?;
         let mut lease=Self{process,directories:Vec::new(),_permit:None};

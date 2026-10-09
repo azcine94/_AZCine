@@ -18,6 +18,7 @@ export const settingsGroups = [
     { route: 'settings/data', title: '数据目录', icon: 'folder' },
   ] },
   { title: '高级与诊断', items: [
+    { route: 'settings/processes', title: '进程监控', icon: 'diagnostics' },
     { route: 'settings/about', title: '关于与更新', icon: 'clock' },
     { route: 'settings/diagnostics', title: '桌面连接检查', icon: 'diagnostics' },
   ] },

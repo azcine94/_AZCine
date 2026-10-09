@@ -21,7 +21,7 @@ export function AppUpdatePanel({preview}:{preview?:AppUpdateController}) {
       {status.nextVersion&&<div className="app-update-release"><h3>新版本 v{status.nextVersion}</h3><p className="app-update-notes">{status.notes||'此版本未提供更新说明。'}</p></div>}
       {status.stage==='downloading'&&<div className="app-update-download"><Progress value={percent} aria-label="更新下载进度"/><p className="meta">已下载 {(status.downloaded/1048576).toFixed(1)} MB{status.total?` / ${(status.total/1048576).toFixed(1)} MB · ${percent}%`:''}</p></div>}
       <div className="form-actions">
-        <Button variant="outline" disabled={busy} onClick={()=>void model.check()}>{status.stage==='checking'?'正在检查…':'检查更新'}</Button>
+        <Button variant="outline" disabled={busy} onClick={()=>void model.check()} loading={!!(status.stage==='checking')} loadingText="正在检查…">检查更新</Button>
         {status.stage==='available'&&<Button onClick={()=>void model.download()}>下载更新</Button>}
         {status.stage==='ready'&&<Button onClick={()=>setConfirm(true)}>安装并重启</Button>}
       </div>

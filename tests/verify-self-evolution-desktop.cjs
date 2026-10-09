@@ -34,7 +34,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  for(let end=Date.now()+240000;Date.now()<end;){snapshot=await ipc('evolution_snapshot');if(!snapshot.busy)break;await sleep(300);}
  assert.equal(snapshot.busy,false);assert.equal(snapshot.state.runs.at(-1).status,'completed',snapshot.state.runs.at(-1).error);
  const candidate=snapshot.state.candidates.find(c=>c.after.includes('主人')&&c.target==='AGENTS.md');assert.ok(candidate,'Real extraction candidate');
- assert.equal(fs.existsSync(path.join(data,'pi/agent/AGENTS.md')),false);
+ assert.equal(fs.readFileSync(path.join(data,'pi/agent/AGENTS.md'),'utf8'),fs.readFileSync(path.resolve(__dirname,'../app/src-tauri/resources/AGENTS.md'),'utf8'));
  report.checks.push('Real native dialogue produces sourced candidate without writing before approval');
  const sourceView=await ipc('evolution_source',{id:candidate.id});assert.ok(JSON.stringify(sourceView.messages).includes('以后跟我聊天叫我主人'));
  await page.getByRole('button',{name:'刷新',exact:true}).click();

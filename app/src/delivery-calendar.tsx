@@ -82,7 +82,7 @@ export function DeliveryCalendar({model:m,projects,loading=false,error}:{model:D
       <ActionGroup className="calendar-form-actions">
         {!!draft?.revision&&<Button variant="ghost" className="text-destructive mr-auto" disabled={m.busy} onClick={()=>void m.save({...draft,deleted:true},true)}>移除安排</Button>}
         <Button variant="outline" disabled={m.busy} onClick={()=>m.setOpen(false)}>取消</Button>
-        <Button disabled={m.busy||!draft?.title.trim()||!draft?.date} onClick={()=>draft&&void m.save(draft,true)}>{m.busy?'正在保存…':'保存'}</Button>
+        <Button disabled={m.busy||!draft?.title.trim()||!draft?.date} onClick={()=>draft&&void m.save(draft,true)} loading={!!(m.busy)} loadingText="正在保存…">保存</Button>
       </ActionGroup>
     }>{draft&&<div className="calendar-form">
       <div className="calendar-form-field"><Label htmlFor={`${formId}-title`}>标题</Label><Input id={`${formId}-title`} value={draft.title} maxLength={200} disabled={m.busy} onChange={e=>m.edit({...draft,title:e.target.value})}/></div>

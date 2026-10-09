@@ -59,7 +59,7 @@ async function inspect(input) {
   const paths = await manager.resolve(async source => { missing.push(source); return 'skip'; });
   const tools = createCodingTools(input.cwd);
   const entries = [{ id: 'official:system', kind: 'official', name: 'Pi 官方默认提示词', path: join(dist, 'core/system-prompt.js'),
-    description: '由当前安装的原版 Pi 构造，供只读查看；不代表扩展或用户配置修改后的会话最终提示词。',
+    description: '由当前安装的 Agent 构造，供只读查看；不代表扩展或用户配置修改后的会话最终提示词。',
     content: buildSystemPrompt({ cwd: input.cwd, selectedTools: tools.map(t => t.name), toolSnippets: Object.fromEntries(tools.map(t => [t.name, t.promptSnippet ?? ''])), toolGuidelines: Object.fromEntries(tools.map(t => [t.name, t.promptGuidelines ?? []])) }),
     hash: null, editable: false, enabled: true, loaded: false, toggleable: false, error: null, commands: [] }];
   for (const path of [join(input.agent, 'AGENTS.md'), join(input.cwd, 'AGENTS.md'), join(input.agent, 'SYSTEM.md'), join(input.agent, 'APPEND_SYSTEM.md')]) {
@@ -85,7 +85,7 @@ async function inspect(input) {
     const commands = input.commands.filter(cmd => cmd.source === 'extension' && samePath(cmd.sourceInfo?.path, resource.path)).map(cmd => cmd.name);
     const doc = builtin ? { content: builtin.factory.toString(), hash: null, editable: false, error: null } : document(resource.path, roots);
     entries.push({ id: `extension:${resource.path}`, kind: 'extension', name: builtin?.name ?? basename(resource.path), path: resource.path,
-      description: builtin ? 'Pi 原版内置扩展，预览为原版工厂函数。' : '原生扩展源码预览；读取不会执行扩展。', ...doc, editable: false,
+      description: builtin ? 'Agent 内置扩展，预览为 Agent 工厂函数。' : '原生扩展源码预览；读取不会执行扩展。', ...doc, editable: false,
       enabled: resource.enabled, loaded: commands.length > 0, toggleable: resource.metadata.scope === 'user' && (Boolean(builtin) || owned(resource.path, roots)), commands });
   }
   // Include registrations from extensions without a locally resolved file entry.

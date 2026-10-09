@@ -16,6 +16,27 @@ fn candidate(paths:&crate::pi_launch_plan::PiPaths,key:&str)->Candidate{
     let batch=batch(paths,key,&Cursor::default(),24000).unwrap();let resources=resources(paths).unwrap();
     proposals(&json!([{"title":"称呼偏好","target":"AGENTS.md","before":"","after":"与用户聊天时称呼用户为「主人」。","message":"m1","quote":"以后跟我聊天叫我主人"}]).to_string(),&batch,&resources).unwrap().remove(0)
 }
+#[test]fn default_agents_preserves_existing_and_empty_user_files(){
+    let (_tmp,_store,paths)=fixture();let file=paths.agent.join("AGENTS.md");
+    assert_eq!(fs::read_to_string(&file).unwrap(),crate::pi_rules::DEFAULT_AGENTS);
+    for content in ["用户手写规则\r\n",""]{
+        fs::write(&file,content).unwrap();crate::pi_rules::provision_agents(&paths.agent).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(),content);
+    }
+}
+#[test]fn evolution_only_changes_marked_region_and_refuses_invalid_boundaries(){
+    let (_tmp,_store,paths)=fixture();let key=fixture_source(&paths);let mut c=candidate(&paths,&key);
+    let prefix="手写基础规则\r\n<!-- evolution:start -->";
+    let suffix="<!-- evolution:end -->\r\n手写尾注\r\n";
+    let before=format!("{prefix}\r\n原有规则\r\n{suffix}");
+    let added=replace(&before,&c).unwrap();assert!(added.starts_with(prefix)&&added.ends_with(suffix));assert!(added.contains(&c.after));
+    c.before="原有规则".into();c.after="修订规则".into();let revised=replace(&added,&c).unwrap();assert!(revised.contains("修订规则"));
+    c.before="修订规则".into();c.after=String::new();let removed=replace(&revised,&c).unwrap();assert!(!removed.contains("修订规则"));assert!(removed.starts_with(prefix)&&removed.ends_with(suffix));
+    c.before="手写基础规则".into();assert!(replace(&before,&c).is_err());
+    c.before=String::new();c.after="新增规则".into();
+    for invalid in ["".to_owned(),"已有但没有标记的用户文件".into(),before.replace("evolution:end","wrong:end"),format!("{before}\n<!-- evolution:start -->"),"<!-- evolution:end -->\n<!-- evolution:start -->\n".into()]{assert!(replace(&invalid,&c).is_err());}
+    c.after="<!-- evolution:end -->".into();assert!(replace(&before,&c).is_err());
+}
 #[test]fn evolution_incremental_partial_tail_and_source_integrity(){
     let (_tmp,_store,paths)=fixture();let key=fixture_source(&paths);
     let first=batch(&paths,&key,&Cursor::default(),24000).unwrap();assert_eq!(first.messages.len(),1);
@@ -28,11 +49,29 @@ fn candidate(paths:&crate::pi_launch_plan::PiPaths,key:&str)->Candidate{
     let (_tmp,store,paths)=fixture();let key=fixture_source(&paths);
     fs::write(paths.agent.join("APPEND_SYSTEM.md"),"这是原有追加规则。").unwrap();
     let mut state=load(&store).unwrap();let c=candidate(&paths,&key);let cid=c.id.clone();state.candidates.push(c);save(&store,&mut state).unwrap();
-    assert!(!paths.agent.join("AGENTS.md").exists());approve(&store,&paths,&mut state,&[cid]).unwrap();
+    assert_eq!(fs::read_to_string(paths.agent.join("AGENTS.md")).unwrap(),crate::pi_rules::DEFAULT_AGENTS);approve(&store,&paths,&mut state,&[cid]).unwrap();
     let saved=load(&store).unwrap();assert_eq!(saved.candidates[0].status,"written");
     let (context,_)=crate::pi_rules::context(&paths).unwrap();assert!(context.contains("主人"));assert!(context.contains("这是原有追加规则。"));
     let change=state.changes[0].id.clone();undo(&store,&paths,&mut state,&change).unwrap();
     assert!(!crate::pi_rules::context(&paths).unwrap().0.contains("主人"));assert_eq!(fs::read_to_string(paths.agent.join("APPEND_SYSTEM.md")).unwrap(),"这是原有追加规则。");
+}
+#[test]fn legacy_undo_restores_snapshot_but_preserves_later_edits(){
+    let (_tmp,store,paths)=fixture();let path=paths.agent.join("AGENTS.md");
+    let mut state=load(&store).unwrap();
+    for before in [None,Some("用户原有规则\n".to_owned())]{
+        let after=format!("{}- 每次回复前称呼用户为主人\n",before.as_deref().unwrap_or(""));
+        let change=Change{id:id(),candidates:vec![],target:"AGENTS.md".into(),before:before.clone(),after:after.clone(),status:"written".into(),at:now()};
+        let key=change.id.clone();state.changes.push(change);save(&store,&mut state).unwrap();
+        let edited=format!("{after}手动补充的规则\n");fs::write(&path,&edited).unwrap();
+        assert!(undo(&store,&paths,&mut state,&key).is_err());assert_eq!(fs::read_to_string(&path).unwrap(),edited);
+        fs::write(&path,&after).unwrap();undo(&store,&paths,&mut state,&key).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(),before.unwrap_or_default());
+        assert_eq!(state.changes.last().unwrap().status,"reverted");
+    }
+    let before=crate::pi_rules::DEFAULT_AGENTS.to_owned();let after=format!("{before}\n区域外意外改动\n");
+    let change=Change{id:id(),candidates:vec![],target:"AGENTS.md".into(),before:Some(before),after:after.clone(),status:"written".into(),at:now()};
+    let key=change.id.clone();state.changes.push(change);save(&store,&mut state).unwrap();fs::write(&path,&after).unwrap();
+    assert!(undo(&store,&paths,&mut state,&key).is_err());assert_eq!(fs::read_to_string(&path).unwrap(),after);
 }
 #[test]fn evolution_manual_file_change_and_fake_evidence_are_rejected(){
     let (_tmp,store,paths)=fixture();let key=fixture_source(&paths);let mut state=load(&store).unwrap();state.candidates.push(candidate(&paths,&key));
@@ -44,8 +83,8 @@ fn candidate(paths:&crate::pi_launch_plan::PiPaths,key:&str)->Candidate{
 }
 #[test]fn evolution_recovers_published_write_before_database_confirmation(){
     let (_tmp,store,paths)=fixture();let key=fixture_source(&paths);let c=candidate(&paths,&key);let mut state=load(&store).unwrap();
-    let after=c.after.clone();let cid=c.id.clone();state.candidates.push(c);
-    state.changes.push(Change{id:id(),candidates:vec![cid],target:"AGENTS.md".into(),before:None,after:after.clone(),status:"prepared".into(),at:now()});
+    let before=fs::read_to_string(paths.agent.join("AGENTS.md")).unwrap();let after=replace(&before,&c).unwrap();let cid=c.id.clone();state.candidates.push(c);
+    state.changes.push(Change{id:id(),candidates:vec![cid],target:"AGENTS.md".into(),before:Some(before),after:after.clone(),status:"prepared".into(),at:now()});
     save(&store,&mut state).unwrap();fs::write(paths.agent.join("AGENTS.md"),&after).unwrap();
     recover(&store,&paths,&mut state).unwrap();assert_eq!(state.candidates[0].status,"written");assert_eq!(load(&store).unwrap().changes[0].status,"written");
 }
@@ -86,7 +125,7 @@ fn evolution_real_conversation_learns_and_fresh_agent_reads_rule(){
     let candidates=proposals(&raw,&batch,&offered).unwrap();
     let learned=candidates.iter().find(|c|c.after.contains("主人")&&c.target=="AGENTS.md").expect("真实模型应提出有来源的称呼规则");
     let mut state=load(&store).unwrap();state.candidates=candidates.clone();save(&store,&mut state).unwrap();
-    assert!(!paths.agent.join("AGENTS.md").exists(),"候选阶段不得写文件");
+    assert_eq!(fs::read_to_string(paths.agent.join("AGENTS.md")).unwrap(),crate::pi_rules::DEFAULT_AGENTS,"候选阶段不得改变默认规则");
     approve(&store,&paths,&mut state,std::slice::from_ref(&learned.id)).unwrap();
     let fresh=manager.connect(&store.root,&resources,None,None,Arc::new(||{})).unwrap();
     assert_ne!(before["state"]["sessionId"],fresh["state"]["sessionId"]);

@@ -12,6 +12,7 @@ const catalogStates=['catalog-busy','catalog-lost','catalog-permission','catalog
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed','tools-collapsed','navigation-reordered'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
+  'process-stop-confirm':'进程 · 停止确认','process-stop-error':'进程 · 停止失败',
   'tools-collapsed':'导航 · 工具收起','navigation-reordered':'导航 · 自定义顺序',
   'github-avatar-error':'GitHub · 头像加载失败','github-pagination':'GitHub · 多页项目',
   'evolution-model-error':'自进化 · 模型选项失败（打开提取设置）',
@@ -102,6 +103,7 @@ const files: Record<string,string[]> = {
   'settings/news/ai':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],'settings/news/automation':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
 };
 function states(route:string) {
+  if(route==='settings/processes')return ['normal','empty','loading','error','long','process-stop-confirm','process-stop-error'];
   if(route==='self-evolution')return [...base,'pending','evolution-model-error'];
   if(route==='ai-works')return [...base,...Object.keys(extraStateLabels).filter(key=>key.startsWith('works-'))];
   if (route==='servers-credentials') return ['normal','empty','long','manager-credentials','manager-credentials-many','manager-servers-many','manager-reminders-many','manager-renewals-many','manager-invalid-date','manager-reminders','manager-server-create','manager-key-create','manager-renew','manager-validation','manager-notice-warning','manager-notice-clear','manager-reminders-dismissed','manager-loading','manager-load-error','manager-save-pending','manager-delete-server','manager-delete-credential','manager-credentials-empty','shell-collapsed'];
@@ -134,10 +136,10 @@ function states(route:string) {
   return [...base,'dirty','pending','no-root'];
 }
 function scene(route:Route,title:string,group:string,sources:string[] = files[route]??[]):Scene {
-  return {id:route,title,group,route,states:[...new Set(states(route))],sources:['main.tsx','App.tsx','components/ui/workspace-navigation.tsx','workspace-header.tsx','loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
+  return {id:route,title,group,route,states:[...new Set(states(route))],sources:[...(route==='settings/processes'?['process-monitor-panel.tsx','styles/process-monitor.css','ui-preview/process-monitor-fixture.ts']:[]),'main.tsx','App.tsx','components/ui/workspace-navigation.tsx','workspace-header.tsx','components/ui/loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
 }
 export const scenes:Scene[] = [
-  {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open','image-viewer','image-viewer-error'],sources:['components/ui/image-viewer.tsx','components/ui/attachment-preview.tsx','components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
+  {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open','image-viewer','image-viewer-error'],sources:['components/ui/file-upload.tsx','components/ui/input.tsx','components/ui/image-viewer.tsx','components/ui/attachment-preview.tsx','components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
   ...pages.filter(page=>page.id!=='settings').map(page=>scene(page.id,page.title,'主页面')),
   scene('servers-credentials/servers/render-node','服务器资料与关联凭证','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),
   scene('servers-credentials/credentials/render-key','SSH 密钥详情','详情与编辑',['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts']),

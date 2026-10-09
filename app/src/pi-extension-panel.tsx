@@ -15,7 +15,7 @@ export function PiExtensionPanel({model,belowOnly=false}:{model:PiController;bel
     {ui.requests.map(request=><section className="pi-extension-question" key={request.id} aria-label={request.title||'扩展问题'}>
       <h3>{request.title||'扩展问题'}</h3>{request.message&&<p>{request.message}</p>}
       {request.status==='pending'?<>
-        {request.expiresAt&&<p className="meta">超时后原版扩展会结束等待 · {new Date(request.expiresAt).toLocaleTimeString('zh-CN')}</p>}
+        {request.expiresAt&&<p className="meta">超时后 Agent 扩展会结束等待 · {new Date(request.expiresAt).toLocaleTimeString('zh-CN')}</p>}
         {request.method==='select'?<div className="pi-extension-options">{request.options.map((option,index)=><Button key={index} variant="outline" size="sm" onClick={()=>void model.respondUi(request.id,{value:option})}>{option}</Button>)}</div>
           :request.method==='confirm'?<div className="pi-extension-options"><Button size="sm" onClick={()=>void model.respondUi(request.id,{confirmed:true})}>确认</Button><Button variant="outline" size="sm" onClick={()=>void model.respondUi(request.id,{confirmed:false})}>拒绝</Button></div>
           :<form onSubmit={e=>{e.preventDefault();void model.respondUi(request.id,{value:model.uiAnswers[request.id]??request.prefill});}}>

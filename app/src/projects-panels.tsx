@@ -83,7 +83,7 @@ function ProjectDeletionConfirmation({ model, target, close }: { model: Projects
       {stale && model.busy !== key && <Feedback tone="pending">项目版本或状态已变化，请关闭后按最新列表重新选择。</Feedback>}
       {model.pending[project.id] && <Feedback tone="pending">保存结果尚未确认，请先回文档核对。</Feedback>}
       {pending && <Feedback tone="pending">操作结果待核对，重试会沿用原请求。</Feedback>}
-      <DialogFooter><Button ref={cancel} variant="outline" disabled={!!model.busy} onClick={close}>取消</Button>{pending && <Button variant="outline" disabled={!!model.busy || model.loading} onClick={() => void model.reconcileDeletion(project.id)}>核对结果</Button>}<Button variant={deleted ? 'destructive' : 'default'} style={{ minInlineSize: '7em' }} disabled={blocked} onClick={() => { void model.setDeleted(project, deleted).then(success => { if (success) close(); }); }}>{model.busy === key ? '正在处理…' : pending ? '重试原请求' : deleted ? '确认删除' : '恢复项目'}</Button></DialogFooter></>;
+      <DialogFooter><Button ref={cancel} variant="outline" disabled={!!model.busy} onClick={close}>取消</Button>{pending && <Button variant="outline" disabled={!!model.busy || model.loading} onClick={() => void model.reconcileDeletion(project.id)}>核对结果</Button>}<Button variant={deleted ? 'destructive' : 'default'} style={{ minInlineSize: '7em' }} disabled={blocked} onClick={() => { void model.setDeleted(project, deleted).then(success => { if (success) close(); }); }} loading={model.busy === key} loadingText="正在处理…">{ pending ? '重试原请求' : deleted ? '确认删除' : '恢复项目'}</Button></DialogFooter></>;
   if (target) closingContent.current = body;
   return <Dialog open={!!target} onOpenChange={open => { if (!open && !model.busy) close(); }}>
     <DialogContent showCloseButton={!model.busy} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus(); }} onCloseAutoFocus={event => {
@@ -132,7 +132,7 @@ export function ProjectsOverview({ model, create = false }: { model: ProjectsCon
       <form className="entry-form" noValidate onSubmit={event => { event.preventDefault(); const from = location.hash, session = creation.session.current; void model.create().then(projectId => { if (projectId && location.hash === from && creation.session.current === session) closeCreation(false); }); }}>
         <label htmlFor="new-project-name">项目名称</label><Input id="new-project-name" value={model.newName} aria-required="true" autoComplete="off" placeholder="填写公司项目名称" disabled={!!model.busy || !!model.newId || model.loading || !!model.loadError} onChange={event => model.changeNewName(event.target.value)} />
         {creationFeedback}{model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
-        <div className="ui-form-dialog-actions"><Button type="button" variant="ghost" onClick={() => closeCreation(false)}>关闭，保留草稿</Button><Button disabled={!!model.busy || model.loading || !!model.loadError}>{model.busy === 'create' ? '正在保存…' : model.newId ? '重试创建（同一请求）' : '新建项目'}</Button></div>
+        <div className="ui-form-dialog-actions"><Button type="button" variant="ghost" onClick={() => closeCreation(false)}>关闭，保留草稿</Button><Button disabled={!!model.busy || model.loading || !!model.loadError} loading={model.busy === 'create'} loadingText="正在保存…">{ model.newId ? '重试创建（同一请求）' : '新建项目'}</Button></div>
       </form>
     </FormDialog>
   </div>;

@@ -224,7 +224,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
     if(actionRef.current||viewingEpoch.current!==null)return;
     const epoch=navigationEpoch.current;
     try{
-      if(session){await selectSession(session);if(navigationEpoch.current!==epoch+1||bindings.current[keyRef.current]?.sessionId!==session.id)return;}
+      if(session){await selectSession(session);if((navigationEpoch.current!==epoch&&navigationEpoch.current!==epoch+1)||bindings.current[keyRef.current]?.sessionId!==session.id)return;}
       const binding=bindings.current[keyRef.current]??(keyRef.current==='default'?await defaultBinding():null);
       if(!binding)throw new Error('会话尚未读取成功，请重新选择；输入仍保留。');
       if(!session&&epoch!==navigationEpoch.current)return;
@@ -234,10 +234,12 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
   }
   async function openSource(target:AgentSource){sourceRef.current=target;setSource(target);}
   async function selectConversation(key:string){
+    if(key===keyRef.current&&(viewingEpoch.current!==null||snap.current?.state&&!snap.current.error&&!error&&!snap.current.historyReleased))return;
     if(actionRef.current)return;const epoch=++navigationEpoch.current,targetRoot=rootRef.current;beginView(epoch);chooseKey(key);
     try{const binding=bindings.current[key]??await invokePi<AgentBinding>('agent_conversation',{conversationKey:key});if(targetRoot!==rootRef.current||epoch!==navigationEpoch.current)return;await viewBinding(binding,epoch);await refreshRuntime();}catch(e){if(epoch===navigationEpoch.current&&targetRoot===rootRef.current)setError(piError(e));}finally{finishView(epoch);}
   }
   async function selectSession(session:PiSession){
+    if(snap.current?.state?.sessionId===session.id&&!snap.current.error&&!error&&!snap.current.historyReleased)return;
     if(actionRef.current)return;const live=runtimeSummary?.conversations.find(row=>row.sessionId===session.id);if(live){await selectConversation(live.conversationKey);return;}
     const epoch=++navigationEpoch.current,targetRoot=rootRef.current;beginView(epoch);
     try{const binding=await ensureBinding({module:'agent',page:'agent',objectId:session.id});if(epoch!==navigationEpoch.current||targetRoot!==rootRef.current)return;await viewBinding(binding,epoch,session);await refreshRuntime();}catch(e){if(epoch===navigationEpoch.current&&targetRoot===rootRef.current)setError(piError(e));}finally{finishView(epoch);}
@@ -316,7 +318,7 @@ export function usePi(root:string|null,options:{resourcesVisible?:boolean}={}){
       if(reply.generation!==s.generation||reply.sessionId!==key)throw new Error('发送回执与原会话不一致，输入保留；不要自动重发，请先核对原生会话。');
       setAcceptedInputs(previous=>({...previous,[key]:[...(previous[key]??[]).slice(-19),{id:crypto.randomUUID(),draft:before,files,objects:sentObjects,disposition}]}));
       clearSent();await invokePi('agent_remember',{conversationKey:conversation});await refreshRuntime();
-      setNotice(disposition==='handled'?'原生命令已处理，不代表任务完成。':disposition==='queued'?'消息已排队，尚未执行完成。':'原版已接受消息，等待实际回复与终态。');
+      setNotice(disposition==='handled'?'原生命令已处理，不代表任务完成。':disposition==='queued'?'消息已排队，尚未执行完成。':'Agent 已接受消息，等待实际回复与终态。');
     });
   }
   async function stop(){if(stopRef.current)return;stopRef.current=true;const s=snap.current,connecting=actionRef.current==='连接'||s?.connection==='connecting';if(connecting||s?.busy||!s?.state)pausedConnections.current.add(keyRef.current);setError(null);try{await queue.mutate(keyRef.current,'pause');if(connecting||s?.busy)await callPi('pi_disconnect');else if(s?.state)await callPi('pi_stop',{generation:s.generation,sessionId:s.state.sessionId});else await callPi('pi_disconnect');}catch(e){setError(piError(e));}finally{stopRef.current=false;await refresh();await reloadSessions();}}

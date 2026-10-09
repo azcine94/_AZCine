@@ -1,7 +1,7 @@
 .github-projects{min-width:0}
 .github-projects .gh-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .github-projects .gh-heading p,.github-projects .gh-notice{color:var(--muted-foreground)}
-.github-projects .gh-notice{font-size:var(--fs-xs);margin-bottom:16px;overflow-wrap:anywhere}
+.github-projects .gh-notice{font-size:var(--fs-xs);line-height:var(--lh-xs);height:var(--lh-xs);margin-bottom:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .github-projects .gh-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .github-projects .gh-toolbar input{width:280px;max-width:100%}
 .github-projects .gh-toolbar select{width:152px}
