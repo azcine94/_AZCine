@@ -22,7 +22,7 @@ export function useSelfEvolution(root:string|null){
     if(lock.current||!snapshot)return false;lock.current=true;setWorking(true);setError('');const at=root;
     try{
       const value=await invoke<EvolutionSnapshot>('evolution_mutate',{input:{action,revision:snapshot.state.revision,...fields}});
-      if(mounted.current&&at===rootRef.current){setSnapshot(value);setSelected(previous=>new Set([...previous].filter(id=>value.state.candidates.some(c=>c.id===id&&c.status==='pending'))));notifyOperation(action==='approve'?'已写入规则，新对话会读取更新内容。':action==='undo'?'已撤销写入。':'已保存。');}
+      if(mounted.current&&at===rootRef.current){setSnapshot(value);setSelected(previous=>new Set([...previous].filter(id=>value.state.candidates.some(c=>c.id===id&&c.status==='pending'))));notifyOperation(action==='approve'?'已写入规则，新对话会读取更新内容。':action==='undo'?'已撤销写入，可在「已撤销」中查看。':action==='restore'?'已放回待批准，核对后可重新批准。':'已保存。');}
       return true;
     }catch(e){if(mounted.current&&at===rootRef.current){setError(piError(e));await refresh();}return false;}
     finally{lock.current=false;if(mounted.current)setWorking(false);}

@@ -15,7 +15,7 @@ export const extraStateLabels:Record<string,string>={
   'process-stop-confirm':'进程 · 停止确认','process-stop-error':'进程 · 停止失败',
   'tools-collapsed':'导航 · 工具收起','navigation-reordered':'导航 · 自定义顺序',
   'github-avatar-error':'GitHub · 头像加载失败','github-pagination':'GitHub · 多页项目',
-  'evolution-model-error':'自进化 · 模型选项失败（打开提取设置）',
+  'evolution-model-error':'自进化 · 模型选项失败（打开提取设置）','evolution-reverted':'自进化 · 已撤销与放回候选',
   'catalog-busy':'模型目录 · 占用与重试','catalog-lost':'模型目录 · 锁中断保留','catalog-permission':'模型目录 · 权限失败','catalog-io':'模型目录 · 文件系统失败',
   'works-image':'作品 · 图像分类','works-web':'作品 · 编程分类','works-hardware':'作品 · 硬件分类',
   'works-history':'作品 · 快照历史回看','works-restore':'作品 · 启动恢复本地快照','works-snapshot-error':'作品 · 快照保存失败保留内容',
@@ -104,7 +104,7 @@ const files: Record<string,string[]> = {
 };
 function states(route:string) {
   if(route==='settings/processes')return ['normal','empty','loading','error','long','process-stop-confirm','process-stop-error'];
-  if(route==='self-evolution')return [...base,'pending','evolution-model-error'];
+  if(route==='self-evolution')return [...base,'pending','evolution-model-error','evolution-reverted'];
   if(route==='ai-works')return [...base,...Object.keys(extraStateLabels).filter(key=>key.startsWith('works-'))];
   if (route==='servers-credentials') return ['normal','empty','long','manager-credentials','manager-credentials-many','manager-servers-many','manager-reminders-many','manager-renewals-many','manager-invalid-date','manager-reminders','manager-server-create','manager-key-create','manager-renew','manager-validation','manager-notice-warning','manager-notice-clear','manager-reminders-dismissed','manager-loading','manager-load-error','manager-save-pending','manager-delete-server','manager-delete-credential','manager-credentials-empty','shell-collapsed'];
   if (route.startsWith('servers-credentials/')) return ['normal','long'];

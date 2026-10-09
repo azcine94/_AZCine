@@ -35,7 +35,7 @@ pub async fn evolution_mutate(app:tauri::AppHandle,window:tauri::WebviewWindow,i
             "undo"=>undo(store,&paths,&mut state,input.id.as_deref().ok_or_else(||err("缺少修改记录。"))?)?,
             action@("edit"|"dismiss"|"restore"|"rebase")=>{
                 let c=state.candidates.iter_mut().find(|c|Some(&c.id)==input.id.as_ref()).ok_or_else(||err("候选不存在。"))?;
-                if action=="restore"{if c.status!="dismissed"{return Err(err("只有不记住的候选可放回。"));}c.status="pending".into();}
+                if action=="restore"{if !matches!(c.status.as_str(),"dismissed"|"reverted"){return Err(err("只有不记住或已撤销的候选可放回。"));}c.status="pending".into();}
                 else{
                     if c.status!="pending"{return Err(err("候选已处理，未修改。"));}
                     match action{

@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {useSelfEvolution} from '../use-self-evolution.ts';
 import type {EvolutionController} from '../use-self-evolution.ts';
 import type {EvolutionSnapshot} from '../self-evolution-types.ts';
@@ -15,6 +15,7 @@ export function usePreviewEvolution(mode:string):EvolutionController{
       }))
     }
   });
+  useEffect(()=>{if(mode==='evolution-reverted'){setSnapshot(value=>({...value,state:{...value.state,candidates:value.state.candidates.map((c,i)=>i===0?{...c,status:'reverted'}:c),changes:[{id:'example-reverted',candidates:['0'],target:'AGENTS.md',before:'',after:'汇报时先说明结果，技术细节在需要时再展开。',status:'reverted',at:stamp}]}}));base.setTab('reverted');base.setActive('0');}},[mode,base.setTab,base.setActive]);
   return {...base,snapshot:mode==='loading'?null:snapshot,error:mode==='error'?'UI 示例：提取失败，草稿和上次进度保留。':base.error,active:base.active??'0',refresh:async()=>{},
     models:async()=>{if(mode==='evolution-model-error')throw new Error('UI 示例：获取模型选项 · 读取本机模型目录超时。');return[{provider:'example',id:'example',name:'UI 虚构模型'}];},
     source:async()=>({messages:[{role:'user',content:[{type:'text',text:'以后汇报先说结果，技术细节需要时再展开。'}]},{role:'assistant',content:[{type:'text',text:'好的。'}]}]}),openSource:async()=>base.setError('UI 示例：正式桌面版会在记事本打开会话原文件。'),
