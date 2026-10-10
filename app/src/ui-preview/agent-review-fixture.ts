@@ -12,7 +12,7 @@ export function reviewFixture(state:string):AgentDraft {
       payload:{version:1,operations,decisions:[]},context:{messageCount:0,objects:operations.map(operation=>({source:{module:'news',page:'news',objectId:operation.objectId},revision:0}))},
       validation:{error:null,items:operations.map(operation=>({...operation,title:operation.values.name,actionLabel:'新建信源',before:null,proposed:operation.values}))},status:'review',receipt:null,revision:1,createdAt:at};
   }
-  const update=state==='agent-draft-update',long=state==='agent-draft-long';
+  const update=['agent-draft-update','agent-draft-images','agent-draft-history'].includes(state),long=state==='agent-draft-long';
   const columns:Extract<ProjectDocument['blocks'][number],{kind:'list'}>['columns']=[
     {id:uuid(301),name:'镜头号',kind:'shot'}, {id:uuid(302),name:'当前阶段',kind:'stage'},
     ...['制作','9.29 BCOPY','10.14 BCOPY+','10.20 FINAL','参考帧','说明'].map((name,index)=>({id:uuid(303+index),name,kind:'text' as const})),
@@ -27,7 +27,10 @@ export function reviewFixture(state:string):AgentDraft {
           [uuid(307)]:'用于查看长内容换行的虚构画面描述。'.repeat(long?12:1),[uuid(308)]:'截图原文保留，不推断年份。',
         }}))},
     ]};
+  if(state==='agent-draft-images'){const table=original.blocks[1];if(table.kind==='list')table.rows[0].images={[uuid(307)]:[{id:uuid(520),name:'待移除的参考帧.png',mimeType:'image/png',bytes:1024,hash:'a'.repeat(64)}]};}
   const proposed=structuredClone(original);
+  if(state==='agent-draft-images'){const table=proposed.blocks[1];if(table.kind==='list'){table.rows[0].images={};table.rows[0].height=120;}}
+
   if(update){const table=proposed.blocks[1];if(table.kind==='list'){
     table.rows[1].cells[uuid(302)]=uuid(311);table.rows[1].cells[uuid(308)]='本人要求更新的备注（虚构建议）';
     table.rows.push({id:uuid(499),cells:{[uuid(301)]:'SH_0006',[uuid(302)]:uuid(310),[uuid(308)]:'新增一行（虚构建议）'}});

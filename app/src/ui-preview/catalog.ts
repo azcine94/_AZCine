@@ -10,7 +10,7 @@ import { project, event, source, idea, uuid } from './data.ts';
 export interface Scene {id:string;title:string;group:string;route:Route|null;states:string[];sources:string[]}
 const catalogStates=['catalog-busy','catalog-lost','catalog-permission','catalog-io'];
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed','tools-collapsed','navigation-reordered'];
-const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
+const agentRepairStates=['agent-continuous-history','agent-history-loading','agent-sent-attachments','agent-draft-images','agent-draft-history','agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
 'notes-search':'笔记 · 全文搜索','notes-tags':'笔记 · 标签','notes-tasks':'笔记 · 任务','notes-graph':'笔记 · 关系图','notes-history':'笔记 · 历史','notes-drafts':'笔记 · 恢复草稿','notes-trash':'笔记 · 回收站','notes-settings':'笔记 · 设置','notes-properties':'笔记 · 属性','notes-daily':'笔记 · 日记','notes-import':'笔记 · 导入','notes-bookmarks':'笔记 · 书签','notes-rename':'笔记 · 改名确认','notes-base-table':'数据库 · 表格','notes-base-list':'数据库 · 列表','notes-base-board':'数据库 · 看板','notes-base-gallery':'数据库 · 画廊','notes-base-calendar':'数据库 · 日历','notes-base-timeline':'数据库 · 时间线','notes-base-pinboard':'数据库 · 便笺板','notes-base-graph':'数据库 · 关系图',
   'process-stop-confirm':'进程 · 停止确认','process-stop-error':'进程 · 停止失败',
@@ -50,8 +50,11 @@ export const extraStateLabels:Record<string,string>={
   'jobs-history':'处理记录 · 不同状态等宽等高','jobs-agent':'Agent 整理与任务记录','jobs-refresh':'资料刷新 · 保留列表','processing-config-draft':'资讯 · 未保存模型草稿阻止新处理','processing-config-version':'资讯 · 当前配置与原任务模型快照',
   'table-image-only':'项目 · 纯图片铺满单元格','table-date-focus':'项目 · 日期格单层选中边框','table-cell-selected':'项目 · 单元格选中与直接输入','table-cell-editing':'项目 · 格内编辑与取消','table-images':'项目 · 单元格自适应图片与文字','table-image-preview':'项目 · 图片缩放预览','image-viewer':'通用图片 · 小窗口原始比例预览','image-viewer-error':'通用图片 · 读取失败','agent-session-rename':'Agent · 会话重命名',
   'today-news-many':'今天 · AIHOT 热点两列五行均分高度','today-news-long':'今天 · 热点长标题与来源省略','today-news-empty':'今天 · 热点榜暂无条目','today-news-loading':'今天 · 热点读取中','today-news-error':'今天 · 热点刷新失败保留榜单',
+  'agent-continuous-history':'Agent · 连续历史与底部居中圆形下箭头',
+  'agent-history-loading':'Agent · 居中读取会话','agent-send-pending':'Agent · 发送回显前保持等待','agent-feedback':'Agent · 正文内错误提示与详情',
   'agent-cold-history':'Agent · 历史会话未连接状态','agent-lazy-start':'Agent · 连接前保留输入','agent-connect-error':'Agent · 连接失败保留文字与附件',
   'agent-process-nested':'Agent · 子调用归入同一已工作','agent-process-nested-running':'Agent · 子调用执行中','agent-process-nested-error':'Agent · 父调用完成但子调用失败',
+  'agent-sent-attachments':'Agent · 已发送附件关联','agent-draft-images':'Agent · 图片与文字同时变更','agent-draft-history':'Agent · 加载更早草案',
   'agent-draft-create':'Agent · 新建项目表格预览','agent-draft-update':'Agent · 行与单元格差异','agent-draft-long':'Agent · 长草案与表格分页','agent-draft-confirm':'Agent · 固定底栏确认应用','agent-draft-apply-error':'Agent · 应用失败保留草案与底栏错误','agent-draft-conflict':'Agent · 草案过期保留内容','agent-process-retry':'Agent · 单轮重试与子调用状态','agent-answer-table':'Agent · 回答中的表格','agent-answer-table-long':'Agent · 表格长文本换行与多列滚动','agent-send-layout':'Agent · 多行输入发送与阅读位置',
   'agent-sidebar':'Agent侧栏 · 正常聊天','agent-sidebar-sessions':'Agent侧栏 · 会话列表与关闭','agent-sidebar-long':'Agent侧栏 · 长标题和正文','agent-sidebar-running':'Agent侧栏 · 正在回复','agent-sidebar-extension':'Agent侧栏 · 等待回答','agent-sidebar-error':'Agent侧栏 · 失败保输入',
   'task-panel-branches':'任务面板 · 总仓库与任务分支',
@@ -71,6 +74,7 @@ export const extraStateLabels:Record<string,string>={
   'bookkeeping-waiting':'记账 · 要报销（未到账）筛选','bookkeeping-selected':'记账 · 勾选合计','bookkeeping-confirm':'记账 · 报销确认','bookkeeping-delete':'记账 · 移除确认','bookkeeping-saving':'记账 · 保存中',
   'resource-waiting':'资源 · 等待 Pi 操作完成',
   'agent-session-status':'Agent · 会话状态圆点',
+  'agent-session-unread':'Agent · 回复未读与查看清除','agent-session-details':'Agent · 长标题与悬停详情','agent-session-resize':'Agent · 会话栏拖动与键盘调宽',
   'agent-session-pinned':'Agent · 独立置顶分类','agent-session-manage':'Agent · 最近会话批量管理入口','agent-session-pin-action':'Agent · 会话行悬停置顶入口',
   'windows-paths':'Windows 路径 · 本机与共享目录',
   'shell-collapsed':'整站 · 侧栏收起',
@@ -94,7 +98,7 @@ const files: Record<string,string[]> = {
   today:['today-clock.tsx','ideas-panels.tsx','styles/ideas.css','delivery-calendar.tsx','month-grid.tsx','workspace-panels.tsx','projects-panels.tsx','today-news-panel.tsx'],
   projects:['projects-panels.tsx'],github:['github-projects-panel.tsx','styles/github-projects.css'],
   news:['news-daily-panel.tsx','news-reader-panels.tsx','news-article-body.tsx','news-body-markdown.ts','news-reading-panels.tsx'],models:['model-ranking-panel.tsx','components/ui/brand-logo.tsx','components/ui/brand-logo.css'],ideas:['ideas-panels.tsx'],
-  agent:['agent-queue-panel.tsx','components/ui/attachment-preview.tsx','agent-image-limits.ts','agent-object-picker.tsx','agent-drafts-panel.tsx','agent-draft-preview.tsx','pi-extension-panel.tsx','agent-sidebar.tsx','agent-session-navigation.tsx','use-agent-session-pins.ts','components/ui/status-dot.tsx','pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-process-view.ts','pi-messages.ts','agent-message-content.ts','agent-draft-review.ts','components/ui/message-markdown.tsx','pi-panels.tsx'],
+  agent:['components/ui/feedback-message.tsx','agent-queue-panel.tsx','components/ui/attachment-preview.tsx','agent-image-limits.ts','agent-object-picker.tsx','agent-drafts-panel.tsx','agent-draft-preview.tsx','pi-extension-panel.tsx','agent-sidebar.tsx','agent-session-navigation.tsx','use-agent-session-pins.ts','use-agent-session-activity.ts','components/ui/resizable-panel.tsx','components/ui/resizable-panel.css','components/ui/status-dot.tsx','pi-agent-panel.tsx','pi-agent-demo.tsx','pi-process-panel.tsx','pi-process-view.ts','pi-messages.ts','agent-message-content.ts','agent-draft-review.ts','components/ui/message-markdown.tsx','pi-panels.tsx'],
   jobs:['background-jobs-panel.tsx','agent-jobs-panel.tsx','news-processing-panel.tsx'],settings:['settings-panels.tsx'],
   'settings/models':['pi-provider-panel.tsx','pi-provider-advanced.tsx','pi-panels.tsx'],
   resources:['pi-resources-panel.tsx'],
@@ -125,7 +129,7 @@ function states(route:string) {
   if (route==='settings/about') return ['normal','update-current','update-ready','update-downloading','update-error','update-development'];
   if (route==='settings/data') return [...base,'no-root','data-migrate','data-switch','data-change-pending','data-change-failed','data-path-prefixed','data-path-long'];
   if (route==='settings/runtime') return ['normal','disconnected','connecting','error','long','folds-open','windows-paths'];
-  if (route==='agent') return [...base,...catalogStates,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
+  if (route==='agent') return [...base,...catalogStates,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-feedback','agent-send-pending','agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-unread','agent-session-details','agent-session-resize','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
   if(route==='news/daily'||route.startsWith('news/daily/'))return [...base,'daily-empty','daily-failed','daily-running','daily-waiting','daily-paused','daily-versions','daily-refreshing','daily-menu','incomplete'];
   if (route==='news') return [...base,'all','featured','hot','daily','filtered','review','incomplete'];
   if (route==='ideas'||route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','undo','conflict','conflict-details'];

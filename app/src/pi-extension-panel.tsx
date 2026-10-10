@@ -1,16 +1,23 @@
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
-import { Feedback } from './components/ui/feedback.tsx';
+import { FeedbackMessage } from './components/ui/feedback-message.tsx';
 import { Disclosure } from './components/ui/disclosure.tsx';
 import type { PiController } from './use-pi.ts';
 export function PiExtensionPanel({model,belowOnly=false}:{model:PiController;belowOnly?:boolean}){
   const ui=model.snapshot?.extensions;if(!ui)return null;
+  const notices=new Map<string,{message:string;summary?:string;tone:'error'|'pending'|'info'}>();
+  for(const notice of ui.notifications){
+    const text=notice.message.trim(),plain=text.replace(/^MCP servers need attention:\s*/,'').replace(/\s*Run \/mcp to fix\.\s*$/,'');
+    const failed=/^azcine: (?:failed|disconnected)\b[^\n]*(?:\n[ \t]+[^\n]*)*$/.test(plain);
+    const restored=/^(?:Reconnected to MCP server "azcine" \(connected\b|azcine: connected, \d+ tools \([^\n]+\)$)/.test(text);
+    notices.set(failed||restored?'mcp:azcine':text,{message:text,summary:failed?'工作台工具连接未就绪，请重新连接 Agent。':restored?'工作台工具已重新连接。':undefined,tone:failed?'error':notice.tone==='error'?'error':notice.tone==='warning'?'pending':'info'});
+  }
   if(belowOnly)return <div className="pi-extension-panel">{Object.entries(ui.widgets).filter(([,widget])=>widget.placement==='belowEditor').map(([key,widget])=><Disclosure key={key}><summary>{key}</summary>{widget.lines.map((line,index)=><p key={index}>{line}</p>)}</Disclosure>)}</div>;
   return <div className="pi-extension-panel" aria-live="polite">
     {ui.title&&<p className="meta">{ui.title}</p>}
     {Object.entries(ui.statuses).map(([key,value])=><p key={key}>{value}</p>)}
-    {ui.notifications.map(n=><Feedback as="p" key={n.id} tone={n.tone==='error'?'error':n.tone==='warning'?'pending':'info'}>{n.message}</Feedback>)}
+    {[...notices].map(([key,notice])=><FeedbackMessage key={key} {...notice}/>)}
     {Object.entries(ui.widgets).filter(([,widget])=>widget.placement!=='belowEditor').map(([key,widget])=><Disclosure key={key}><summary>{key}</summary><div>{widget.lines.map((line,index)=><p key={index}>{line}</p>)}</div></Disclosure>)}
     {ui.requests.map(request=><section className="pi-extension-question" key={request.id} aria-label={request.title||'扩展问题'}>
       <h3>{request.title||'扩展问题'}</h3>{request.message&&<p>{request.message}</p>}

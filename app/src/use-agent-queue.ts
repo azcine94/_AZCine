@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { callPi, desktopPi, piError } from './pi-client.ts';
 import type { PiImage,AgentAttachment,AgentSource } from './pi-client.ts';
 import { notifyOperation } from './components/ui/operation-toast.tsx';
-export interface QueuePayload {text:string;images:PiImage[];files:AgentAttachment[];objects:AgentSource[];source:AgentSource;model:{provider:string;id:string}}
+export type QueueImage=Omit<PiImage,'data'>&{data?:string;blob?:string;encodedBytes?:number};
+export interface QueuePayload {text:string;images:QueueImage[];files:AgentAttachment[];objects:AgentSource[];source:AgentSource;model:{provider:string;id:string}}
 export interface QueueEntry {id:string;conversationKey:string;sessionId:string;revision:number;behavior:string;status:string;payload:QueuePayload;error:string|null}
 interface QueueDocument {entries:QueueEntry[];paused:Record<string,boolean>}
 export function useAgentQueue(root:string|null){
@@ -26,6 +27,6 @@ export function useAgentQueue(root:string|null){
   function update(id:string,text:string){setEdits(before=>before[id]?{...before,[id]:{...before[id],payload:{...before[id].payload,text}}}:before);}
   async function cancel(id:string){const entry=document.entries.find(e=>e.id===id);if(!entry)return;try{await mutate(entry.conversationKey,'cancelEdit',{id,revision:entry.revision});setEdits(before=>{const next={...before};delete next[id];return next;});}catch{/* Retain editing draft. */}}
   async function save(entry:QueueEntry){const draft=edits[entry.id];if(!draft)return;try{await mutate(entry.conversationKey,'edit',{id:entry.id,revision:draft.revision,payload:draft.payload});setEdits(before=>{const next={...before};delete next[entry.id];return next;});}catch{/* Keep the independent editing draft on conflict. */}}
-  return {document,error,busy,edits,open,setOpen,enqueue,mutate,change,edit,update,cancel,save};
+  return {root,document,error,busy,edits,open,setOpen,enqueue,mutate,change,edit,update,cancel,save};
 }
 export type AgentQueueController=ReturnType<typeof useAgentQueue>;

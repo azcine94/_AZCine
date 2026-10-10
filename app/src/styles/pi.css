@@ -117,9 +117,11 @@
 
 .pi-agent-layout .pi-call { margin-block:12px; }
 
+.pi-agent-layout .pi-call-status>svg { width:14px; height:14px; }
+.pi-agent-layout .pi-process-toggle>.pi-chevron { margin-left:auto; }
 .pi-agent-layout .pi-call-title { min-width:0; overflow-wrap:anywhere; font-size:13px; }
 .pi-agent-layout .pi-call-title code { font:12px/20px var(--mono); }
-.pi-agent-layout .pi-call-status { flex:none; color:var(--t2); background:var(--island-2); border-radius:var(--r-xs); padding:2px var(--s-2); font:12px/18px var(--font); }
+.pi-agent-layout .pi-call-status { display:inline-flex; align-items:center; flex:none; color:var(--t2); background:var(--island-2); border-radius:var(--r-xs); padding:2px var(--s-2); font:12px/18px var(--font); }
 
 .pi-agent-layout .pi-call[data-status=success] .pi-call-status,.pi-agent-layout .pi-call[data-status=finished] .pi-call-status { color:var(--ok); background:var(--ok-soft); }
 .pi-agent-layout .pi-call[data-status=error] .pi-call-status { color:var(--bad); background:var(--bad-soft); }

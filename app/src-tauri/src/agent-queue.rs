@@ -2,6 +2,7 @@
 use crate::{storage::{StorageError,Store},pi_manager::{SendInput,ImageInput},agent_store::{Source,Providers}};
 use serde::{Deserialize,Serialize};
 use serde_json::{Value,json};
+use sha2::{Digest,Sha256};
 use rusqlite::OptionalExtension;
 use tauri::Manager as _;
 use std::{collections::HashMap,sync::Mutex};
@@ -9,7 +10,7 @@ pub struct QueueControl {instance:String,operation:Mutex<()>}
 impl Default for QueueControl{fn default()->Self{Self{instance:format!("{}-{}",std::process::id(),chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()),operation:Mutex::new(())}}}
 #[derive(Clone,Deserialize,Serialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
-pub struct QueueImage {id:String,name:String,data:String,mime_type:String}
+pub struct QueueImage {id:String,name:String,#[serde(default,skip_serializing_if="String::is_empty")]data:String,mime_type:String,#[serde(default,skip_serializing_if="Option::is_none")]blob:Option<String>,#[serde(default)]encoded_bytes:usize}
 #[derive(Clone,Deserialize,Serialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct Payload {text:String,images:Vec<QueueImage>,files:Vec<Value>,objects:Vec<Source>,source:Source,model:Value}
@@ -31,14 +32,31 @@ fn archived(db:&rusqlite::Connection,id:&str)->Result<Option<Entry>,StorageError
     let text:Option<String>=db.query_row("SELECT value FROM app_meta WHERE key=?",[archive_key(id)],|r|r.get(0)).optional().map_err(|_|failed())?;
     text.map(|v|serde_json::from_str(&v).map_err(|_|failed())).transpose()
 }
+fn image_ref(image:&QueueImage)->QueueImage{
+    QueueImage{id:image.id.clone(),name:image.name.clone(),mime_type:image.mime_type.clone(),data:String::new(),blob:if image.data.is_empty(){image.blob.clone()}else{Some(format!("{:x}",Sha256::digest(image.data.as_bytes())))},encoded_bytes:if image.data.is_empty(){image.encoded_bytes}else{image.data.len()}}
+}
+fn entry_ref(entry:&Entry)->Entry{
+    Entry{id:entry.id.clone(),conversation_key:entry.conversation_key.clone(),session_id:entry.session_id.clone(),revision:entry.revision,behavior:entry.behavior.clone(),status:entry.status.clone(),input_id:entry.input_id.clone(),generation:entry.generation,error:entry.error.clone(),payload:Payload{text:entry.payload.text.clone(),images:entry.payload.images.iter().map(image_ref).collect(),files:entry.payload.files.clone(),objects:entry.payload.objects.clone(),source:entry.payload.source.clone(),model:entry.payload.model.clone()}}
+}
+fn blob_key(hash:&str)->Result<String,StorageError>{if hash.len()!=64||!hash.bytes().all(|b|b.is_ascii_hexdigit()){return Err(failed());}Ok(format!("agent_queue_image_v1:{hash}"))}
+fn image_data(db:&rusqlite::Connection,image:&QueueImage)->Result<String,StorageError>{
+    if !image.data.is_empty(){return Ok(image.data.clone());}
+    let hash=image.blob.as_deref().ok_or_else(failed)?;
+    let data:String=db.query_row("SELECT value FROM app_meta WHERE key=?",[blob_key(hash)?],|row|row.get(0)).map_err(|_|failed())?;
+    if data.len()!=image.encoded_bytes||!crate::pi_image_limits::image_encoded_size_allowed(&data)||format!("{:x}",Sha256::digest(data.as_bytes()))!=hash{return Err(error("队列图片副本不完整，未发送；消息保留。"));}Ok(data)
+}
 fn write_document(db:&rusqlite::Connection,document:&Document)->Result<(),StorageError>{
-    // Archive payloads separately: no repeated decoding or pending-capacity charge.
-    let active=Document{instance:document.instance.clone(),continued_after:document.continued_after.clone(),paused:document.paused.clone(),entries:document.entries.iter().filter(|e|!terminal(e)).cloned().collect()};
-    let text=serde_json::to_string(&active).map_err(|_|failed())?;
-    if text.len()>256*1024*1024{return Err(error("队列附件过大，请处理已有消息后重试；输入保留。"));}
-    for entry in document.entries.iter().filter(|e|terminal(e)){
-        db.execute("INSERT INTO app_meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",rusqlite::params![archive_key(&entry.id),serde_json::to_string(entry).map_err(|_|failed())?]).map_err(|_|failed())?;
+    // Each image is stored once. Active/archived queue records and polling carry references only.
+    let mut active=Document{instance:document.instance.clone(),continued_after:document.continued_after.clone(),paused:document.paused.clone(),entries:Vec::new()};
+    for entry in &document.entries{
+        let stored=entry_ref(entry);
+        for (image,reference) in entry.payload.images.iter().zip(&stored.payload.images){
+            if !image.data.is_empty(){db.execute("INSERT INTO app_meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO NOTHING",rusqlite::params![blob_key(reference.blob.as_deref().ok_or_else(failed)?)?,image.data]).map_err(|_|failed())?;}
+        }
+        if terminal(entry){db.execute("INSERT INTO app_meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",rusqlite::params![archive_key(&entry.id),serde_json::to_string(&stored).map_err(|_|failed())?]).map_err(|_|failed())?;}else{active.entries.push(stored);}
     }
+    let text=serde_json::to_string(&active).map_err(|_|failed())?;
+    if text.len()>256*1024*1024{return Err(error("队列内容过大，请处理已有消息后重试；输入保留。"));}
     db.execute("INSERT INTO app_meta(key,value) VALUES('agent_queue_v1',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[text]).map_err(|_|failed())?;Ok(())
 }
 fn save(store:&Store,document:&Document)->Result<(),StorageError>{let tx=store.db.unchecked_transaction().map_err(|_|failed())?;write_document(&tx,document)?;tx.commit().map_err(|_|failed())}
@@ -50,12 +68,12 @@ fn read(store:&Store,root:&str,instance:&str)->Result<Document,StorageError>{
     if store.root.to_string_lossy()!=root{return Err(error("数据目录已变化，未操作其他目录的队列。"));}
     let text:Option<String>=store.db.query_row("SELECT value FROM app_meta WHERE key='agent_queue_v1'",[],|r|r.get(0)).optional().map_err(|_|failed())?;
     let mut document:Document=match text{Some(v)=>serde_json::from_str(&v).map_err(|_|failed())?,None=>Document::default()};
-    let mut migrated=document.entries.iter().any(terminal);
+    let mut migrated=document.entries.iter().any(|e|terminal(e)||e.payload.images.iter().any(|i|!i.data.is_empty()));
     for entry in document.entries.iter_mut().filter(|e|!terminal(e)){
         let deleted:bool=store.db.query_row("SELECT EXISTS(SELECT 1 FROM agent_conversations WHERE id=?1 AND deleted_at IS NOT NULL) OR EXISTS(SELECT 1 FROM agent_deleted_sessions WHERE session_id=?2)",rusqlite::params![entry.conversation_key,entry.session_id],|r|r.get(0)).map_err(|_|failed())?;
         if deleted{entry.status="removed".into();entry.revision+=1;migrated=true;}
     }
-    if migrated{save(store,&document)?;document.entries.retain(|e|!terminal(e));}
+    if migrated{save(store,&document)?;document.entries=document.entries.iter().filter(|e|!terminal(e)).map(entry_ref).collect();}
     if document.instance!=instance{document.instance=instance.into();for entry in &mut document.entries{document.paused.insert(entry.conversation_key.clone(),true);if entry.status=="editing"{entry.status="waiting".into();entry.revision+=1;}if matches!(entry.status.as_str(),"dispatching"|"nativeQueued"){entry.status="uncertain".into();entry.error=Some("应用曾在交接消息时退出，请先核对历史，再决定是否重新排队。".into());entry.revision+=1;}}save(store,&document)?;}Ok(document)
 }
 pub fn references(store:&Store,provider:&str,model:Option<&str>)->Result<bool,StorageError>{
@@ -63,16 +81,21 @@ pub fn references(store:&Store,provider:&str,model:Option<&str>)->Result<bool,St
     let Some(text)=text else{return Ok(false);};let doc:Document=serde_json::from_str(&text).map_err(|_|failed())?;
     Ok(doc.entries.iter().any(|e|!matches!(e.status.as_str(),"sent"|"removed")&&e.payload.model["provider"].as_str()==Some(provider)&&model.is_none_or(|id|e.payload.model["id"].as_str()==Some(id))))
 }
-fn public(mut document:Document)->Document{document.entries.retain(|e|!matches!(e.status.as_str(),"sent"|"removed"));document}
+fn public(mut document:Document)->Document{document.entries=document.entries.iter().filter(|e|!terminal(e)).map(entry_ref).collect();document}
 fn check_payload(payload:&Payload)->Result<(),StorageError>{
     if payload.text.chars().count()>100000||payload.text.trim().is_empty()&&payload.images.is_empty()&&payload.files.is_empty()&&payload.objects.is_empty()||payload.images.len()>4||payload.files.len()>16||payload.objects.len()>16{return Err(error("消息为空或超过文字/附件数量上限，输入保留。"));}
     if payload.text.trim_start().starts_with('/'){return Err(error("原生命令请在任务结束后单独发送，不加入业务消息队列。"));}
-    if payload.model["provider"].as_str().is_none_or(|v|v.is_empty()||v.len()>200)||payload.model["id"].as_str().is_none_or(|v|v.is_empty()||v.len()>300)||payload.images.iter().map(|i|i.data.len()).sum::<usize>()>crate::pi_image_limits::MAX_IMAGE_BATCH_BASE64_BYTES{return Err(error("模型标识或图片总大小无效，输入保留。"));}
-    if payload.images.iter().any(|i|!crate::pi_image_limits::image_encoded_size_allowed(&i.data)||!matches!(i.mime_type.as_str(),"image/png"|"image/jpeg"|"image/webp"|"image/gif")){return Err(error("图片格式或大小不支持，输入保留。"));}Ok(())
+    if payload.model["provider"].as_str().is_none_or(|v|v.is_empty()||v.len()>200)||payload.model["id"].as_str().is_none_or(|v|v.is_empty()||v.len()>300)||payload.images.iter().fold(0usize,|size,i|size.saturating_add(if i.data.is_empty(){i.encoded_bytes}else{i.data.len()}))>crate::pi_image_limits::MAX_IMAGE_BATCH_BASE64_BYTES{return Err(error("模型标识或图片总大小无效，输入保留。"));}
+    if payload.images.iter().any(|i|(if i.data.is_empty(){i.blob.as_deref().is_none_or(|hash|blob_key(hash).is_err())||i.encoded_bytes==0||i.encoded_bytes>crate::pi_image_limits::MAX_IMAGE_BASE64_BYTES}else{!crate::pi_image_limits::image_encoded_size_allowed(&i.data)})||!matches!(i.mime_type.as_str(),"image/png"|"image/jpeg"|"image/webp"|"image/gif")){return Err(error("图片格式或大小不支持，输入保留。"));}Ok(())
 }
 #[tauri::command]
 pub async fn agent_queue_read(app:tauri::AppHandle,window:tauri::WebviewWindow,root:String)->Result<Document,StorageError>{
     crate::main_window(&window)?;let instance=app.state::<QueueControl>().instance.clone();crate::with_storage(app,move|m|read(m.store()?,&root,&instance).map(public)).await
+}
+#[tauri::command]
+pub async fn agent_queue_image(app:tauri::AppHandle,window:tauri::WebviewWindow,root:String,entry_id:String,image_id:String)->Result<String,StorageError>{
+    crate::main_window(&window)?;let instance=app.state::<QueueControl>().instance.clone();
+    crate::with_storage(app,move|m|{let store=m.store()?;let doc=read(store,&root,&instance)?;let image=doc.entries.iter().find(|entry|entry.id==entry_id).and_then(|entry|entry.payload.images.iter().find(|image|image.id==image_id)).ok_or_else(failed)?;image_data(&store.db,image)}).await
 }
 #[tauri::command]
 pub async fn agent_queue_mutate(app:tauri::AppHandle,window:tauri::WebviewWindow,input:Mutation)->Result<Document,StorageError>{
@@ -86,7 +109,7 @@ pub async fn agent_queue_mutate(app:tauri::AppHandle,window:tauri::WebviewWindow
                 let id=input.id.ok_or_else(failed)?;if id.len()!=36||!id.bytes().all(|b|b.is_ascii_hexdigit()||b==b'-'){return Err(failed());}
                 if doc.entries.iter().any(|e|e.id==id)||archived(&store.db,&id)?.is_some(){return Ok(public(doc));}
                 if doc.entries.iter().filter(|e|e.conversation_key==*key&&!matches!(e.status.as_str(),"sent"|"removed")).count()>=50{return Err(error("此会话最多保留 50 条待发消息。"));}
-                let payload=input.payload.ok_or_else(failed)?;check_payload(&payload)?;let behavior=input.behavior.unwrap_or_else(||"followUp".into());if !matches!(behavior.as_str(),"followUp"|"steer"){return Err(failed());}
+                let payload=input.payload.ok_or_else(failed)?;check_payload(&payload)?;if payload.images.iter().any(|i|i.data.is_empty()){return Err(error("新消息缺少图片内容，输入保留。"));}let behavior=input.behavior.unwrap_or_else(||"followUp".into());if !matches!(behavior.as_str(),"followUp"|"steer"){return Err(failed());}
                 let manager=handle.state::<crate::agent_runtime::AgentRuntime>().manager(key).map_err(pi)?;let snapshot=manager.snapshot().map_err(pi)?;
                 let session=snapshot["state"]["sessionId"].as_str().ok_or_else(failed)?.to_owned();let generation=snapshot["generation"].as_u64().ok_or_else(failed)?;
                 if snapshot["connection"]!="ready"{return Err(error("请先连接此会话，再加入队列。"));}
@@ -112,7 +135,7 @@ pub async fn agent_queue_mutate(app:tauri::AppHandle,window:tauri::WebviewWindow
                     "edit" if entry.status=="editing"=>{let payload=input.payload.ok_or_else(failed)?;check_payload(&payload)?;
                         // The captured attachment/object set travels with the whole
                         // item; editing its text must not drop those references.
-                        if serde_json::to_value(&payload.objects).ok()!=serde_json::to_value(&entry.payload.objects).ok()||payload.files!=entry.payload.files{return Err(error("队列对象与文件引用已锁定；请移除该项后重新加入。"));}entry.payload=payload;entry.status="waiting".into();},
+                        if serde_json::to_value(&payload.objects).ok()!=serde_json::to_value(&entry.payload.objects).ok()||payload.files!=entry.payload.files||serde_json::to_value(&payload.images).ok()!=serde_json::to_value(&entry.payload.images).ok(){return Err(error("队列图片、对象与文件引用已锁定；请移除该项后重新加入。"));}entry.payload=payload;entry.status="waiting".into();},
                     "remove" if matches!(entry.status.as_str(),"waiting"|"editing"|"uncertain")=>entry.status="removed".into(),
                     "restore" if entry.status=="removed"=>entry.status="waiting".into(),
                     "steer" if entry.status=="waiting"=>entry.behavior="steer".into(),
@@ -153,8 +176,9 @@ pub async fn agent_queue_tick(app:tauri::AppHandle,window:tauri::WebviewWindow,r
         }))?;
         if let Some(row)=claimed.filter(|_|status=="dispatching"){
             let ids=row.payload.files.iter().filter_map(|f|f["id"].as_str().map(str::to_owned)).collect::<Vec<_>>();let verify_root=root.clone();
-            let verified=tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|{let s=m.store()?;if s.root.to_string_lossy()!=verify_root{return Err(failed());}crate::agent_commands::verify_attachments(s,&ids)}));
-            let result=verified.and_then(|_|handle.state::<crate::agent_runtime::AgentRuntime>().send_queued(&row.conversation_key,SendInput{generation:row.generation,session_id:row.session_id.clone(),message:if row.payload.text.trim().is_empty()&&row.payload.images.is_empty(){"请查看附加资料。".into()}else{row.payload.text.clone()},images:row.payload.images.iter().map(|i|ImageInput{data:i.data.clone(),mime_type:i.mime_type.clone()}).collect(),behavior:Some(row.behavior.clone())},crate::pi_commands::notify_for(&app,&row.conversation_key),row.input_id.clone()).map_err(pi));
+            let queued_images=row.payload.images.clone();
+            let verified=tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|{let s=m.store()?;if s.root.to_string_lossy()!=verify_root{return Err(failed());}crate::agent_commands::verify_attachments(s,&ids)?;queued_images.iter().map(|i|Ok(ImageInput{data:image_data(&s.db,i)?,mime_type:i.mime_type.clone()})).collect::<Result<Vec<_>,StorageError>>()}));
+            let result=verified.and_then(|images|handle.state::<crate::agent_runtime::AgentRuntime>().send_queued(&row.conversation_key,SendInput{generation:row.generation,session_id:row.session_id.clone(),message:crate::agent_store::input_message(&row.payload.text,!images.is_empty(),!row.payload.files.is_empty()||!row.payload.objects.is_empty()),images,behavior:Some(row.behavior.clone())},crate::pi_commands::notify_for(&app,&row.conversation_key),row.input_id.clone()).map_err(pi));
             let instance=control.instance.clone();let save_root=root.clone();
             tauri::async_runtime::block_on(crate::with_storage(app.clone(),move|m|{let s=m.store()?;let mut doc=read(s,&save_root,&instance)?;let entry=doc.entries.iter_mut().find(|e|e.id==row.id).ok_or_else(failed)?;
                 match result{Ok(receipt)=>{entry.status=if receipt.disposition=="queued"{"nativeQueued"}else{"sent"}.into();s.agent_input_status(&entry.input_id,"accepted")?;},Err(e) if e.code=="agent_queue_paused"=>{entry.status="waiting".into();entry.error=None;},Err(e)=>{entry.status="uncertain".into();entry.error=Some(e.message);doc.paused.insert(entry.conversation_key.clone(),true);s.agent_input_status(&entry.input_id,"unconfirmed")?;}}entry.revision+=1;save(s,&doc)
@@ -174,7 +198,7 @@ mod tests {
     fn terminal_payload_leaves_active_document_and_remains_restorable(){
         let mut db=database();let mut doc=Document::default();doc.entries.push(entry("removed"));
         let tx=db.transaction().unwrap();write_document(&tx,&doc).unwrap();tx.commit().unwrap();
-        assert!(load(&db).entries.is_empty());let mut saved=archived(&db,"fixture-id").unwrap().unwrap();assert_eq!(saved.payload.images[0].data,"aGVsbG8=");
+        assert!(load(&db).entries.is_empty());let mut saved=archived(&db,"fixture-id").unwrap().unwrap();assert!(saved.payload.images[0].data.is_empty());assert_eq!(image_data(&db,&saved.payload.images[0]).unwrap(),"aGVsbG8=");
         saved.status="waiting".into();saved.revision+=1;doc.entries=vec![saved];write_document(&db,&doc).unwrap();assert_eq!(load(&db).entries[0].revision,2);
         doc.entries[0].status="sent".into();write_document(&db,&doc).unwrap();assert!(load(&db).entries.is_empty());assert_eq!(archived(&db,"fixture-id").unwrap().unwrap().status,"sent");
     }

@@ -34,17 +34,16 @@ function ToolRow({value,choice,onChoice,onBeforeChange}:{value:ToolView;choice:b
   const open = choice ?? issue;
   return <div className="pi-call" data-call-id={value.id} data-status={value.status}>
     <Button variant="app-control" type="button" className="pi-call-toggle" aria-expanded={open} aria-controls={id} onClick={()=>{onBeforeChange();onChoice(!open);}}>
-      <PiIcon type="tool"/><span className="pi-call-title">调用工具：<code>{value.name}</code></span>
-      <span className="pi-call-status">{states[value.status] ?? '状态待确认'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
+      <PiIcon type="tool"/><span className="pi-call-title"><code>{value.name}</code></span>
+      <span className="pi-call-status" aria-label={states[value.status] ?? '状态待确认'} title={states[value.status] ?? '状态待确认'}>{['success','finished'].includes(value.status)?<PiIcon type="check"/>:states[value.status] ?? '状态待确认'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
     </Button>
     <div className="pi-call-description">{value.path&&<p className="pi-call-path">{value.path}</p>}
-      {value.output&&<p className="pi-call-preview">{value.output}</p>}
+      {issue&&!open&&value.output&&<p className="pi-call-preview">{value.output}</p>}
       {value.notice&&<p className="pi-call-notice">{value.notice}</p>}
-      {!value.output&&<p>{value.status==='running'?'工具执行中…':value.status==='waiting'?'等待实际工具事件。':'尚无可显示的输出。'}</p>}
     </div>
     <div id={id} hidden={!open} className="pi-call-details"><h4>输入</h4><pre tabIndex={0} aria-label={`${value.name}输入`}>{value.input}</pre>
-      {value.children.length>0&&<><h4>实际子调用 · {value.children.length}</h4><ul className="pi-call-children">{value.children.map((child,index)=><li key={index} data-status={child.status}><code>{child.name}</code><span>{states[child.status]??'状态待确认'}</span></li>)}</ul></>}
-      <h4>输出</h4><pre tabIndex={0} aria-label={`${value.name}输出`}>{value.output || '尚无可显示的输出。'}</pre></div>
+      {value.children.length>0&&<><h4>子调用 · {value.children.length}</h4><ul className="pi-call-children">{value.children.map((child,index)=><li key={index} data-status={child.status}><code>{child.name}</code><span>{states[child.status]??'状态待确认'}</span></li>)}</ul></>}
+      {value.output&&<><h4>输出</h4><pre tabIndex={0} aria-label={`${value.name}输出`}>{value.output}</pre></>}</div>
   </div>;
 }
 function Thinking({text,title,expanded,onChoice,onBeforeChange}:{text:string;title:string;expanded:boolean;onChoice:(open:boolean)=>void;onBeforeChange:()=>void}) {
@@ -66,11 +65,11 @@ function Process({value,choices,onChoice,onBeforeChange}:{value:ProcessView;choi
       <span className="pi-process-summary"><strong>{title}</strong>{count>0&&<span className="pi-process-count">{count} 次工具调用</span>}
         {finished&&issue&&<span className="pi-process-warning">{failures?`含 ${failures} 次异常调用`:'过程含异常记录'}</span>}
       </span>
-      <span className="pi-process-toggle-label">{open?'收起':'展开'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
+      <span className="sr-only">{open?'收起':'展开'}</span><span className="pi-chevron" data-open={open}><PiIcon type="chevron"/></span>
     </Button>
     <div id={id} className="pi-process-content" hidden={!open}>{value.entries.map(entry=>entry.kind==='thinking'
       ? <Thinking key={entry.key} text={entry.text} title={entry.title} expanded={choices[entry.key+'/full']??false} onChoice={open=>onChoice(entry.key+'/full',open)} onBeforeChange={onBeforeChange}/>
-      :entry.kind==='commentary'?<div className="pi-process-commentary" key={entry.key}><span className="meta">执行说明</span><MessageMarkdown text={entry.text}/></div>
+      :entry.kind==='commentary'?<div className="pi-process-commentary" key={entry.key}><MessageMarkdown text={entry.text}/></div>
       :<ToolRow key={entry.key} value={entry} choice={choices[entry.key+'/details']} onChoice={open=>onChoice(entry.key+'/details',open)} onBeforeChange={onBeforeChange}/>)}
       {value.errors.map((error,index)=><Feedback as="p" tone="error" key={index} className="form-error" role="alert">{error}</Feedback>)}</div>
   </section>;
@@ -83,12 +82,12 @@ function MessageCopyAction({item}:{item:Extract<ConversationView,{kind:'message'
   const label=user?'消息':'回复';
   return <div className="pi-message-actions"><Button variant="app-quiet" size="icon-sm" type="button" aria-label={`复制这条${label}`} title={`复制${label}`} onClick={async()=>{try{await navigator.clipboard.writeText(text);notifyOperation(`已复制${label}`);}catch{notifyOperation('复制失败，请选择文字后复制。',{tone:'error'});}}}><PiIcon type="copy"/></Button></div>;
 }
-export function Conversation({items,choices,onChoice,onBeforeChange,afterMessage}:{items:ConversationView[];choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void;afterMessage?:(item:Extract<ConversationView,{kind:'message'}>)=>ReactNode}) {
+export function Conversation({items,attachments={},choices,onChoice,onBeforeChange,afterMessage}:{items:ConversationView[];attachments?:import('./pi-client.ts').MessageAttachments;choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void;afterMessage?:(item:Extract<ConversationView,{kind:'message'}>)=>ReactNode}) {
   return <>{items.map(item=>item.kind==='process'?<Process key={item.key} value={item} choices={choices} onChoice={onChoice} onBeforeChange={onBeforeChange}/>
     :<article key={item.key} className={`pi-message pi-message--${item.role}`} data-message-key={item.key}>
       {item.role!=='assistant'&&<header><strong>{item.title}</strong></header>}
       {item.role==='user'?<>
-        {(item.parts.some(part=>part.kind==='image')||item.parts.some(part=>agentMessageAttachments(part.text).length))&&<div className="pi-sent-attachment-tray">{item.parts.flatMap((part,index)=>part.kind==='image'?[<AttachmentPreview key={`image-${index}`} value={{name:'图片.png',imageUrl:part.imageUrl}}/>]:agentMessageAttachments(part.text).map((file,i)=><AttachmentPreview key={`${index}-${file.id??i}`} value={file}/>))}</div>}
+        {(!!attachments[String(item.messageIndex)]?.length||item.parts.some(part=>part.kind==='image')||item.parts.some(part=>agentMessageAttachments(part.text).length))&&<div className="pi-sent-attachment-tray">{attachments[String(item.messageIndex)]?.map(file=><AttachmentPreview key={`saved-${file.id}`} value={file}/>)}{item.parts.flatMap((part,index)=>part.kind==='image'?[<AttachmentPreview key={`image-${index}`} value={{name:'图片.png',imageUrl:part.imageUrl}}/>]:agentMessageAttachments(part.text).map((file,i)=><AttachmentPreview key={`${index}-${file.id??i}`} value={file}/>))}</div>}
         {item.parts.some(part=>part.kind!=='image'&&agentMessageContent(part.text).text.trim())&&<div className="pi-user-bubble">{item.parts.filter(part=>part.kind!=='image').map((part,index)=><MessageText key={index} text={part.text} user finished={false} showAttachments={false}/>)}</div>}
         {item.parts.some(part=>part.imageNote)&&<Disclosure className="pi-image-metadata"><summary>图片尺寸信息</summary><pre>{item.parts.map(part=>part.imageNote).filter(Boolean).join('\n')}</pre></Disclosure>}
       </>:item.role==='assistant'?<>

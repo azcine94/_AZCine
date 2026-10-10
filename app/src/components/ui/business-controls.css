@@ -206,7 +206,7 @@ button:disabled { cursor:not-allowed; }
 .pi-agent-layout .pi-options-panel .pi-runtime { margin-top:var(--s-3); }
 .pi-agent-layout .pi-runtime dl { grid-template-columns:80px minmax(0,1fr); font-size:12px; }
 .pi-agent-layout .pi-options-panel input { min-height:40px; }
-.pi-agent-layout .pi-latest { position:absolute; bottom:var(--s-3); right:var(--s-4); min-height:40px; padding:var(--s-2) var(--s-3); background:var(--island-3); color:var(--text); border:1px solid var(--line-2); }
+.pi-agent-layout .pi-latest { position:absolute; bottom:var(--s-3); left:50%; transform:translateX(-50%); }
 .pi-agent-layout .pi-process-toggle { display:flex; align-items:center; gap:var(--s-2); width:100%; min-height:28px; text-align:left; padding:4px 0; }
 .pi-agent-layout .pi-process-toggle strong { font:600 13px/20px var(--font); }
 .pi-agent-layout .pi-inline-action { color:var(--t2); min-height:28px; padding:4px 0; font-size:12px; }

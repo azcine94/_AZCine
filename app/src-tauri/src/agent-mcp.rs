@@ -13,38 +13,53 @@ fn pi(message:&str)->PiError{PiError::new("pi_mcp",message)}
 pub struct Binding{pub root:PathBuf,pub key:String,pub session:String,pub generation:u64,pub background:bool,pub input_id:Option<String>,pub message_index:Option<usize>}
 enum Owner{Conversation{manager:Weak<PiManager>,generation:u64,key:String,root:PathBuf},Job(Arc<Mutex<Option<Binding>>>) }
 #[derive(Default)]
-pub struct BusinessMcp{listener:Mutex<Option<String>>,grants:Arc<Mutex<HashMap<String,Owner>>>,stop:Arc<AtomicBool>}
+pub struct BusinessMcp{listener:Mutex<Option<Listener>>,grants:Arc<Mutex<HashMap<String,Owner>>>,stop:Arc<AtomicBool>}
+struct Listener{address:String,thread:std::thread::JoinHandle<()>}
 
 impl BusinessMcp{
     fn address(&self,app:&tauri::AppHandle)->Result<String,PiError>{
         let mut address=self.listener.lock().map_err(|_|pi("业务连接状态中断。"))?;
-        if let Some(address)=address.as_ref(){return Ok(address.clone());}
+        if self.stop.load(Ordering::Acquire){return Err(pi("业务连接正在停止，请稍后重连。"));}
+        if let Some(listener)=address.as_ref(){if !listener.thread.is_finished(){return Ok(listener.address.clone());}}
+        if let Some(previous)=address.take(){let _=previous.thread.join();}
         let listener=TcpListener::bind(("127.0.0.1",0)).map_err(|_|pi("本机业务连接无法启动。"))?;
         listener.set_nonblocking(true).map_err(|_|pi("本机业务连接无法准备。"))?;
         let local=listener.local_addr().map_err(|_|pi("本机业务地址无法读取。"))?.to_string();
         let app=app.clone();let grants=self.grants.clone();let stop=self.stop.clone();let active=Arc::new(AtomicUsize::new(0));
-        std::thread::spawn(move||while !stop.load(Ordering::Acquire){
+        let thread=std::thread::spawn(move||while !stop.load(Ordering::Acquire){
             match listener.accept(){
                 Ok((stream,peer))=>{if !peer.ip().is_loopback(){continue;}if active.fetch_add(1,Ordering::AcqRel)>=16{active.fetch_sub(1,Ordering::AcqRel);continue;}let app=app.clone();let grants=grants.clone();let active=active.clone();std::thread::spawn(move||{serve(&app,&grants,stream);active.fetch_sub(1,Ordering::AcqRel);});},
                 Err(e) if e.kind()==std::io::ErrorKind::WouldBlock=>std::thread::sleep(Duration::from_millis(30)),
                 Err(_)=>break,
             }
         });
-        *address=Some(local.clone());Ok(local)
+        *address=Some(Listener{address:local.clone(),thread});Ok(local)
     }
     pub fn conversation(&self,app:&tauri::AppHandle,manager:Weak<PiManager>,generation:u64,key:String,root:PathBuf,paths:&PiPaths,runtime:&RuntimePaths)->Result<Vec<(OsString,OsString)>,PiError>{
         let token=token(app)?;let address=self.address(app)?;configuration(paths,runtime)?;
         let mut grants=self.grants.lock().map_err(|_|pi("业务连接登记失败。"))?;
+        if self.stop.load(Ordering::Acquire){return Err(pi("业务连接已停止，请重新连接。"));}
         grants.retain(|_,owner|match owner{Owner::Conversation{manager,generation,..}=>manager.upgrade().and_then(|m|m.summary().ok()).is_some_and(|s|s["generation"].as_u64()==Some(*generation)&&matches!(s["connection"].as_str(),Some("ready"|"connecting"))),Owner::Job(_)=>true});
         grants.insert(token.clone(),Owner::Conversation{manager,generation,key,root});
         Ok(environment(address,token))
     }
     pub fn job(&self,app:&tauri::AppHandle,paths:&PiPaths,runtime:&RuntimePaths)->Result<(JobGrant,Vec<(OsString,OsString)>),PiError>{
         let token=token(app)?;let address=self.address(app)?;configuration(paths,runtime)?;
-        let binding=Arc::new(Mutex::new(None));self.grants.lock().map_err(|_|pi("业务任务登记失败。"))?.insert(token.clone(),Owner::Job(binding.clone()));
+        let binding=Arc::new(Mutex::new(None));let mut grants=self.grants.lock().map_err(|_|pi("业务任务登记失败。"))?;
+        if self.stop.load(Ordering::Acquire){return Err(pi("业务连接已停止，请重新连接。"));}
+        grants.insert(token.clone(),Owner::Job(binding.clone()));
         Ok((JobGrant{token:token.clone(),grants:self.grants.clone(),binding},environment(address,token)))
     }
-    pub fn shutdown(&self){self.stop.store(true,Ordering::Release);if let Ok(mut grants)=self.grants.lock(){grants.clear();}}
+    pub fn shutdown(&self){
+        if let Ok(mut listener)=self.listener.lock(){
+            self.stop.store(true,Ordering::Release);
+            if let Ok(mut grants)=self.grants.lock(){grants.clear();}
+            if let Some(listener)=listener.take(){let _=listener.thread.join();}
+        }
+    }
+    // Only the explicit update-failure recovery enables a new listener.
+    // Normal exit remains stopped, and old grants are never resurrected.
+    pub fn resume(&self){if let Ok(_listener)=self.listener.lock(){self.stop.store(false,Ordering::Release);}}
 }
 pub struct JobGrant{token:String,grants:Arc<Mutex<HashMap<String,Owner>>>,binding:Arc<Mutex<Option<Binding>>>}
 impl JobGrant{pub fn bind(&self,binding:Binding)->Result<(),StorageError>{*self.binding.lock().map_err(|_|error("任务会话状态中断。"))?=Some(binding);Ok(())}}

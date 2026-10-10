@@ -1,0 +1,4 @@
+.ui-resize-handle{position:absolute;top:0;bottom:0;width:8px;z-index:2;cursor:col-resize;touch-action:none;user-select:none}
+.ui-resize-handle::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent}
+.ui-resize-handle:hover::after,.ui-resize-handle:focus-visible::after,.ui-resize-handle[data-resizing=true]::after{background:var(--ring)}
+.ui-resize-handle:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}

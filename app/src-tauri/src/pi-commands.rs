@@ -28,11 +28,11 @@ pub(crate) fn notify_for(app:&tauri::AppHandle,key:&str)->Notify{let app=app.clo
     let runtime=app.state::<crate::agent_runtime::AgentRuntime>();
     let mut metadata=true;
     if let Ok(manager)=runtime.manager(&key){if let Ok(summary)=manager.summary(){
-        let signature=json!([summary["generation"],summary["sessionId"],summary["sessionFile"],summary["name"],summary["connection"],summary["active"],summary["waiting"],summary["outcome"]]);
+        let signature=json!([summary["generation"],summary["sessionId"],summary["sessionFile"],summary["name"],summary["connection"],summary["active"],summary["waiting"],summary["outcome"],summary["lastActivityAt"],summary["lastReplyAt"],summary["deliveredInputIds"]]);
         if let Ok(mut before)=previous.lock(){metadata=before.as_ref()!=Some(&signature);*before=Some(signature);}
         let _=app.emit_to("main","azcine-pi-changed",json!({"conversationKey":key,"metadata":metadata}));
-        if summary["connection"]=="ready"&&summary["active"]==false&&matches!(summary["outcome"].as_str(),Some("success"|"none")){
-            if let Ok(snapshot)=manager.snapshot(){crate::agent_commands::persist_settled(&app,&key,snapshot);}
+        if metadata&&summary["connection"]=="ready"{
+            if let Ok(snapshot)=manager.persistence_snapshot(){crate::agent_commands::persist_settled(&app,&key,snapshot);}
         }
         return;
     }}
@@ -44,7 +44,7 @@ async fn work<T:Send+'static>(app:tauri::AppHandle,conversation_key:Option<Strin
     tauri::async_runtime::spawn_blocking(move||{let key=conversation_key.as_deref().unwrap_or("default");let notice=notify_for(&app,key);let manager=app.state::<crate::agent_runtime::AgentRuntime>().manager(key)?;f(&manager,notice)}).await.map_err(|_|PiError::new("pi_worker_interrupted","Pi 操作意外中断，未报告成功；请核对会话，输入保留。"))?
 }
 #[tauri::command]
-pub async fn pi_snapshot(app:tauri::AppHandle,window:tauri::WebviewWindow,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,|m,_|m.snapshot()).await}
+pub async fn pi_snapshot(app:tauri::AppHandle,window:tauri::WebviewWindow,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;let snapshot=work(app.clone(),conversation_key.clone(),|m,_|m.snapshot()).await?;crate::agent_commands::attachment_snapshot(app,conversation_key.unwrap_or_else(||"default".into()),snapshot).await}
 #[tauri::command]
 pub async fn pi_connect(app:tauri::AppHandle,window:tauri::WebviewWindow,cwd:Option<String>,session_path:Option<String>,reconnect:Option<bool>,conversation_key:Option<String>)->Result<Value,PiError>{
     allowed(&app,&window)?;let check_key=conversation_key.clone().unwrap_or_else(||"default".into());let check_path=session_path.clone();
@@ -53,7 +53,7 @@ pub async fn pi_connect(app:tauri::AppHandle,window:tauri::WebviewWindow,cwd:Opt
     tauri::async_runtime::spawn_blocking(move||{let key=conversation_key.as_deref().unwrap_or("default");let manager=app.state::<crate::agent_runtime::AgentRuntime>().manager(key)?;let weak=Arc::downgrade(&manager);let handle=app.clone();let owner_key=key.to_owned();let owner_root=root.clone();manager.business_environment(Arc::new(move|generation,paths,runtime|handle.state::<crate::agent_mcp::BusinessMcp>().conversation(&handle,weak.clone(),generation,owner_key.clone(),owner_root.clone(),paths,runtime)))?;app.state::<crate::agent_runtime::AgentRuntime>().connect(key,&root,&resources,cwd.as_ref().map(std::path::Path::new),session_path.as_ref().map(std::path::Path::new),reconnect.unwrap_or(false),notify_for(&app,key))}).await.map_err(|_|PiError::new("pi_worker_interrupted","会话连接中断，输入保留。"))?
 }
 #[tauri::command]
-pub async fn pi_disconnect(app:tauri::AppHandle,window:tauri::WebviewWindow,conversation_key:Option<String>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,|m,n|m.disconnect(n)).await}
+pub async fn pi_disconnect(app:tauri::AppHandle,window:tauri::WebviewWindow,conversation_key:Option<String>,generation:Option<u64>)->Result<Value,PiError>{allowed(&app,&window)?;work(app,conversation_key,move|m,n|m.disconnect_generation(generation,n)).await}
 #[tauri::command]
 pub async fn pi_send(app:tauri::AppHandle,window:tauri::WebviewWindow,input:SendInput,conversation_key:Option<String>)->Result<SendReceipt,PiError>{allowed(&app,&window)?;tauri::async_runtime::spawn_blocking(move||{let key=conversation_key.as_deref().unwrap_or("default");app.state::<crate::agent_runtime::AgentRuntime>().send(key,input,notify_for(&app,key))}).await.map_err(|_|PiError::new("pi_worker_interrupted","发送中断，输入保留。"))?}
 #[tauri::command]
@@ -161,6 +161,7 @@ pub fn stop_for_update(app:&tauri::AppHandle)->Result<(),PiError>{
     Ok(())
 }
 pub fn resume_after_update_failure(app:&tauri::AppHandle){
+    app.state::<crate::agent_mcp::BusinessMcp>().resume();
     app.state::<crate::agent_runtime::AgentRuntime>().set_exiting(false);
     app.state::<crate::agent_jobs::BackgroundSlots>().set_exiting(false);
     let _=app.emit_to("main","azcine-pi-changed",());

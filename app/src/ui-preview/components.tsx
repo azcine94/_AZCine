@@ -42,8 +42,14 @@ import { ProjectStagePicker } from '../project-stage-picker.tsx';
 import { ProjectAddMenu } from '../project-add-menu.tsx';
 import { TableMenu } from '../table-menu.tsx';
 import { project } from './data.ts';
+import { ResizeHandle,useResizablePanel } from '../components/ui/resizable-panel.tsx';
 
-export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu','record-pagination','expandable-text-cell','image-viewer'];
+function ResizablePanelExample(){
+  const panel=useResizablePanel({storageKey:'ui-preview-resize',defaultWidth:232,minWidth:192,maxWidth:420,reserveWidth:200,persist:false});
+  return <Card><CardHeader><CardTitle>拖动分隔线</CardTitle><CardDescription>仅改变本页示例宽度；支持方向键、Home / End、Escape 取消拖动和双击复位，不写入本机偏好。</CardDescription></CardHeader><CardContent><div ref={panel.container} className="relative grid min-h-32 min-w-0 overflow-hidden rounded-md border" style={{gridTemplateColumns:`${panel.width}px minmax(0,1fr)`,userSelect:panel.resizing?'none':undefined}}><div className="bg-sidebar p-4">会话栏 · {Math.round(panel.width)} px</div><ResizeHandle {...panel.handleProps} style={{left:panel.width-4}} aria-label="调整示例会话栏宽度"/><div className="min-w-0 p-4">聊天区域</div></div></CardContent></Card>;
+}
+
+export const demonstratedComponents=['button','input','textarea','native-select','label','card','badge','separator','resizable-panel','table','tabs','dialog','popover','dropdown-menu','tooltip','checkbox','switch','progress','skeleton','alert','ui-link','disclosure','feedback','loading-status','status-badge','status-dot','action-group','empty-state','month-input','form-dialog','operation-toast','agent-entry','scale-loader','attachment-preview','record-context-menu','record-pagination','expandable-text-cell','image-viewer'];
 export function Components({state}:{state:string}) {
   const [cellText,setCellText]=useState('多行单元格示例\n按 F2 或点击展开编辑');
   const [date,setDate]=useState('2026-10-06'),[stage,setStage]=useState<string|null>(project.labels[0].id);
@@ -66,7 +72,7 @@ export function Components({state}:{state:string}) {
   const [renameDrafts,setRenameDrafts]=useState<Record<string,string>>({});
   function validLabel(name:string,id?:string) {const clean=name.trim();if(!clean||clean.length>80||labels.some(label=>label.id!==id&&label.name===clean)){setLabelError('请填写 1–80 字且不重复的标签名称。');return false;}setLabelError('');return true;}
   const buttonNames:Record<string,string>={'app-choice-chip':'分类选择','app-underline-tab':'下划线栏目','app-content':'内容卡片','app-pill':'常规按钮','app-text':'文字操作','app-document':'文档操作','app-idea':'灵感操作','app-quiet':'Agent 次要操作','app-primary':'Agent 主操作','app-icon':'图标按钮','app-menu':'菜单项','app-control':'专用控件基础','app-reading-tab':'阅读标签','app-domain':'领域筛选','app-idea-filter':'灵感筛选','app-provider-tab':'服务商标签','app-ranking-tab':'榜单切换','app-scope':'处理范围'};
-  return <div className="catalog-components"><OperationToast/><ImageViewer open={viewerOpen} onOpenChange={setViewerOpen} src={state==='image-viewer-error'?'data:image/png;base64,AAAA':`data:image/png;base64,${attachmentImageData}`} name="虚构图片 · 可缩放预览"/>
+  return <div className="catalog-components"><ResizablePanelExample/><OperationToast/><ImageViewer open={viewerOpen} onOpenChange={setViewerOpen} src={state==='image-viewer-error'?'data:image/png;base64,AAAA':`data:image/png;base64,${attachmentImageData}`} name="虚构图片 · 可缩放预览"/>
     <header><h1>通用组件与项目控件</h1><p className="text-muted-foreground mt-2">这里直接使用应用组件。可以打开菜单、日历、弹层，查看焦点、悬停、禁用与选中态。</p></header>
     <div className="catalog-kit-grid">
       <Card><CardHeader><CardTitle>附件缩略图</CardTitle><CardDescription>图片可放大；表格、PDF 和文本使用文件类型缩略图。这里使用虚构附件。</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3"><Button variant="outline" onClick={()=>setViewerOpen(true)}>打开可缩放大图</Button><AttachmentPreview value={{name:'示例.png',imageUrl:`data:image/png;base64,${attachmentImageData}`}} onRemove={()=>setNote('示例：移除图片')}/><AttachmentPreview value={{name:'镜头表.xlsx',bytes:2048}}/><AttachmentPreview value={{name:'交付说明.pdf',bytes:4096}}/></CardContent></Card>

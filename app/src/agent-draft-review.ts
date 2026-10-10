@@ -1,5 +1,5 @@
 export interface DraftChange { field: string; before: string; after: string }
-const labels: Record<string,string> = {name:'名称',title:'标题',body:'正文',tags:'标签',projectId:'关联公司',completed:'完成状态',date:'日期',purpose:'用途',amountFen:'金额（人民币分）',note:'备注',status:'报销状态',receiptIds:'票据',exchange:'汇率记录',feedUrl:'订阅地址',identity:'来源身份',domains:'覆盖领域',usage:'参与用途',intervalMinutes:'采集间隔（分钟）',enabled:'启用状态',labels:'阶段',blocks:'文档内容',items:'清单事项',text:'内容',checked:'勾选状态',included:'参与交付汇总',columns:'列',rows:'行',cells:'单元格',kind:'类型',width:'列宽',deleted:'删除状态',convertToTodo:'转为待办'};
+const labels: Record<string,string> = {images:'图片',height:'行高',mimeType:'文件类型',hash:'图片内容标识',bytes:'文件大小',name:'名称',title:'标题',body:'正文',tags:'标签',projectId:'关联公司',completed:'完成状态',date:'日期',purpose:'用途',amountFen:'金额（人民币分）',note:'备注',status:'报销状态',receiptIds:'票据',exchange:'汇率记录',feedUrl:'订阅地址',identity:'来源身份',domains:'覆盖领域',usage:'参与用途',intervalMinutes:'采集间隔（分钟）',enabled:'启用状态',labels:'阶段',blocks:'文档内容',items:'清单事项',text:'内容',checked:'勾选状态',included:'参与交付汇总',columns:'列',rows:'行',cells:'单元格',kind:'类型',width:'列宽',deleted:'删除状态',convertToTodo:'转为待办'};
 const names: Record<string,string> = {unclaimed:'不报销',pending:'待提交',submitted:'已提交',paid:'已到账',official:'官方',research:'研究',media:'媒体',individual:'个人',frontiers:'AI 前沿',industry:'行业动态',visual:'影视 CG',editorial:'参与整理',watch:'关注线索',text:'文本',shot:'镜头号',stage:'阶段',delivered:'交完',list:'表格',checklist:'清单'};
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const hiddenFields=new Set(['id','revision','createdAt','updatedAt']);
@@ -90,6 +90,16 @@ export function draftTableReviews(before:unknown,after:unknown):DraftTableReview
 }
 export function draftFieldsWithoutTables(value:unknown):unknown {
   if(!record(value)||!Array.isArray(value.blocks))return value;
-  return {...value,blocks:value.blocks.filter(block=>!record(block)||block.kind!=='list')};
+  // The table preview covers cells and structure, not image associations or
+  // other row metadata. Preserve those fields even when another table changes.
+  return {...value,blocks:value.blocks.map(block=>{
+    if(!record(block)||block.kind!=='list'||!Array.isArray(block.rows))return block;
+    const {included: _included,...rest}=block;
+    return {...rest,rows:block.rows.map(row=>{
+      if(!record(row))return row;
+      const {cells: _cells,...metadata}=row;
+      return metadata;
+    })};
+  })};
 }
 export const draftColumnKind=(kind:string)=>kind==='date'?'日期':names[kind]??kind;
