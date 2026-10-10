@@ -1,0 +1,39 @@
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { cx } from "./cx";
+
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-soft" | "tonal";
+export type ButtonSize = "sm" | "md" | "lg";
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Visual role — primary (accent CTA), tonal (accent-container fill, medium
+   * emphasis), secondary (bordered, default), ghost (borderless; the standard
+   * for "Cancel"), danger (destructive confirm), danger-soft (tinted
+   * disconnect/remove with the data kept — official variant since the design
+   * sweep 2026-07-19). */
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Optional leading icon (lucide element). */
+  icon?: ReactNode;
+}
+
+/**
+ * Standard button (plan Designsprache P2). Renders the shared .pv-btn classes
+ * so every theme (LCARS pills, Phosphor glow) can restyle it — never rebuild
+ * this with inline styles. Sizes map to --control-sm/md/lg.
+ */
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "secondary", size = "md", icon, className, children, type, ...rest },
+  ref
+) {
+  return (
+    <button
+      ref={ref}
+      type={type ?? "button"}
+      className={cx("pv-btn", `pv-btn--${variant}`, size !== "md" && `pv-btn--${size}`, className)}
+      {...rest}
+    >
+      {icon ? <span className="pv-btn-ic">{icon}</span> : null}
+      {children}
+    </button>
+  );
+});

@@ -6,6 +6,13 @@
     "main"
   ],
   "permissions": [
+    "allow-notes-local",
+    "allow-notes-index",
+    "allow-notes-select",
+    "allow-notes-read",
+    "allow-notes-save",
+    "allow-notes-binary",
+    "allow-notes-attach",
     "allow-pi-processes", "allow-pi-stop-process",
     "core:default", "allow-github-projects-snapshot", "allow-github-projects-refresh", "allow-github-project-avatar", "allow-github-project-open", "allow-evolution-snapshot", "allow-evolution-mutate", "allow-evolution-source", "allow-evolution-open-source", "allow-evolution-extract", "allow-evolution-cancel",
     "allow-goodcase-fetch",

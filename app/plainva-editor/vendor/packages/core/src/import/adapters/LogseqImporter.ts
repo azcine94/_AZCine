@@ -1,0 +1,123 @@
+import {
+  DEFAULT_IMPORT_LABELS,
+  ImportFamily,
+  ImportOptions,
+  ImportPlan,
+  ImportReport,
+  ImportSource,
+  ImportSourceId,
+  UnpackedFile,
+  isTextEntry,
+} from '../ImportTypes.js';
+import { copyArchiveAttachments } from '../archiveAttachments.js';
+import { ImportWriter } from '../ImportWriter.js';
+import { timesFromFile } from '../sourceTimes.js';
+
+export type LogseqFile = UnpackedFile;
+
+/**
+ * Copies a Logseq file graph across as-is.
+ *
+ * Deliberately verbatim: `key:: value` properties and block references are NOT
+ * converted. Logseq's outline model does not map onto Markdown notes without
+ * lossy guesswork, so the files are preserved unchanged and the report says so.
+ */
+export class LogseqImporter implements ImportSource {
+  readonly id: ImportSourceId = 'logseq';
+  readonly name = 'Logseq file graph';
+  readonly family: ImportFamily = 'markdown';
+  readonly description = 'Copies Logseq notes (journals/ & pages/) across unchanged.';
+
+  /** Above the generic Markdown fallback: a graph folder is a specific shape. */
+  readonly detectPriority = 20;
+
+  readonly options = [{ key: 'preserveTimestamps' as const, defaultValue: true }];
+  // A graph is a directory by definition.
+  readonly pickModes = ['folder'] as const;
+
+
+  /**
+   * A Logseq graph is recognised by its folders, not by containing Markdown.
+   *
+   * The old check also accepted any `.md` file, so a plain folder of notes
+   * matched Logseq as readily as the generic importer — and which one won came
+   * down to registration order. Only `journals/` and `pages/` are Logseq's
+   * own signature.
+   */
+  async detect(input: any): Promise<boolean> {
+    if (!Array.isArray(input)) return false;
+    return input.some(
+      (f: any) =>
+        typeof f.relativePath === 'string' &&
+        (f.relativePath.startsWith('journals/') || f.relativePath.startsWith('pages/'))
+    );
+  }
+
+  async analyze(input: LogseqFile[], opts: ImportOptions): Promise<ImportPlan> {
+    const labels = opts.labels ?? DEFAULT_IMPORT_LABELS;
+    const files = Array.isArray(input) ? input : [];
+    const notes = files.filter(f => typeof f.relativePath === 'string' && (f.relativePath.endsWith('.md') || f.relativePath.endsWith('.org')));
+
+    const warnings: string[] = [];
+    if (notes.length === 0) warnings.push('No Logseq Markdown/Org files found in the selection.');
+    warnings.push(labels.limitLogseqVerbatim);
+
+    return {
+      sourceId: this.id,
+      sourceName: this.name,
+      totalNotes: notes.length,
+      totalAttachments: files.length - notes.length,
+      totalDatabases: 0,
+      totalChecklists: 0,
+      warnings,
+      requiredSpaceBytes: files.reduce((acc, f) => acc + (f.content?.length || 0), 0),
+      estimatedDurationSec: Math.max(1, Math.ceil(notes.length / 50)),
+    };
+  }
+
+  async run(
+    input: LogseqFile[],
+    opts: ImportOptions,
+    onProgress?: (percent: number, statusMessage: string) => void
+  ): Promise<ImportReport> {
+    const startTime = Date.now();
+    const labels = opts.labels ?? DEFAULT_IMPORT_LABELS;
+    const files = Array.isArray(input) ? input : [];
+    const writer = new ImportWriter(opts, labels);
+
+    await writer.ensureRoot();
+    writer.noteLimitation(labels.limitLogseqVerbatim);
+
+    // A Logseq graph keeps its images in `assets/`, referenced relatively —
+    // copying them in place is what makes those links resolve.
+    const attachments = await copyArchiveAttachments(files, writer, opts, labels);
+    if (attachments.lost > 0) writer.noteLimitation(labels.limitBinaryFilesInZip);
+
+    return writer.runGuarded(this, startTime, async () => {
+      for (let i = 0; i < files.length; i++) {
+        writer.abortIfRequested();
+        const file = files[i];
+        if (!file || !file.relativePath) continue;
+
+        try {
+          const isNote = file.relativePath.endsWith('.md') || file.relativePath.endsWith('.org');
+          const times = timesFromFile(file);
+          if (!isTextEntry(file)) {
+            // Already carried over (or reported) before the loop started.
+            continue;
+          } else if (isNote) {
+            await writer.writeNote(file.relativePath, file.content ?? '', { times });
+          } else {
+            await writer.writeFile(file.relativePath, file.content ?? '', 'attachment', undefined, times);
+          }
+        } catch (error) {
+          writer.recordFailure(file.relativePath, error);
+        }
+
+        if (onProgress && files.length > 0) {
+          onProgress(Math.round(((i + 1) / files.length) * 100), `Importing Logseq ${file.relativePath}...`);
+        }
+      }
+    });
+  }
+}

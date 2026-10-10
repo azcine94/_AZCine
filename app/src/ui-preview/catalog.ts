@@ -12,6 +12,7 @@ const catalogStates=['catalog-busy','catalog-lost','catalog-permission','catalog
 const base = ['normal','empty','loading','error','long','root-error','shell-collapsed','tools-collapsed','navigation-reordered'];
 const agentRepairStates=['agent-draft-create','agent-draft-update','agent-draft-long','agent-draft-confirm','agent-draft-apply-error','agent-draft-conflict','agent-process-retry','agent-process-nested','agent-process-nested-running','agent-process-nested-error','agent-answer-table','agent-answer-table-long','agent-send-layout'];
 export const extraStateLabels:Record<string,string>={
+'notes-search':'笔记 · 全文搜索','notes-tags':'笔记 · 标签','notes-tasks':'笔记 · 任务','notes-graph':'笔记 · 关系图','notes-history':'笔记 · 历史','notes-drafts':'笔记 · 恢复草稿','notes-trash':'笔记 · 回收站','notes-settings':'笔记 · 设置','notes-properties':'笔记 · 属性','notes-daily':'笔记 · 日记','notes-import':'笔记 · 导入','notes-bookmarks':'笔记 · 书签','notes-rename':'笔记 · 改名确认','notes-base-table':'数据库 · 表格','notes-base-list':'数据库 · 列表','notes-base-board':'数据库 · 看板','notes-base-gallery':'数据库 · 画廊','notes-base-calendar':'数据库 · 日历','notes-base-timeline':'数据库 · 时间线','notes-base-pinboard':'数据库 · 便笺板','notes-base-graph':'数据库 · 关系图',
   'process-stop-confirm':'进程 · 停止确认','process-stop-error':'进程 · 停止失败',
   'tools-collapsed':'导航 · 工具收起','navigation-reordered':'导航 · 自定义顺序',
   'github-avatar-error':'GitHub · 头像加载失败','github-pagination':'GitHub · 多页项目',
@@ -84,6 +85,7 @@ export const extraStateLabels:Record<string,string>={
 };
 export const stateLabels: Record<string,string> = {'root-error':'数据目录读取失败',removed:'已移除的灵感',undo:'可撤销状态',normal:'正常内容',empty:'空内容',loading:'读取中',error:'失败 / 保留内容',long:'长文本',dirty:'未保存草稿',pending:'保存回执待核对',editing:'编辑中','no-root':'未选择数据目录',paused:'暂停信源',preview:'信源预览',proxy:'手动代理配置',remote:'获取到远程模型',models:'服务商模型列表',advanced:'服务商高级设置',busy:'刷新中',disconnected:'未连接 Pi',review:'需要核对',incomplete:'日报覆盖不完整',detail:'批次详情',success:'成功样式（虚构）',all:'全部动态',featured:'精选',hot:'热点',daily:'固定日报',filtered:'领域筛选后无结果',attachments:'消息附件',compacting:'整理上下文',...statusLabels,...processingPhases};
 const files: Record<string,string[]> = {
+  notes:['notes-workbench.tsx','notes-file-tree.tsx','notes-base.tsx','notes-import.tsx','notes-split.tsx','notes-window.tsx','notes-panel.tsx','notes-client.ts','notes-contract.ts','styles/notes.css','ui-preview/notes-fixture.ts'],
   'servers-credentials':['server-credentials-panel.tsx','use-server-credentials.ts','server-credentials-contract.ts','server-credentials-demo.ts','components/ui/status-badge.tsx','components/ui/status-dot.tsx','components/ui/table.tsx'],
   'task-panel':['task-panel-panels.tsx','task-panel-observation.tsx','task-panel-create-dialog.tsx','use-task-refinement.ts','task-panel-task-content.tsx','task-panel-task-records.tsx','task-panel-graph.tsx','task-panel-graph-layout.ts','task-panel-workflow.tsx','task-panel-project-view.tsx'],
   'dev-environment':['dev-environment-panel.tsx','use-dev-environment.ts','dev-environment-client.ts','styles/dev-environment.css'],
@@ -103,6 +105,7 @@ const files: Record<string,string[]> = {
   'settings/news/ai':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],'settings/news/automation':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
 };
 function states(route:string) {
+  if (route==='notes') return ['normal','empty','loading','error','dirty','conflict','long',...Object.keys(extraStateLabels).filter(key=>key.startsWith('notes-'))];
   if(route==='settings/processes')return ['normal','empty','loading','error','long','process-stop-confirm','process-stop-error'];
   if(route==='self-evolution')return [...base,'pending','evolution-model-error','evolution-reverted'];
   if(route==='ai-works')return [...base,...Object.keys(extraStateLabels).filter(key=>key.startsWith('works-'))];

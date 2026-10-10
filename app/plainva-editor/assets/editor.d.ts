@@ -1,0 +1,48 @@
+type FileEntry={path:string;id:string;name:string;search:string;active:boolean;dirty:boolean;attachment?:boolean};
+type Entry={path:string;kind:string};
+type Heading={text:string;line:number;slug:string};
+export type LocalNote={path:string;body:string;version:string;mtime?:number;properties:Record<string,unknown>;tags:string[];tasks:LocalTask[];links:{target:string;resolved:string|null;line?:number}[];snippet?:string};
+export type LocalTask={line:number;ordinal:number;text:string;done:boolean;state:string;tags:string[];due:string|null;priority?:number;taskId?:string};
+export type ImportEntry={relativePath:string;content:string;isText?:boolean;sourcePath?:string;byteSize?:number;mtimeMs?:number};
+export type ImportPreview={totalNotes:number;totalAttachments:number;totalDatabases:number;warnings:string[];requiredSpaceBytes:number};
+export const localTools:{
+  resolvePath(paths:string[],target:string,from:string):string|null;
+  viewPrefill(config:any,viewIndex:number):{props:Record<string,unknown>;tags:string[]};
+  orderCards(rows:{path:string;ctime:number|null;mtime:number}[],order:string[],pinned:string[]):{pinned:string[];unpinned:string[]};
+  spliceIntoSequence(sequence:string[],moved:string[],slot:any):string[];
+  renamePlan(docs:LocalNote[],oldPath:string,newPath:string,paths?:string[]):Promise<{plan:{oldPath:string;newPath:string;sources:{path:string;body:{raw:string;target:string}[];frontmatter:any[]}[]};failed:boolean}>;
+  renameApply(adapter:{readTextFile(path:string):Promise<string>;writeTextFile(path:string,body:string):Promise<void>},plan:any):Promise<{renamedLinks:number;changedFiles:number;changedPaths:string[];failed:boolean}>;
+  template(text:string,title:string,folder:string,vaultName:string):{text:string;requests:{label:string;kind:string;defaultValue?:string;options?:string[]}[];unresolved:string[]};
+  finishTemplate(text:string,answers:Record<string,string>):string;
+  analyze(docs:{path:string;body:string;version:string;mtime?:number}[]):LocalNote[];
+  search(docs:LocalNote[],text:string):LocalNote[];
+  properties(body:string):Record<string,unknown>;
+  property(body:string,key:string,value:unknown,remove?:boolean):string;
+  task(body:string,reference:LocalTask,done:boolean):string;
+  renameTag(body:string,oldTag:string,newTag:string):string;
+  parseBase(body:string):any;serializeBase(config:any):string;baseRows(docs:LocalNote[],config:any,view:any,definitions?:Record<string,string>):any[];
+  value(text:string):unknown;stringify(value:unknown):string;
+  importSources():{id:string;name:string;description:string;options:{key:string;defaultValue:boolean}[]}[];
+  unpack(files:File[]):Promise<{entries:ImportEntry[];bytes:Map<string,Uint8Array>;warnings:string[]}>;
+  importAnalyze(id:string,entries:ImportEntry[],options:Record<string,unknown>):Promise<ImportPreview>;
+  importRun(id:string,entries:ImportEntry[],options:Record<string,unknown>,progress:(percent:number,text:string)=>void):Promise<{summaryMarkdown:string;reportPath:string;importedNotesCount:number;skippedCount:number;degradedCount:number}>;
+  zip(files:Record<string,Uint8Array>):Uint8Array;
+};
+export function createVaultTree(container:HTMLElement):{render(directories:string[],files:FileEntry[],query:string):void;reveal(path:string):void};
+export type PlainvaEditor={
+  retarget(from:string,to?:string):void;show(path:string,body:string):void;replace(path:string,body:string):void;
+  updateFiles(files:Entry[]):void;status(text:string,pending?:boolean,error?:string|null):void;
+  jump(line:number,slug:string):void;suspend():void;destroy():void;
+};
+export function mountPlainvaEditor(root:HTMLElement,options:{
+  files:Entry[];active():boolean;connected():boolean;readNote(path:string):Promise<string>;readBinary(path:string):Promise<Uint8Array>;
+  writeAttachment(path:string,bytes:Uint8Array):Promise<void>;change(path:string,body:string):void;
+  open(path:string):Promise<void>;notice(text:string):void;openExternal(url:string):void;save():void;
+  outline(headings:Heading[]):void;reveal(path:string):void;attachmentsChanged():void;
+  selection(stats:{chars:number;words:number}|null):void;
+  action?(operation:string,path:string):void;templates?():string;
+  catalog?():Promise<{path:string;body:string;version:string;mtime?:number}[]>;
+  chooseBase?(create:boolean):Promise<string|null>;
+  templateAnswers?(fields:{label:string;kind:string;defaultValue?:string;options?:string[]}[]):Promise<Record<string,string>|null>;
+  preferences?():{mode:'live'|'source'|'read';width:'narrow'|'full'};
+}):Promise<PlainvaEditor>;

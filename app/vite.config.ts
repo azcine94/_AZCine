@@ -4,9 +4,10 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { uiPreviewServer } from './ui-preview-server.ts';
 import { uiInventory } from './ui-inventory.ts';
+import { plainvaEditor } from './plainva-editor/vite-plugin.ts';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), uiPreviewServer(), uiInventory()],
+  plugins: [plainvaEditor(), react(), tailwindcss(), uiPreviewServer(), uiInventory()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src/', import.meta.url)) } },
   cacheDir: process.env.AZCINE_VITE_CACHE_DIR || fileURLToPath(new URL('../.tooling/vite-cache/', import.meta.url)),
   clearScreen: false,

@@ -9,6 +9,7 @@ export const pages = [
   { id: 'github', title: 'GitHub', icon: 'github' },
   { id: 'ai-works', title: 'AI 作品', icon: 'ai-works' },
   { id: 'ideas', title: '灵感', icon: 'ideas' },
+  { id: 'notes', title: '笔记', icon: 'notes' },
   { id: 'bookkeeping', title: '记账', icon: 'bookkeeping' },
   { id: 'servers-credentials', title: '服务器和凭证', icon: 'servers-credentials' },
   { id: 'agent', title: 'Agent', icon: 'agent' },

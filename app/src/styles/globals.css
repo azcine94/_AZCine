@@ -21,6 +21,7 @@
 @import './goodcase.css' layer(components);
 @import './news.css' layer(components);
 @import './ideas.css' layer(components);
+@import './notes.css' layer(components);
 @import './bookkeeping.css' layer(components);
 @import './server-credentials.css' layer(components);
 @import './task-panel.css' layer(components);

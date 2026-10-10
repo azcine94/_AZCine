@@ -1,0 +1,45 @@
+/* Map the upstream editor's variables to AZCine. No second theme is installed. */
+.notes-module :is(.plainva-host, .plainva-overlays, .plainva-chrome) {
+  --bg-primary:var(--card); --bg-secondary:var(--muted); --bg-hover:var(--accent); --bg-active:var(--accent);
+  --text-main:var(--foreground); --text-muted:var(--muted-foreground); --text-faint:var(--muted-foreground);
+  --accent-color:var(--primary); --border-color:var(--border); --wiki-link-color:var(--foreground); --wiki-link-unresolved-color:var(--muted-foreground);
+  --font-content:var(--font); --font-family:var(--font); --font-ui:var(--font); --font-mono:var(--mono); --content-font-size:var(--fs-read);
+  --selection-bg:var(--sel); --active-line-bg:transparent; --code-bg:var(--muted); --quote-border:var(--border); --highlight-bg:var(--warn-soft);
+  --radius-xs:var(--r-xs); --radius-sm:var(--r-ctl); --radius-md:var(--r-panel); --radius-pill:var(--r-pill);
+  --space-1:var(--s-1); --space-2:var(--s-2); --space-3:var(--s-3); --space-5:var(--s-5); --space-6:var(--s-6); --pad-cell:var(--s-2);
+  --text-xs:var(--fs-xs); --text-sm:var(--fs-s); --text-md:var(--fs-body); --dur-1:var(--dur); --ease-1:var(--ease);
+  --shadow-1:var(--shadow-card); --shadow-2:var(--shadow-pop); --focus-ring:var(--ring); --z-popover:30;
+  --error-bg:var(--bad-soft); --error-text:var(--bad); --success-bg:var(--ok-soft); --success-text:var(--ok); --success-border:var(--ok);
+  --warning-bg:var(--warn-soft); --warning-text:var(--warn); --warning-border:var(--warn);
+  --callout-blue:var(--foreground); --callout-green:var(--ok); --callout-amber:var(--warn); --callout-orange:var(--warn); --callout-red:var(--bad); --callout-purple:var(--foreground); --callout-gray:var(--muted-foreground); --callout-cyan:var(--foreground);
+  --space-4:var(--s-4); --space-8:var(--s-8); --radius-lg:var(--r-panel); --radius-xl:var(--r-panel);
+  --text-ui:var(--fs-s); --text-lg:var(--fs-body); --text-headline:24px; --doc-header-icon:48px;
+  --border-color-light:var(--border); --border-color-strong:var(--border); --accent-color-hover:var(--primary);
+  --state-hover:var(--accent); --state-press:var(--muted); --accent-on:var(--primary-foreground);
+  --accent-container:var(--accent); --on-accent-container:var(--foreground); --shadow-3:var(--shadow-pop);
+  --z-menu:1100; --z-popover:1000;
+  color:var(--foreground); font-family:var(--font);
+}
+.notes-module .plainva-host { position:relative; flex:1; min-width:0; min-height:0; overflow:hidden; }
+.notes-module .plainva-reader { height:100%; overflow:auto; background:var(--card); }
+.notes-module .plainva-reader[hidden], .notes-module .plainva-session[hidden] { display:none; }
+.notes-module .plainva-overlays { position:relative; z-index:1000; }
+.notes-module .plainva-host .pv-doc-header:focus-within .pv-doc-header-actions { opacity:1; }
+.notes-module .plainva-session { height:100%; min-height:0; }
+.notes-module .plainva-host .cm-editor { height:100%; }
+.notes-module .plainva-host .cm-scroller { overflow:auto; }
+.notes-module .plainva-host .cm-tooltip { max-width:min(480px,80vw); }
+.notes-module .plainva-host .cm-md-table { max-width:100%; }
+.notes-module .plainva-format-bar { display:flex; align-items:center; gap:var(--s-1); padding:var(--s-2) var(--s-4); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.notes-module .format-divider { height:18px; border-left:1px solid var(--border); margin-inline:var(--s-2); }
+.notes-module .format-hint { margin-left:auto; color:var(--muted-foreground); font-size:var(--fs-xs); }
+.notes-module .plainva-source-link { margin-left:auto; color:var(--muted-foreground); font-size:var(--fs-xs); }
+.notes-module .plainva-host-dialog h2 { font-size:20px; margin-bottom:var(--s-5); }
+.notes-module .plainva-host-dialog > .ui-button { margin:var(--s-2); }
+.notes-module .plainva-host-dialog pre { padding:var(--s-3); white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto; background:var(--muted); font:12px/1.8 var(--mono); }
+.notes-module .editor-loading { padding:var(--s-5); color:var(--muted-foreground); }
+@media(max-width:1050px) { .notes-module .format-hint { display:none; } }
+
+.notes-module .plainva-chrome { flex-shrink:0; border-bottom:1px solid var(--border); }
+.notes-module .plainva-chrome .pv-appbar { min-height:44px; padding:6px 16px; }
+@media print { .notes-module .markdown-reader {max-width:none!important} }

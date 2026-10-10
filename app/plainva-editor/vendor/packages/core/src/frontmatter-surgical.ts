@@ -1,0 +1,356 @@
+import { isMap, isScalar, isSeq } from "yaml";
+import {
+  FrontmatterSurgicalError,
+  ensureMapContents,
+  joinDocument,
+  splitDocument,
+  type SplitDocument,
+} from "./frontmatter-block.js";
+
+/**
+ * Surgical frontmatter edits: unlike updateFrontmatterString (which replaces
+ * the whole frontmatter map from a props object), these helpers touch only the
+ * keys they are asked to touch. Untouched keys keep their order, formatting
+ * and YAML comments; the markdown body is preserved byte-for-byte. This is the
+ * only write path allowed for bulk operations over files the user never
+ * opened (OKF conversion), where silent reformatting would be unacceptable.
+ *
+ * What a properties block is, and what becomes of one that loses its last
+ * entry, is decided in `frontmatter-block.ts` — for these helpers and for
+ * updateFrontmatterString alike.
+ */
+
+export { FrontmatterSurgicalError, frontmatterSpan, noteBodyOf, type FrontmatterSpan } from "./frontmatter-block.js";
+
+/**
+ * Sets the given top-level keys (nested plain objects/arrays allowed as
+ * values), leaving every other key untouched. Creates a frontmatter block at
+ * the top when none exists.
+ */
+export function upsertFrontmatterKeys(
+  content: string,
+  updates: Record<string, unknown>
+): string {
+  const split = splitDocument(content);
+  ensureMapContents(split.doc);
+  for (const [key, value] of Object.entries(updates)) {
+    split.doc.set(key, value);
+  }
+  return joinDocument(split);
+}
+
+/**
+ * Sets a nested value, e.g. setFrontmatterPath(content, ["plainva", "icon"], "🚀").
+ * Intermediate maps are created as needed; sibling keys stay untouched.
+ */
+export function setFrontmatterPath(
+  content: string,
+  path: readonly string[],
+  value: unknown
+): string {
+  if (path.length === 0) {
+    throw new FrontmatterSurgicalError("Path must not be empty");
+  }
+  const split = splitDocument(content);
+  ensureMapContents(split.doc);
+  split.doc.setIn(path, value);
+  return joinDocument(split);
+}
+
+/**
+ * Reads the value at a nested frontmatter path (e.g. ["plainva", "tasks"]).
+ * Read-only and total: returns undefined when the content has no parseable
+ * frontmatter, the path is empty, or the key is absent — it never throws, so
+ * hot read paths (task/graph aggregation) can call it per note safely.
+ *
+ * Collections come back as PLAIN JS values, not yaml AST nodes: `getIn` returns
+ * the node for a list/map, so a caller reading e.g. `plainva.blocks` would get
+ * a YAMLSeq and `Array.isArray` would quietly say false. Scalars were already
+ * plain values, so this only ever widens what callers can read.
+ */
+/**
+ * The top-level frontmatter keys, in document order; `[]` when the note has no
+ * frontmatter or its YAML cannot be parsed.
+ *
+ * The read-only counterpart to the surgical writers, and deliberately cheap: a
+ * property comment (plan Stufe E, E2) has to ask "does the key I was written
+ * against still exist?" on every keystroke, which rules out the route the
+ * properties panel takes (parse the whole markdown AST, then extract the
+ * frontmatter). Unparseable YAML answers `[]` rather than throwing - a
+ * half-typed document must never make a comment card disappear.
+ */
+export function frontmatterKeys(content: string): string[] {
+  let split: SplitDocument;
+  try {
+    split = splitDocument(content);
+  } catch {
+    return [];
+  }
+  if (!split.hadFrontmatter || !isMap(split.doc.contents)) return [];
+  const keys: string[] = [];
+  for (const item of split.doc.contents.items) {
+    const key = item.key;
+    if (isScalar(key) && typeof key.value === "string" && key.value) keys.push(key.value);
+  }
+  return keys;
+}
+
+export function readFrontmatterPath(content: string, path: readonly string[]): unknown {
+  if (path.length === 0) return undefined;
+  let split: SplitDocument;
+  try {
+    split = splitDocument(content);
+  } catch {
+    return undefined;
+  }
+  if (!split.hadFrontmatter || split.doc.contents === null) return undefined;
+  const value = split.doc.getIn(path);
+  return isNode(value) ? value.toJSON() : value;
+}
+
+/** A yaml AST node (list/map) as opposed to an already-plain scalar value. */
+function isNode(value: unknown): value is { toJSON: () => unknown } {
+  return !!value && typeof value === "object" && typeof (value as { toJSON?: unknown }).toJSON === "function";
+}
+
+/**
+ * Renames a tag value inside the `tags`/`tag` frontmatter key — the exact tag and
+ * its children (`old/sub` -> `new/sub`) — mutating the scalar values in place so
+ * the list format, order, other keys and comments are preserved. Returns the
+ * content unchanged (and changed=false) when there is no parseable frontmatter or
+ * no matching tag. The inline `#tag` rewrite in the body is the caller's job.
+ */
+export function renameFrontmatterTag(
+  content: string,
+  oldTag: string,
+  newTag: string
+): { content: string; changed: boolean } {
+  const o = oldTag.replace(/^#/, "");
+  const n = newTag.replace(/^#/, "");
+  if (!o || !n || o === n) return { content, changed: false };
+  let split: SplitDocument;
+  try {
+    split = splitDocument(content);
+  } catch {
+    return { content, changed: false };
+  }
+  if (!split.hadFrontmatter || !isMap(split.doc.contents)) return { content, changed: false };
+
+  let changed = false;
+  const renamed = (v: unknown): unknown => {
+    if (typeof v !== "string") return v;
+    if (v === o) {
+      changed = true;
+      return n;
+    }
+    if (v.startsWith(o + "/")) {
+      changed = true;
+      return n + v.slice(o.length);
+    }
+    return v;
+  };
+
+  for (const key of ["tags", "tag"]) {
+    const node = split.doc.contents.get(key, true);
+    if (isSeq(node)) {
+      for (const item of node.items) {
+        if (isScalar(item)) {
+          const nv = renamed(item.value);
+          if (nv !== item.value) item.value = nv;
+        }
+      }
+    } else if (isScalar(node)) {
+      const nv = renamed(node.value);
+      if (nv !== node.value) node.value = nv;
+    }
+  }
+
+  if (!changed) return { content, changed: false };
+  return { content: joinDocument(split), changed: true };
+}
+
+/**
+ * Deletes a nested key. Parent maps that become empty through this deletion
+ * are removed as well (an empty `plainva:` namespace should not linger) — and
+ * so is the block itself once its last entry is gone: a property set and
+ * removed again leaves the note as it was.
+ * Returns the content unchanged if the path does not exist.
+ */
+export function deleteFrontmatterPath(content: string, path: readonly string[]): string {
+  if (path.length === 0) {
+    throw new FrontmatterSurgicalError("Path must not be empty");
+  }
+  const split = splitDocument(content);
+  if (!split.hadFrontmatter || split.doc.contents === null) {
+    return content;
+  }
+  ensureMapContents(split.doc);
+  if (!split.doc.hasIn(path)) {
+    return content;
+  }
+  split.doc.deleteIn(path);
+
+  for (let depth = path.length - 1; depth > 0; depth--) {
+    const parentPath = path.slice(0, depth);
+    const parent = split.doc.getIn(parentPath);
+    if (isMap(parent) && parent.items.length === 0) {
+      split.doc.deleteIn(parentPath);
+    } else {
+      break;
+    }
+  }
+  return joinDocument(split);
+}
+
+/**
+ * Renames a top-level key in place (position, value and attached comments are
+ * kept). No-op when oldKey is absent; throws when newKey already exists.
+ */
+export function renameFrontmatterKey(
+  content: string,
+  oldKey: string,
+  newKey: string
+): string {
+  const split = splitDocument(content);
+  if (!split.hadFrontmatter || split.doc.contents === null) {
+    return content;
+  }
+  const map = ensureMapContents(split.doc);
+
+  const pair = map.items.find(
+    (item) => (item.key as { value?: unknown } | null)?.value === oldKey
+  );
+  if (!pair) {
+    return content;
+  }
+  if (map.items.some((item) => (item.key as { value?: unknown } | null)?.value === newKey)) {
+    throw new FrontmatterSurgicalError(
+      `Cannot rename '${oldKey}' to '${newKey}': target key already exists`
+    );
+  }
+  const newKeyNode = split.doc.createNode(newKey);
+  const oldKeyNode = pair.key as { commentBefore?: string | null; comment?: string | null };
+  (newKeyNode as { commentBefore?: string | null }).commentBefore = oldKeyNode.commentBefore;
+  (newKeyNode as { comment?: string | null }).comment = oldKeyNode.comment;
+  pair.key = newKeyNode;
+  return joinDocument(split);
+}
+
+export interface FrontmatterLinkRename {
+  /** Frontmatter key to inspect (from links.property_key). */
+  key: string;
+  /** Anchor-free link base to replace, as stored in links.target_path. */
+  oldTarget: string;
+  newTarget: string;
+}
+
+const WHOLE_WIKILINK_RE = /^\s*\[\[([^[\]]+)\]\]\s*$/;
+
+/** Split a wiki-link inner text into base, anchor (leading #/^) and alias (leading |). */
+function splitWikiInner(inner: string): { base: string; anchor: string; alias: string } {
+  const pipeIdx = inner.indexOf("|");
+  const targetRaw = pipeIdx === -1 ? inner : inner.slice(0, pipeIdx);
+  const alias = pipeIdx === -1 ? "" : inner.slice(pipeIdx);
+  const trimmed = targetRaw.trim();
+  const hashIdx = trimmed.indexOf("#");
+  const caretIdx = trimmed.indexOf("^");
+  let anchorIdx = -1;
+  if (hashIdx !== -1 && caretIdx !== -1) anchorIdx = Math.min(hashIdx, caretIdx);
+  else if (hashIdx !== -1) anchorIdx = hashIdx;
+  else if (caretIdx !== -1) anchorIdx = caretIdx;
+  if (anchorIdx !== -1) {
+    return { base: trimmed.slice(0, anchorIdx).trim(), anchor: trimmed.slice(anchorIdx).trim(), alias };
+  }
+  return { base: trimmed, anchor: "", alias };
+}
+
+/**
+ * Rewrites whole-value wiki links (`"[[T]]"`, `"[[T#a|alias]]"`) in the given
+ * frontmatter keys — scalar string values and string items of sequences —
+ * preserving anchors, aliases, each scalar's quoting style, YAML comments, key
+ * order and the body byte-for-byte. Only the listed keys are inspected;
+ * missing keys and non-string items are no-ops. Malformed frontmatter throws
+ * FrontmatterSurgicalError (callers keep their body-side fix, see renameNote).
+ */
+export function renameFrontmatterWikiLinks(
+  content: string,
+  renames: readonly FrontmatterLinkRename[]
+): { content: string; renamed: number } {
+  if (renames.length === 0) return { content, renamed: 0 };
+  const split = splitDocument(content);
+  if (!split.hadFrontmatter || split.doc.contents === null) return { content, renamed: 0 };
+  const map = ensureMapContents(split.doc);
+
+  const byKey = new Map<string, Map<string, string>>();
+  for (const r of renames) {
+    if (!byKey.has(r.key)) byKey.set(r.key, new Map());
+    byKey.get(r.key)!.set(r.oldTarget, r.newTarget);
+  }
+
+  let renamed = 0;
+  const rewriteScalar = (node: unknown, targets: Map<string, string>) => {
+    if (!isScalar(node) || typeof node.value !== "string") return;
+    const match = WHOLE_WIKILINK_RE.exec(node.value);
+    if (!match) return;
+    const { base, anchor, alias } = splitWikiInner(match[1]);
+    const next = targets.get(base);
+    if (next === undefined || next === base) return;
+    // In-place value swap keeps the scalar's quoting style and comments.
+    node.value = `[[${next}${anchor}${alias}]]`;
+    renamed++;
+  };
+
+  for (const [key, targets] of byKey) {
+    const value = map.get(key, true);
+    if (value == null) continue;
+    if (isSeq(value)) {
+      for (const item of value.items) rewriteScalar(item, targets);
+    } else {
+      rewriteScalar(value, targets);
+    }
+  }
+
+  if (renamed === 0) return { content, renamed: 0 };
+  return { content: joinDocument(split), renamed };
+}
+
+export interface EnsureOkfFrontmatterOptions {
+  /** OKF type to set when the document has none (or only a blank string). */
+  type: string;
+}
+
+export interface EnsureOkfFrontmatterResult {
+  content: string;
+  changed: boolean;
+  setType: boolean;
+}
+
+/**
+ * Guarantees the OKF minimum frontmatter (`type`) on a document. Existing
+ * non-blank `type` values are always kept — they are valid OKF types by
+ * definition (free string). A non-string `type` is left untouched here;
+ * resolving it (rename) is an explicit, user-driven conversion step.
+ *
+ * Since OKF v0.2 (E1, 2026-08-20) this no longer writes `okf_version`: the
+ * spec places that declaration only in the bundle-root `index.md`, and the
+ * per-note copy Plainva used to add was never read by anything. An existing
+ * `okf_version` key is left exactly as it is.
+ */
+export function ensureOkfFrontmatter(
+  content: string,
+  options: EnsureOkfFrontmatterOptions
+): EnsureOkfFrontmatterResult {
+  const split = splitDocument(content);
+  const map = ensureMapContents(split.doc);
+
+  const existingType = map.has("type") ? split.doc.get("type") : undefined;
+  const typeIsBlank =
+    existingType === undefined ||
+    existingType === null ||
+    (typeof existingType === "string" && existingType.trim() === "");
+  if (!typeIsBlank) {
+    return { content, changed: false, setType: false };
+  }
+  split.doc.set("type", options.type);
+  return { content: joinDocument(split), changed: true, setType: true };
+}

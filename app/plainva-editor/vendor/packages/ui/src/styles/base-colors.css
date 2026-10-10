@@ -1,0 +1,178 @@
+/*
+ * Shared color base (P1 mobile-parity work): the default "Petrol" palette as
+ * light values on :root plus the dark overrides under [data-theme="dark"].
+ * Extracted from apps/desktop/src/App.css so both shells share ONE canonical
+ * palette; the desktop keeps the theme axes documentation there. Axes on
+ * <html>:
+ *   data-theme         — resolved mode ("light" | "dark")
+ *   data-theme-name    — bundled theme id (token sets: themes/*.css)
+ *   data-theme-variant — optional collectible variant (LCARS easter egg)
+ * Components consume ONLY these variables (colors, radii, fonts) — themes can
+ * restyle everything without touching a component.
+ */
+:root {
+  /* Tell the native engine (WebKitGTK) which scheme to render form controls,
+     <select> popups, native text selection and scrollbars in. */
+  color-scheme: light;
+  accent-color: var(--accent-color);
+  --bg-primary: #ffffff;
+  --bg-secondary: #eff5f4;
+  --bg-hover: #e0ecea;
+  /* CONTENT highlight tint only (editor selection match / active line).
+     CHROME active states use the --accent-container pair (E4). */
+  --bg-active: rgba(15, 118, 110, 0.15);
+  --text-main: #1b2b29;
+  --text-muted: #5c6b69;
+  --text-faint: #5f6e6b;
+  --accent-color: #0f766e;
+  --accent-color-hover: #115e59;
+  --accent-on: #ffffff;
+  --border-color: #d7e5e3;
+  --border-color-light: #e4eeed;
+  --error-bg: #fbeaea;
+  --error-border: #f1c9c9;
+  --error-text: #b42318;
+
+  /* Toggle-switch knob (Switch primitive). A token so themes can repaint it —
+     high-contrast dark pins it black (white knob on its white off-track was
+     invisible, design sweep 2026-07-19). */
+  --switch-knob: #ffffff;
+
+  --wiki-link-color: var(--accent-color);
+  /* Wiki link whose target note doesn't exist yet (muted; theme-aware via
+     --text-muted, so every theme inherits a sensible value). */
+  --wiki-link-unresolved-color: var(--text-muted);
+  --overlay-bg: rgba(15, 28, 27, 0.45);
+
+  /* Editor-specific */
+  --selection-bg: rgba(15, 118, 110, 0.16);
+  --active-line-bg: rgba(15, 118, 110, 0.05);
+  --code-bg: #eef4f3;
+  --quote-border: #cdddda;
+  --highlight-bg: #fdf3b8;
+
+  /* Callout palette (Obsidian > [!type]). Single source for editor (live + read)
+     callout borders/tints/icons; consumed via components/callouts.ts. Themes can
+     override these on the data-theme-name axis. */
+  --callout-blue: #3a8ca6;
+  --callout-green: #3fae6a;
+  --callout-amber: #d9a23f;
+  --callout-orange: #d9883f;
+  --callout-red: #d64d4d;
+  --callout-purple: #9d6ddb;
+  --callout-gray: #8a8a8a;
+  --callout-cyan: #2fa39a;
+  /* The card's strength is a matter of the MODE, not of the theme (finding
+     2026-09-19): a fixed 8 % of a colour picked for a light ground barely shows
+     on a dark one. Fill and line are two percentages; the tints below follow
+     from them and from the colour, so a theme that sets --callout-<key> gets a
+     matching tint for free and may still override one. Mixed with TRANSPARENT,
+     never with the page colour: an opaque line background hides the selection. */
+  --callout-fill: 10%;
+  --callout-line: 42%;
+  --callout-blue-tint: color-mix(in srgb, var(--callout-blue) var(--callout-fill), transparent);
+  --callout-green-tint: color-mix(in srgb, var(--callout-green) var(--callout-fill), transparent);
+  --callout-amber-tint: color-mix(in srgb, var(--callout-amber) var(--callout-fill), transparent);
+  --callout-orange-tint: color-mix(in srgb, var(--callout-orange) var(--callout-fill), transparent);
+  --callout-red-tint: color-mix(in srgb, var(--callout-red) var(--callout-fill), transparent);
+  --callout-purple-tint: color-mix(in srgb, var(--callout-purple) var(--callout-fill), transparent);
+  --callout-gray-tint: color-mix(in srgb, var(--callout-gray) var(--callout-fill), transparent);
+  --callout-cyan-tint: color-mix(in srgb, var(--callout-cyan) var(--callout-fill), transparent);
+
+  /* Structure tokens — themes may reshape the app through these (e.g. LCARS
+     pill buttons). Sized steps (Plainva UI 2.0 / M3 Expressive, one notch more
+     generous): xs 4 / sm 8 / md 12 / lg 16 / xl 20 / pill. Role mapping in
+     docs/engineering/Design_Language.md. LCARS/Win95 pin the whole scale, so the
+     bump reaches only the themes that want soft shape.
+     Geometric radii (perfect circles via 50%, 1-2px micro details) stay literal. */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+  /* Bottom sheets (mobile): kept as its own role — sheets are anchored to the
+     screen edge and read rounder than centered dialogs (sweep 2026-07-19;
+     replaces mobile's private --m-radius-sheet). */
+  --radius-sheet: 28px;
+
+  /* Font split: chrome (sidebars, buttons, titlebar) vs. document content
+     (editor + read view). Both default to the same stack; display-heavy themes
+     (LCARS) restyle only the chrome so long-form text stays readable.
+     --font-family is the legacy alias most components consume. */
+  --font-ui: Inter, Avenir, Helvetica, Arial, sans-serif;
+  --font-content: Inter, Avenir, Helvetica, Arial, sans-serif;
+  /* Code and any string a human has to transcribe character by character (the
+     workspace recovery code). Was referenced without ever being declared, so
+     the recovery code rendered in the proportional UI font. */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-family: var(--font-ui);
+  /* Content font size (editor + read view). User-adjustable in the settings
+     (issue #5, a11y) — services/contentFont.ts overrides it on <html>.
+     Chrome text does NOT follow it; UI scaling is the shell zoom's job. */
+  --content-font-size: 16px;
+
+  /* --- Plainva UI 2.0 (M3 Expressive) — additive; no consumers yet in P0. --- */
+  /* Tonal surface-container hierarchy: elevation by tone. Derived per theme from
+     bg + text so every theme (light AND dark) adapts without its own override. */
+  --surface: var(--bg-primary);
+  --surface-container-low: color-mix(in srgb, var(--text-main) 3%, var(--bg-primary));
+  --surface-container: color-mix(in srgb, var(--text-main) 6%, var(--bg-primary));
+  --surface-container-high: color-mix(in srgb, var(--text-main) 9%, var(--bg-primary));
+  --surface-container-highest: color-mix(in srgb, var(--text-main) 12%, var(--bg-primary));
+  /* The one translucent surface: the mobile navigation capsule floats over the
+     page and reads through it (mobile rework N8). Derived from the theme's own
+     container tone, so every token theme gets the glass without naming it; a
+     theme whose material is opaque by definition (LCARS panels, Win95 bevels)
+     pins both of these back to solid. */
+  --surface-glass: color-mix(in srgb, var(--surface-container) 82%, transparent);
+  --glass-blur: 14px;
+  /* Tonal accent container (active/selected fills: nav pill, tree selection).
+     The "on" color pulls the accent toward text-main so normal-size text on the
+     16% container clears WCAG AA 4.5:1 (raw accent lands at ~4.4:1 on light);
+     the mix adapts per mode: darkens on light themes, lightens on dark. */
+  --accent-container: color-mix(in srgb, var(--accent-color) 16%, var(--bg-primary));
+  --on-accent-container: color-mix(in srgb, var(--accent-color) 75%, var(--text-main));
+  /* State layers (translucent overlays; consumed as cheap opacity/pseudo). */
+  --state-hover: color-mix(in srgb, var(--accent-color) 8%, transparent);
+  --state-focus: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  --state-press: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  /* Scroll-edge treatment (fade + faint shadow at overflow boundaries). */
+  --edge-scrim: linear-gradient(to top, rgba(18, 38, 34, 0.16), rgba(18, 38, 34, 0.04) 35%, transparent 72%);
+  --edge-shadow: 0 -1px 6px rgba(20, 40, 36, 0.06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --callout-fill: 16%;
+  --callout-line: 55%;
+  --bg-primary: #0f1c1b;
+  --bg-secondary: #152625;
+  --bg-hover: #213533;
+  --bg-active: rgba(45, 212, 191, 0.2);
+  --text-main: #d7e4e2;
+  --text-muted: #93a5a3;
+  --text-faint: #809390;
+  --accent-color: #2dd4bf;
+  --accent-color-hover: #5eead4;
+  --accent-on: #06302b;
+  --border-color: #2a3c3a;
+  --border-color-light: #233331;
+  --error-bg: #3a1715;
+  --error-border: #5e2420;
+  --error-text: #f3a39b;
+
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+
+  /* Editor-specific */
+  --selection-bg: rgba(45, 212, 191, 0.26);
+  --active-line-bg: rgba(45, 212, 191, 0.07);
+  --code-bg: #1a2c2b;
+  --quote-border: #2f4a47;
+  --highlight-bg: #4d4a1e;
+
+  /* UI 2.0: stronger scroll-edge shadow on dark grounds (surface-container,
+     accent-container and state layers auto-adapt via color-mix above). */
+  --edge-scrim: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.14) 35%, transparent 72%);
+  --edge-shadow: 0 -1px 8px rgba(0, 0, 0, 0.4);
+}

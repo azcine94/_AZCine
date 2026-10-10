@@ -1,0 +1,514 @@
+import {
+  ensureOkfFrontmatter,
+  setFrontmatterPath,
+  upsertFrontmatterKeys,
+} from '../frontmatter-surgical.js';
+import { okfInstant, type OkfSource } from '../okf-trust.js';
+import type { IVaultAdapter } from '../vault/IVaultAdapter.js';
+import {
+  ImportLabels,
+  ImportOptions,
+  ImportReport,
+  ImportReportItem,
+  ImportSourceId,
+  SourceTimestamps,
+} from './ImportTypes.js';
+
+/**
+ * Thrown when the user stopped a running import.
+ *
+ * A distinct type because stopping is a decision, not a fault: the report says
+ * so in its own words instead of surfacing a technical abort message.
+ */
+export class ImportAbortedError extends Error {
+  constructor() {
+    super('import cancelled');
+    this.name = 'ImportAbortedError';
+  }
+}
+
+function importFailureText(error: unknown, labels: ImportLabels): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message === 'HTML nesting exceeds the import limit' ? labels.htmlNestingExceeded ?? message : message;
+}
+
+/** Epoch milliseconds to the ISO form `Date.parse` reads back. */
+function toIsoDate(ms: number | undefined): string | undefined {
+  if (ms === undefined || !Number.isFinite(ms)) return undefined;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+/**
+ * Shared write path for every import adapter.
+ *
+ * Three guarantees the adapters must never re-implement:
+ *
+ * 1. **A note is never overwritten.** Importing runs into the vault the user
+ *    already has open, so a colliding file name would silently destroy their
+ *    work. Colliding targets are numbered (`Note (2).md`) instead.
+ * 2. **The report is honest.** Content that was dropped or truncated is
+ *    recorded as `skipped`/`degraded` and surfaces in the report, so a partial
+ *    import can never present itself as a complete one.
+ * 3. **Imported notes are OKF documents.** Markdown gets the `type`
+ *    frontmatter every other Plainva write path stamps, so `.base` type
+ *    filters see imported notes like any other note.
+ */
+export class ImportWriter {
+  private readonly items: ImportReportItem[] = [];
+  private readonly takenPaths = new Set<string>();
+  private readonly ensuredFolders = new Set<string>();
+  private readonly limitations: string[] = [];
+  /**
+   * Intended path -> the collision-free names `reserve()` already handed out.
+   *
+   * A queue, not a single value: two source notes can genuinely want the same
+   * name, and each needs its OWN reservation ("Meeting.md", "Meeting (2).md").
+   * The writes consume them in the order they were reserved.
+   */
+  private readonly reservations = new Map<string, string[]>();
+  private allocation: Promise<unknown> = Promise.resolve();
+
+  private withAllocation<T>(body: () => Promise<T>): Promise<T> {
+    const next = this.allocation.then(body);
+    this.allocation = next.catch(() => undefined);
+    return next;
+  }
+
+  private notes = 0;
+  private attachments = 0;
+  private databases = 0;
+  /**
+   * One instant for the whole run: every note of an import carries the same
+   * `generated.at`, which is what lets a `.base` filter find "everything that
+   * came in together" — and what the report names as the run's date.
+   */
+  private readonly runStartedAt = okfInstant();
+
+  constructor(
+    private readonly opts: ImportOptions,
+    private readonly labels: ImportLabels
+  ) {
+    for (const entry of opts.archiveSkipped ?? []) {
+      this.items.push({ path: entry.relativePath, status: 'skipped', details: entry.reason });
+    }
+  }
+
+  /** Vault-relative prefix every write is placed under (may be empty). */
+  get prefix(): string {
+    return this.opts.targetSubfolder ? `${this.opts.targetSubfolder}/` : '';
+  }
+
+  private get adapter(): Pick<IVaultAdapter, 'exists' | 'createDir' | 'writeTextFile' | 'writeBinaryFile' | 'setFileTimes'> | undefined {
+    return this.opts.vaultAdapter;
+  }
+
+  /** Creates the target subfolder once, before the first write. */
+  async ensureRoot(): Promise<void> {
+    const root = this.prefix.replace(/\/$/, '');
+    if (root) await this.ensureFolder(root);
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    if (!folder || this.ensuredFolders.has(folder)) return;
+    if (this.adapter) await this.adapter.createDir(folder);
+    this.ensuredFolders.add(folder);
+  }
+
+  /** Preserve an explicitly exported empty notebook as well as its notes. */
+  async writeFolder(relativePath: string): Promise<void> {
+    this.abortIfRequested();
+    const full = `${this.prefix}${relativePath}`;
+    if (this.adapter) await this.adapter.createDir(full);
+    this.ensuredFolders.add(full);
+  }
+
+  /**
+   * Resolves a collision-free vault path for `relativePath`.
+   *
+   * Checks both the paths this run already claimed and what is on disk, so two
+   * same-named source notes cannot overwrite each other either.
+   */
+  private async claimPath(relativePath: string): Promise<{ path: string; renamed: boolean }> {
+    return this.withAllocation(async () => {
+      const full = `${this.prefix}${relativePath}`;
+
+      // A reserved name was already decided (and already counted as taken) in an
+      // earlier pass, so the write must use exactly that one — re-claiming would
+      // hand out a second, different number.
+      const queue = this.reservations.get(full);
+      if (queue && queue.length > 0) {
+        const reserved = queue.shift()!;
+        if (queue.length === 0) this.reservations.delete(full);
+        if (await this.pathExists(reserved)) {
+          throw new Error(`${this.labels.reservedPathOccupied}: ${reserved}`);
+        }
+        return { path: reserved, renamed: reserved !== full };
+      }
+
+      return this.allocatePath(full);
+    });
+  }
+
+  /** Called only under the allocation gate; never consumes a reservation. */
+  private async allocatePath(full: string): Promise<{ path: string; renamed: boolean }> {
+    const dot = full.lastIndexOf('.');
+    const slash = full.lastIndexOf('/');
+    const hasExt = dot > slash;
+    const stem = hasExt ? full.slice(0, dot) : full;
+    const ext = hasExt ? full.slice(dot) : '';
+
+    for (let counter = 1; counter <= 1000; counter += 1) {
+      const candidate = counter === 1 ? full : `${stem} (${counter})${ext}`;
+      if (this.takenPaths.has(candidate) || (await this.pathExists(candidate))) continue;
+      this.takenPaths.add(candidate);
+      return { path: candidate, renamed: candidate !== full };
+    }
+    throw new Error(`${this.labels.noAvailableName}: ${full}`);
+  }
+
+  /**
+   * Decides a note's final name BEFORE anything is written, and returns it.
+   *
+   * Needed wherever a link target is baked into content: the Notion importer
+   * emits `[[Title]]` for a relation, but a second note of the same name lands
+   * as `Title (2).md` — so the link pointed at the wrong note, and always at
+   * the first one. Reserving up front lets the importer write the name it will
+   * actually get. The write later goes through `claimPath`, which consumes the
+   * reservation instead of numbering a second time.
+   */
+  async reserve(relativePath: string): Promise<string> {
+    return this.withAllocation(async () => {
+      const full = `${this.prefix}${relativePath}`;
+      // Deliberately NOT memoized by intended path: two source notes may want the
+      // same name, and each has to learn its own.
+      const { path } = await this.allocatePath(full);
+      this.reservations.set(full, [...(this.reservations.get(full) ?? []), path]);
+      return path;
+    });
+  }
+
+  private async pathExists(path: string): Promise<boolean> {
+    if (!this.adapter || typeof this.adapter.exists !== 'function') return false;
+    return await this.adapter.exists(path);
+  }
+
+  /**
+   * Writes an imported Markdown note: collision-safe, OKF-stamped, recorded.
+   *
+   * `details` describes content that could not be carried over; passing it
+   * marks the note `degraded` rather than `imported`.
+   */
+  async writeNote(
+    relativePath: string,
+    content: string,
+    options: { type?: string; details?: string; times?: SourceTimestamps; sources?: OkfSource[] } = {}
+  ): Promise<string> {
+    const { path, renamed } = await this.claimPath(relativePath);
+
+    let body = content;
+    if (this.opts.stampOkfMetadata !== false) {
+      body = ensureOkfFrontmatter(content, { type: options.type ?? 'note' }).content;
+      body = this.stampProvenance(body, options.sources);
+    }
+    body = this.stampDates(body, options.times);
+
+    await this.writeToDisk(path, body);
+    await this.applyTimes(path, options.times);
+    this.notes += 1;
+
+    const notes: string[] = [];
+    if (options.details) notes.push(options.details);
+    if (renamed) notes.push(this.labels.renamedToAvoidOverwrite);
+
+    this.items.push({
+      path,
+      status: options.details ? 'degraded' : 'imported',
+      details: notes.length > 0 ? notes.join(' · ') : undefined,
+    });
+
+    return path;
+  }
+
+  /** Writes a non-note file (e.g. a generated `.base`) without OKF stamping. */
+  async writeFile(
+    relativePath: string,
+    content: string,
+    kind: 'attachment' | 'database' = 'attachment',
+    details?: string,
+    times?: SourceTimestamps
+  ): Promise<string> {
+    const { path, renamed } = await this.claimPath(relativePath);
+    await this.writeToDisk(path, content);
+    // No frontmatter here: a `.base` is configuration, not a note.
+    await this.applyTimes(path, times);
+
+    if (kind === 'database') this.databases += 1;
+    else this.attachments += 1;
+
+    const notes: string[] = [];
+    if (details) notes.push(details);
+    if (renamed) notes.push(this.labels.renamedToAvoidOverwrite);
+
+    this.items.push({
+      path,
+      status: details ? 'degraded' : 'imported',
+      details: notes.length > 0 ? notes.join(' · ') : undefined,
+    });
+
+    return path;
+  }
+
+  /**
+   * Writes a downloaded attachment, collision-safe, and returns its vault path.
+   *
+   * Separate from `writeFile` because bytes need the binary adapter call — text
+   * would corrupt an image. The returned path is what an embed must name: the
+   * writer may have numbered the file, and a link to the unnumbered name would
+   * point at somebody else's picture.
+   */
+  async writeBinary(relativePath: string, bytes: Uint8Array, times?: SourceTimestamps): Promise<string> {
+    const { path, renamed } = await this.claimPath(relativePath);
+    if (this.adapter) {
+      const slash = path.lastIndexOf('/');
+      if (slash > 0) await this.ensureFolder(path.substring(0, slash));
+      await this.adapter.writeBinaryFile(path, bytes);
+    }
+    await this.applyTimes(path, times);
+    this.attachments += 1;
+    this.items.push({
+      path,
+      status: 'imported',
+      details: renamed ? this.labels.renamedToAvoidOverwrite : undefined,
+    });
+    return path;
+  }
+
+  private async writeToDisk(path: string, content: string): Promise<void> {
+    if (!this.adapter) return;
+    const slash = path.lastIndexOf('/');
+    if (slash > 0) await this.ensureFolder(path.substring(0, slash));
+    await this.adapter.writeTextFile(path, content);
+  }
+
+  /**
+   * Writes the OKF 0.2 provenance a reader can check: `generated` names the
+   * importer (`plainva-import/<version>`) and the run's instant, `sources` the
+   * origin where the adapter knows one (a mail's Message-ID, a page URL). Both
+   * are opt-in per the options — a run without an actor stamps nothing, and
+   * a source list is only written when it has entries.
+   */
+  private stampProvenance(content: string, sources?: OkfSource[]): string {
+    const updates: Record<string, unknown> = {};
+    if (this.opts.generatedBy) updates.generated = { by: this.opts.generatedBy, at: this.runStartedAt };
+    if (sources && sources.length > 0) updates.sources = sources;
+    if (Object.keys(updates).length === 0) return content;
+    return upsertFrontmatterKeys(content, updates);
+  }
+
+  /**
+   * Writes the source dates into the note's frontmatter.
+   *
+   * `created` is the key the graph's time axis already reads (ahead of it only
+   * `date`/`datum`, which belong to the user); `updated` is the honest
+   * counterpart. Both are ISO, which is what `Date.parse` gets back. This is
+   * also the carrier that survives where file creation time cannot be set.
+   */
+  private stampDates(content: string, times?: SourceTimestamps): string {
+    if (!times || this.opts.preserveTimestamps === false) return content;
+    const updates: Record<string, string> = {};
+    const created = toIsoDate(times.createdMs);
+    const updated = toIsoDate(times.modifiedMs);
+    if (created) updates.created = created;
+    if (updated) updates.updated = updated;
+    if (Object.keys(updates).length === 0) return content;
+    return upsertFrontmatterKeys(content, updates);
+  }
+
+  /**
+   * Applies the source timestamps to a file that was just written.
+   *
+   * Best effort on purpose: a platform that cannot set file times, or a file
+   * the OS refuses to stamp, must not turn a successful import into a failed
+   * one. The dates also live in the note's frontmatter, which is the portable
+   * record.
+   */
+  private async applyTimes(path: string, times?: SourceTimestamps): Promise<void> {
+    if (!times || this.opts.preserveTimestamps === false) return;
+    if (times.modifiedMs === undefined && times.createdMs === undefined) return;
+    if (typeof this.adapter?.setFileTimes !== 'function') return;
+    try {
+      await this.adapter.setFileTimes(path, times);
+    } catch {
+      // The frontmatter still carries the dates.
+    }
+  }
+
+  /**
+   * Stops the run if the user asked for it.
+   *
+   * Called between entries, never inside one: a half-written note would be a
+   * worse outcome than one more note. `runGuarded` turns the throw into a
+   * report that says the run was stopped.
+   */
+  abortIfRequested(): void {
+    if (this.opts.signal?.aborted) throw new ImportAbortedError();
+  }
+
+  /** Records source content that was not imported at all. */
+  recordSkipped(path: string, details: string): void {
+    this.items.push({ path, status: 'skipped', details });
+  }
+
+  /**
+   * Records one entry that threw, so the run can carry on without it.
+   *
+   * A single odd note out of eight hundred used to cost the user the whole
+   * import: nothing caught per entry, so the throw unwound past `finish()` and
+   * no report was written at all — the files already on disk had no record.
+   */
+  recordFailure(path: string, error: unknown): void {
+    const message = importFailureText(error, this.labels);
+    this.items.push({
+      path,
+      status: 'skipped',
+      details: `${this.labels.entryFailed}: ${message}`,
+    });
+  }
+
+  /**
+   * Runs the import body and returns a report however it ends.
+   *
+   * Every adapter goes through here, so "there is always a report" is a
+   * property of the writer rather than a rule each adapter has to remember.
+   */
+  async runGuarded(
+    source: { id: ImportSourceId; name: string },
+    startTime: number,
+    body: () => Promise<void>
+  ): Promise<ImportReport> {
+    try {
+      await body();
+    } catch (error) {
+      if (error instanceof ImportAbortedError) {
+        // Cancelling is a decision, not a fault — no technical message.
+        this.items.push({ path: source.name, status: 'skipped', details: this.labels.runCancelled });
+      } else {
+        const message = importFailureText(error, this.labels);
+        this.items.push({
+          path: source.name,
+          status: 'skipped',
+          details: `${this.labels.runStopped}: ${message}`,
+        });
+      }
+    }
+    return this.finish(source, startTime);
+  }
+
+  /** Records content that was imported, but not in full. */
+  recordDegraded(path: string, details: string): void {
+    this.items.push({ path, status: 'degraded', details });
+  }
+
+  /**
+   * Records a structural limit of this importer (e.g. "attachments are never
+   * imported"). Listed once in the report, independent of the file count.
+   */
+  noteLimitation(text: string): void {
+    if (!this.limitations.includes(text)) this.limitations.push(text);
+  }
+
+  get skippedCount(): number {
+    return this.items.filter((i) => i.status === 'skipped').length;
+  }
+
+  get degradedCount(): number {
+    return this.items.filter((i) => i.status === 'degraded').length;
+  }
+
+  /** Writes `Import report.md` and assembles the ImportReport. */
+  async finish(source: { id: ImportSourceId; name: string }, startTime: number): Promise<ImportReport> {
+    const durationMs = Date.now() - startTime;
+    const l = this.labels;
+    const statusLabel: Record<ImportReportItem['status'], string> = {
+      imported: l.statusImported,
+      skipped: l.statusSkipped,
+      degraded: l.statusDegraded,
+    };
+
+    const lines: string[] = [
+      `# ${l.reportTitle} (${source.name})`,
+      '',
+      `- **${l.reportDate}:** ${new Date(startTime).toISOString()}`,
+      `- **${l.reportDuration}:** ${Math.round(durationMs / 1000)}s`,
+      `- **${l.reportNotes}:** ${this.notes}`,
+    ];
+    if (this.attachments > 0) lines.push(`- **${l.reportAttachments}:** ${this.attachments}`);
+    if (this.databases > 0) lines.push(`- **${l.reportDatabases}:** ${this.databases}`);
+    if (this.degradedCount > 0) lines.push(`- **${l.reportDegraded}:** ${this.degradedCount}`);
+    if (this.skippedCount > 0) lines.push(`- **${l.reportSkipped}:** ${this.skippedCount}`);
+
+    if (this.limitations.length > 0) {
+      lines.push('', `## ${l.reportLimitsHeading}`, '');
+      lines.push(...this.limitations.map((text) => `- ${text}`));
+    }
+
+    // There is no "undo import" command, and there does not need to be: every
+    // import writes into one fresh folder, so deleting it IS the undo. That is
+    // only true if the report says so — it is the artefact the user keeps.
+    lines.push('', `## ${l.reportUndoHeading}`, '');
+    const root = this.prefix.replace(/\/$/, '');
+    lines.push(root ? `${l.reportUndoFolder} \`${root}\`` : l.reportUndoVault);
+
+    const incomplete = this.items.filter((i) => i.status !== 'imported');
+    if (incomplete.length > 0) {
+      lines.push('', `## ${l.reportIncompleteHeading}`, '');
+      lines.push(
+        ...incomplete.map(
+          (item) => `- **${statusLabel[item.status]}** — ${item.path}${item.details ? `: ${item.details}` : ''}`
+        )
+      );
+    }
+
+    lines.push('', `## ${l.reportFilesHeading}`, '');
+    lines.push(
+      ...this.items.map(
+        (item) => `- [${statusLabel[item.status]}] ${item.path}${item.details ? ` — ${item.details}` : ''}`
+      )
+    );
+
+    const summaryMarkdown = lines.join('\n');
+
+    // The report is a note in the user's vault like any other, so it carries the
+    // same frontmatter — without it, it would be the one file a freshly imported
+    // vault's OKF check complains about. `plainva.tasks: false` keeps it out of
+    // the task view no matter what a source file name contains. It stays inside
+    // the import folder on purpose: a separate `_Import/` directory would add a
+    // level without adding safety, since deleting the import folder removes the
+    // report with it.
+    let reportDocument = ensureOkfFrontmatter(summaryMarkdown, { type: 'note' }).content;
+    reportDocument = setFrontmatterPath(reportDocument, ['plainva', 'tasks'], false);
+    // The report is the most machine-written note of the run; it says so too.
+    reportDocument = this.stampProvenance(reportDocument);
+
+    // The report itself is claimed like any other file, so a second import into
+    // the same folder keeps the earlier report instead of replacing it.
+    const { path: reportPath } = await this.claimPath('Import report.md');
+    await this.writeToDisk(reportPath, reportDocument);
+
+    return {
+      sourceId: source.id,
+      sourceName: source.name,
+      startedAt: new Date(startTime).toISOString(),
+      durationMs,
+      importedNotesCount: this.notes,
+      importedAttachmentsCount: this.attachments,
+      importedDatabasesCount: this.databases,
+      degradedCount: this.degradedCount,
+      skippedCount: this.skippedCount,
+      reportPath,
+      items: this.items,
+      summaryMarkdown,
+    };
+  }
+}
