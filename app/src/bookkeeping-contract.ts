@@ -124,7 +124,8 @@ export function checkMutationReceipt(input: ExpenseMutation, rows: Expense[]): v
 }
 export function filteredExpenses(rows: Expense[], month: string, filter: string, query: string): Expense[] {
   const term = query.trim().toLocaleLowerCase();
-  return rows.filter(row => !row.deleted && (!month || row.date.startsWith(`${month}-`)) && (!filter || row.status === filter)
+  return rows.filter(row => !row.deleted && (!month || row.date.startsWith(`${month}-`))
+    && (!filter || (filter === 'waiting' ? row.status === 'pending' || row.status === 'submitted' : row.status === filter))
     && (!term || `${row.purpose}\n${row.note}`.toLocaleLowerCase().includes(term)))
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
 }

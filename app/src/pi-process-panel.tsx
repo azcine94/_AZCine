@@ -75,6 +75,14 @@ function Process({value,choices,onChoice,onBeforeChange}:{value:ProcessView;choi
       {value.errors.map((error,index)=><Feedback as="p" tone="error" key={index} className="form-error" role="alert">{error}</Feedback>)}</div>
   </section>;
 }
+function MessageCopyAction({item}:{item:Extract<ConversationView,{kind:'message'}>}) {
+  if (!['user','assistant'].includes(item.role) || item.status==='streaming') return null;
+  const user=item.role==='user';
+  const text=item.parts.filter(part=>!user||part.kind!=='image').map(part=>user?agentMessageContent(part.text).text:part.text).filter(Boolean).join('\n');
+  if (!text.trim()) return null;
+  const label=user?'消息':'回复';
+  return <div className="pi-message-actions"><Button variant="app-quiet" size="icon-sm" type="button" aria-label={`复制这条${label}`} title={`复制${label}`} onClick={async()=>{try{await navigator.clipboard.writeText(text);notifyOperation(`已复制${label}`);}catch{notifyOperation('复制失败，请选择文字后复制。',{tone:'error'});}}}><PiIcon type="copy"/></Button></div>;
+}
 export function Conversation({items,choices,onChoice,onBeforeChange,afterMessage}:{items:ConversationView[];choices:Record<string,boolean>;onChoice:(key:string,open:boolean)=>void;onBeforeChange:()=>void;afterMessage?:(item:Extract<ConversationView,{kind:'message'}>)=>ReactNode}) {
   return <>{items.map(item=>item.kind==='process'?<Process key={item.key} value={item} choices={choices} onChoice={onChoice} onBeforeChange={onBeforeChange}/>
     :<article key={item.key} className={`pi-message pi-message--${item.role}`} data-message-key={item.key}>
@@ -91,7 +99,7 @@ export function Conversation({items,choices,onChoice,onBeforeChange,afterMessage
       {item.status==='incomplete'&&<span className="pi-answer-state">回复未完整结束</span>}
       {item.status==='interrupted'&&<span className="pi-answer-state">已中断</span>}
       {item.error&&<Feedback as="p" tone="error" className="form-error" role="alert">{item.error}</Feedback>}
-      {item.role==='assistant'&&item.status!=='streaming'&&item.parts.some(part=>part.text)&&<div className="pi-message-actions"><Button variant="app-quiet" size="icon-sm" type="button" aria-label="复制这条回复" title="复制回复" onClick={async()=>{try{await navigator.clipboard.writeText(item.parts.map(part=>part.text).join('\n'));notifyOperation('已复制回复');}catch{notifyOperation('复制失败，请选择文字后复制。',{tone:'error'});}}}><PiIcon type="copy"/></Button></div>}
+      <MessageCopyAction item={item}/>
       {afterMessage?.(item)}
     </article>)}</>;
 }

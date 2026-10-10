@@ -35,7 +35,7 @@ export function usePreviewBookkeeping(state: string): BookkeepingController {
   const [drafts, setDrafts] = useState<Record<string, ExpenseDraft>>({ new: newDraft, [initial[0].id]: initialDraft });
   const [selected, select] = useState(['bookkeeping-selected', 'bookkeeping-confirm'].includes(state) ? [initial[0].id, initial[3].id] : []);
   const [confirmation, confirm] = useState<ExpenseConfirmation | null>(state === 'bookkeeping-confirm' ? { kind: 'status', status: 'submitted', targets: [initial[0], initial[3]].map(row => ({ id: row.id, revision: row.revision })) } : state === 'bookkeeping-delete' ? { kind: 'delete', target: { id: initial[0].id, revision: initial[0].revision }, purpose: initial[0].purpose, deleted: true } : null);
-  const [month, setMonthState] = useState('2026-10'), [filter, setFilterState] = useState(''), [query, setQueryState] = useState(state === 'filtered' ? '没有符合的示例' : '');
+  const [month, setMonthState] = useState('2026-10'), [filter, setFilterState] = useState(state === 'bookkeeping-waiting' ? 'waiting' : ''), [query, setQueryState] = useState(state === 'filtered' ? '没有符合的示例' : '');
   const [notice, setNotice] = useOperationNotice(state === 'bookkeeping-save-feedback' ? '开销已保存。（虚构示例）' : ''), [error, setError] = useState('');
   const [busy, setBusy] = useState(state === 'bookkeeping-saving' ? 'save' : '');
   const [undo, setUndo] = useState<Expense | null>(state === 'undo' ? initial[0] : null);

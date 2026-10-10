@@ -5,6 +5,7 @@
 
 /* Explicit record-table and semantic badge variants; existing defaults stay intact. */
 .ui-status-badge[data-variant="soft"] { gap:var(--s-1); border:1px solid var(--border); padding:var(--s-1) var(--s-2); white-space:nowrap; }
+.ui-status-badge[data-tone="active"] { color:var(--primary-foreground); background:var(--primary); border-color:var(--primary); }
 .ui-status-badge[data-variant="soft"][data-tone="success"] { color:var(--ok); background:var(--ok-soft); border-color:color-mix(in srgb,var(--ok) 24%,var(--border)); }
 .ui-status-badge[data-variant="soft"][data-tone="warning"] { color:var(--warn); background:var(--warn-soft); border-color:color-mix(in srgb,var(--warn) 24%,var(--border)); }
 .ui-status-badge[data-variant="soft"][data-tone="error"] { color:var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb,var(--bad) 24%,var(--border)); }
@@ -217,7 +218,6 @@ button:disabled { cursor:not-allowed; }
 .pi-agent-layout .pi-input-history>summary { padding-inline:0; }
 .pi-agent-layout .pi-composer textarea { display:block; border:0; min-height:36px; max-height:144px; resize:none; background:transparent; color:var(--text); width:100%; padding:0 2px; font:14px/22px var(--font); overflow:auto; }
 .pi-agent-layout .pi-composer textarea::placeholder { color:var(--t2); }
-.pi-agent-layout .pi-composer-surface:has(textarea:focus-visible) { outline:2px solid var(--acc); outline-offset:2px; }
 .pi-agent-layout .pi-composer textarea:focus-visible { outline:none; }
 .pi-agent-layout .pi-composer-model-link { display:inline-flex; align-items:center; gap:4px; min-height:32px; color:var(--t2); text-decoration:none; font:13px/20px var(--font); }
 .pi-agent-layout .pi-composer-model-link:hover { color:var(--text); }
