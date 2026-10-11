@@ -6,12 +6,15 @@ import { resolve, dirname } from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 const root = dirname(fileURLToPath(import.meta.url));
 await mkdir(resolve(root, 'assets'), { recursive: true });
+// Windows Git checkouts may use CRLF. Normalize before locating CSS sections
+// so newline-delimited boundaries do not become -1 and splice invalid CSS.
+const readStyle = async file => (await readFile(resolve(root, file), 'utf8')).replace(/\r\n?/g, '\n');
 // Preserve upstream component CSS inside the editor's component roots.
 // The AZCine token bridge loaded after this file supplies the actual palette.
-const sharedCSS = await readFile(resolve(root, 'vendor/packages/ui/src/styles/ui.css'), 'utf8');
-const tokenCSS = await readFile(resolve(root, 'vendor/packages/ui/src/styles/tokens.css'), 'utf8');
+const sharedCSS = await readStyle('vendor/packages/ui/src/styles/ui.css');
+const tokenCSS = await readStyle('vendor/packages/ui/src/styles/tokens.css');
 const defaultTokens = tokenCSS.slice(tokenCSS.indexOf(':root {') + 7, tokenCSS.indexOf('}', tokenCSS.indexOf(':root {')));
-const baseCSS = await readFile(resolve(root, 'vendor/packages/ui/src/styles/base-colors.css'), 'utf8');
+const baseCSS = await readStyle('vendor/packages/ui/src/styles/base-colors.css');
 // Preserve upstream's translucent callout fills. Opaque host surface tokens
 // cover CodeMirror's selection layer behind the text.
 const calloutDeclarations = css => (css.match(/^\s*--callout-[^\n]+/gm) || []).join('\n');
@@ -20,7 +23,7 @@ const darkStart = baseCSS.indexOf('[data-theme="dark"]');
 const darkRule = baseCSS.indexOf('\n[data-theme="dark"] {', darkStart);
 const lightCallouts = calloutDeclarations(baseCSS.slice(0, darkRule));
 const darkCallouts = calloutDeclarations(baseCSS.slice(darkRule));
-const desktopCSS = await readFile(resolve(root, 'vendor/apps/desktop/src/App.css'), 'utf8');
+const desktopCSS = await readStyle('vendor/apps/desktop/src/App.css');
 const focusWidthCSS = desktopCSS.slice(desktopCSS.indexOf('.cm-editor.cm-focused,'), desktopCSS.indexOf('/*\n * Document header'))
   .replace('html[data-modality="keyboard"]', ':scope:where(html[data-modality="keyboard"] *)')
   .replace('.pv-cm-narrow .cm-content', ':scope.pv-cm-narrow .cm-content');
