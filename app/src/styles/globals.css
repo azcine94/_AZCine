@@ -23,6 +23,8 @@
 @import './news.css' layer(components);
 @import './ideas.css' layer(components);
 @import './notes.css' layer(components);
+@import './inspiration-library.css' layer(components);
+@import '../components/ui/media-canvas.css' layer(components);
 @import './bookkeeping.css' layer(components);
 @import './server-credentials.css' layer(components);
 @import './task-panel.css' layer(components);

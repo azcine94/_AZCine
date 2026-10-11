@@ -1,6 +1,7 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "inspiration_snapshot", "inspiration_save", "inspiration_group", "inspiration_move", "inspiration_local", "inspiration_bridge", "inspiration_install_extension",
             "notes_local", "notes_index", "notes_select", "notes_read", "notes_save", "notes_binary", "notes_attach",
             "pi_processes", "pi_stop_process",
             "github_projects_snapshot", "github_projects_refresh", "github_project_avatar", "github_project_open",

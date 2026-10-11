@@ -132,7 +132,8 @@ function states(route:string) {
   if (route==='agent') return [...base,...catalogStates,'queue-paused','queue-waiting','queue-error','queue-many',...agentRepairStates,'agent-feedback','agent-send-pending','agent-cold-history','agent-lazy-start','agent-connect-error','disconnected','connecting','running','interrupted','queued','attachments','compacting','agent-waiting','agent-delete','agent-objects','agent-draft-review','agent-extension','agent-more','agent-runtime','agent-models','agent-sessions','agent-session-status','agent-session-unread','agent-session-details','agent-session-resize','agent-session-pinned','agent-session-manage','agent-session-pin-action','agent-bulk-delete','agent-sessions-collapsed','agent-session-rename','agent-draft-decisions','agent-process'];
   if(route==='news/daily'||route.startsWith('news/daily/'))return [...base,'daily-empty','daily-failed','daily-running','daily-waiting','daily-paused','daily-versions','daily-refreshing','daily-menu','incomplete'];
   if (route==='news') return [...base,'all','featured','hot','daily','filtered','review','incomplete'];
-  if (route==='ideas'||route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','undo','conflict','conflict-details'];
+  if (route==='ideas') return [...base,'library-viewer','library-notes','library-save-error','library-extension','library-groups-collapsed','library-delete','library-delete-error'];
+  if (route.startsWith('ideas/')) return [...base,'idea-create','editing','pending','removed','undo','conflict','conflict-details'];
   if(route==='projects')return [...base,'project-create','dirty','create-pending','project-delete-confirm','project-removed','project-restore-confirm','project-delete-pending','project-delete-error'];
   if(route==='projects/new')return [...base,'dirty','create-pending'];
   if(route.startsWith('projects/'))return [...base,'project-delete-confirm','project-removed','project-restore-confirm','project-delete-pending','project-delete-error','dirty','pending','conflict','conflict-details','discard-confirm','project-undo','project-saving','table-menu','table-stage-menu','table-date-menu','table-delivered-menu','table-text-menu','table-cell-selected','table-cell-editing','table-image-only','table-date-focus','table-images','table-image-preview','table-row-menu','add-menu','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open'];
@@ -177,6 +178,12 @@ export const pageSources = import.meta.glob<string>(['../**/*.tsx','!../componen
 export const componentSources = import.meta.glob<string>('../components/ui/**/*.tsx',{query:'?raw',import:'default',eager:true});
 export const styleSources = import.meta.glob<string>(['../styles/*.css','../components/ui/*.css'],{query:'?raw',import:'default',eager:true});
 export const sourceFiles = Object.keys(pageSources).map(path=>path.replace('../',''));
+
+const inspirationScene=scenes.find(item=>item.id==='ideas');
+if(inspirationScene){inspirationScene.sources.push('inspiration-library-panel.tsx','inspiration-library-viewer.tsx','inspiration-library-client.ts','components/ui/media-canvas.tsx','components/ui/media-canvas.css','styles/inspiration-library.css');}
+Object.assign(extraStateLabels,{'library-delete':'灵感库 · 删除确认','library-delete-error':'灵感库 · 删除失败保留','library-viewer':'灵感库 · 大图与常驻色板','library-notes':'灵感库 · 区域批注','library-save-error':'灵感库 · 保存失败保草稿','library-extension':'灵感库 · Chrome 安装向导','library-groups-collapsed':'灵感库 · 分组下拉'});
+Object.assign(stateLabels,extraStateLabels);
+
 export const unregisteredSources = sourceFiles.filter(name=>!scenes.some(item=>item.sources.includes(name)));
 export const routeLabels = (route:string) => pageTitle(route as Route);
 Object.assign(stateLabels,extraStateLabels,{'ranking-brands':'Agent · 公司 Logo 与未知公司','ranking-image-brands':'文生图 · 公司 Logo 与未知公司'});

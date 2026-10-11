@@ -8,7 +8,7 @@ export const pages = [
   { id: 'models', title: '模型榜', icon: 'models' },
   { id: 'github', title: 'GitHub', icon: 'github' },
   { id: 'ai-works', title: 'AI 作品', icon: 'ai-works' },
-  { id: 'ideas', title: '灵感', icon: 'ideas' },
+  { id: 'ideas', title: '灵感库', icon: 'ideas' },
   { id: 'notes', title: '笔记', icon: 'notes' },
   { id: 'bookkeeping', title: '记账', icon: 'bookkeeping' },
   { id: 'servers-credentials', title: '服务器和凭证', icon: 'servers-credentials' },

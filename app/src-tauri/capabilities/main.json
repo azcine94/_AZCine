@@ -6,6 +6,13 @@
     "main"
   ],
   "permissions": [
+    "allow-inspiration-snapshot",
+    "allow-inspiration-save",
+    "allow-inspiration-group",
+    "allow-inspiration-move",
+    "allow-inspiration-local",
+    "allow-inspiration-bridge",
+    "allow-inspiration-install-extension",
     "allow-notes-local",
     "allow-notes-index",
     "allow-notes-select",
