@@ -9,10 +9,10 @@ const config: SourceConfig = { id: 'rss-fixture', name: 'Fixture source', feedUr
 const source: NewsSource = { config, revision: 1, createdAt: '2026-10-04T00:00:00.000Z', feedKind: null, lastAttemptAt: null, lastSuccessAt: null, lastStatus: null, lastError: null };
 const entry = { externalId: null, title: 'Fixture title', url: 'https://example.org/article', publishedAt: null, publishedRaw: null, summary: 'Only subscription summary', summaryTruncated: false };
 
-test('Given资讯管理及信源二级页 When解析路由 Then设置导航高亮且有正常标题', () => {
-  for (const hash of ['#settings/news', '#settings/news/sources/new', '#settings/news/sources/rss-fixture']) assert.equal(navigationPage(resolveRoute(hash)), 'settings');
+test('Given资讯管理及信源二级页 When解析路由 Then信源导航高亮且旧链接兼容', () => {
+  for (const [legacy,current] of [['#settings/news','#sources'],['#settings/news/sources/new','#sources/new'],['#settings/news/sources/rss-fixture','#sources/rss-fixture'],['#settings/news/processing','#sources/processing']]) { assert.equal(resolveRoute(legacy),resolveRoute(current)); assert.equal(navigationPage(resolveRoute(current)), 'sources'); }
   assert.equal(newsSourceTarget(resolveRoute('#settings/news/sources/rss-fixture')), 'rss-fixture');
-  assert.equal(pageTitle(resolveRoute('#settings/news/sources/new')), '新增信源');
+  assert.equal(pageTitle(resolveRoute('#settings/news/sources/new')), '信源');
   assert.equal(resolveRoute('#settings/news/sources/../../data'), 'missing');
 });
 

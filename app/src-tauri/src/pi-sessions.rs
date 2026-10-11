@@ -1339,8 +1339,9 @@ mod tests {
         let summary = must_parse(&source(&[user_entry("not returned")]));
         let value = serde_json::to_value(summary).unwrap();
         let object = value.as_object().unwrap();
-        assert_eq!(object.len(), 6);
-        for field in ["id", "path", "name", "cwd", "updatedAt", "messageCount"] {
+        assert_eq!(object.len(), 7);
+        assert!(object["lastActivityAt"].is_string());
+        for field in ["id", "path", "name", "cwd", "updatedAt", "lastActivityAt", "messageCount"] {
             assert!(object.contains_key(field));
         }
 
