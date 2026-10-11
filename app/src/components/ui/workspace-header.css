@@ -14,11 +14,7 @@
 .site-header .gc-page-intro { display:flex; align-items:center; gap:var(--s-4); width:100%; min-width:0; }
 .site-header .gc-page-intro>div { display:flex; align-items:baseline; gap:var(--s-4); min-width:0; }
 .site-header .gc-page-intro h1 { flex:none; margin:0; font:600 var(--fs-h)/var(--lh-h) var(--font); }
-.site-header .gc-page-sub { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:0; }
 .site-header .gc-page-intro>a { flex:none; margin-left:auto; }
-@media(max-width:1100px) {
-  .workspace-page-heading .agent-page-tools>.meta,.site-header .gc-page-sub { display:none; }
-}
 
 .workspace-header-custom>.reader-page { display:contents; }
 .reader-window-heading { display:flex; align-items:center; width:100%; min-width:0; gap:var(--s-4); }
