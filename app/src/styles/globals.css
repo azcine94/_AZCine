@@ -40,6 +40,8 @@
 @import '../components/ui/operation-toast.css' layer(components);
 @import '../components/ui/business-controls.css' layer(components);
 @import './news-preferences.css' layer(components);
+@import './sources-workspace.css' layer(components);
+@import '../components/ui/workspace-header.css' layer(components);
 @import '../components/ui/scale-loader.css' layer(components);
 @import '../components/ui/attachment-preview.css' layer(components);
 @import '../components/ui/image-viewer.css' layer(components);

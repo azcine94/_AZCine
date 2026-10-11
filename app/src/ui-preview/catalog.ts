@@ -104,8 +104,8 @@ const files: Record<string,string[]> = {
   resources:['pi-resources-panel.tsx'],
   'self-evolution':['self-evolution-panel.tsx','use-self-evolution.ts','self-evolution-types.ts'],
   'settings/runtime':['pi-panels.tsx'],'settings/data':['workspace-panels.tsx'],
-  'settings/news':['news-panels.tsx'],'settings/news/materials':['news-panels.tsx'],
-  'settings/news/processing':['news-processing-panel.tsx'],'settings/news/rules':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
+  'sources':['sources-workspace.tsx','news-panels.tsx','styles/sources-workspace.css'],'settings/news/materials':['news-panels.tsx'],
+  'sources/processing':['sources-workspace.tsx','news-processing-panel.tsx','styles/sources-workspace.css'],'settings/news/rules':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
   'settings/news/ai':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],'settings/news/automation':['news-preferences-panel.tsx','news-source-rules.tsx','news-model-settings.tsx'],
 };
 function states(route:string) {
@@ -118,8 +118,8 @@ function states(route:string) {
   if (route==='task-panel') return [...base,'task-panel-delivery-user-required','task-panel-graph-loading','task-panel-graph-empty','task-panel-graph-error','task-panel-delivery-unverified','task-panel-delivery-required','task-panel-delivery-stale','task-panel-delivery-long','task-panel-delivery-error','task-panel-feedback-pending','task-panel-feedback-response','task-panel-revision-edit','task-panel-worktree-retry','task-panel-draft-restored','task-panel-workspace-unavailable','task-panel-checks-stale','task-panel-syncing','task-panel-initial-sync','task-panel-sync-error','task-panel-project-manager','task-panel-project-delete-confirm','task-panel-project-deleted','task-panel-project-delete-error','task-panel-create','task-panel-create-manual','task-panel-refining','task-panel-refine-questions','task-panel-refine-ready','task-panel-refine-error','task-panel-refine-stale','task-panel-refine-no-model','task-panel-refine-long','task-panel-task-content','task-panel-task-protocol','task-panel-branches','task-panel-total-git','task-panel-no-code','task-panel-branch-clean','task-panel-branch-pending','task-panel-branch-error','task-panel-branch-stale','task-panel-branch-long','dirty','pending','conflict','task-panel-editor','task-panel-intake','task-panel-intake-launch','task-panel-graph','task-panel-task-flow','task-panel-overview','task-panel-overview-selected','task-panel-overview-long','task-panel-records','task-panel-records-history','task-panel-records-unnamed','task-panel-records-long','task-panel-code-graph','task-panel-graph-long','task-panel-memory','task-panel-sessions','task-panel-goal','task-panel-dispatch','task-panel-import','task-panel-delivery','task-panel-recovery','task-panel-project','task-panel-multiple-projects','task-panel-context','task-panel-memory-reference','task-panel-memory-pending','task-panel-start-failed','task-panel-paused','task-panel-cancelled','task-panel-stopping','task-panel-stop-confirm'];
   if(route==='dev-environment')return ['normal','empty','loading','busy','error','long','environment-running','environment-cancelling','environment-cancelled','environment-failed','environment-completed','shell-collapsed'];
   if (route==='bookkeeping'||route.startsWith('bookkeeping/')) return [...base,'dirty','pending','filtered','conflict','undo','bookkeeping-selected','bookkeeping-confirm','bookkeeping-delete','bookkeeping-saving',...(route==='bookkeeping'?['bookkeeping-waiting','month-open','bookkeeping-validation','bookkeeping-create','bookkeeping-edit','bookkeeping-save-feedback','bookkeeping-refresh','bookkeeping-refresh-fast']:[]),'bookkeeping-fx','bookkeeping-fx-loading','bookkeeping-fx-error'];
-  if (route==='jobs'||route==='settings/news/processing') return [...base,...(route==='jobs'?['jobs-agent']:[]),'jobs-refresh','jobs-history','translation-parallel','detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','processing-config-draft','processing-config-version','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
-  if (route==='settings/news') return [...base,'news-source-states','source-create','paused',...Object.keys(statusLabels),'folds-open'];
+  if (route==='jobs'||route==='sources/processing') return [...base,...(route==='jobs'?['jobs-agent']:[]),'jobs-refresh','jobs-history','translation-parallel','detail','history-delete','history-clear',...Object.keys(processingPhases),'all-scope','retry-confirm','processing-config-draft','processing-config-version','tool-daily','tool-analysis','tool-skill','input-details','response-details'];
+  if (route==='sources') return [...base,'news-source-states','source-create','paused',...Object.keys(statusLabels),'folds-open'];
   if (route==='settings/models') return [...base,...catalogStates,'dirty','models','advanced','provider-thinking','remote','disconnected','connecting','provider-interface','provider-fetching','provider-saving','provider-multiple'];
   if (route==='settings/news/automation') return [...base,'dirty','pending','proxy','folds-open'];
   if(route==='settings/news/ai'||route==='settings/news/rules')return [...base,'news-rules-many','dirty','pending','processing-config-draft','processing-config-version','folds-open'];
@@ -143,7 +143,7 @@ function states(route:string) {
   return [...base,'dirty','pending','no-root'];
 }
 function scene(route:Route,title:string,group:string,sources:string[] = files[route]??[]):Scene {
-  return {id:route,title,group,route,states:[...new Set(states(route))],sources:[...(route==='settings/processes'?['process-monitor-panel.tsx','styles/process-monitor.css','ui-preview/process-monitor-fixture.ts']:[]),'main.tsx','App.tsx','components/ui/workspace-navigation.tsx','workspace-header.tsx','components/ui/loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
+  return {id:route,title,group,route,states:[...new Set(states(route))],sources:[...(route==='settings/processes'?['process-monitor-panel.tsx','styles/process-monitor.css','ui-preview/process-monitor-fixture.ts']:[]),'main.tsx','App.tsx','components/ui/workspace-navigation.tsx','components/ui/workspace-header.tsx','components/ui/workspace-header.css','components/ui/loading-status.tsx',...(route.startsWith('settings')?['settings-panels.tsx']:[]),...sources]};
 }
 export const scenes:Scene[] = [
   {id:'components',title:'通用组件与项目控件',group:'UI 基础',route:null,states:['normal','operation-toast','error','loading','long','stage-select','stage-create','stage-manage','stage-rename','stage-error','calendar-open','month-open','table-menu','add-menu','folds-open','dialog-open','form-dialog-open','form-dialog-error','form-dialog-pending','form-dialog-loading','form-dialog-long','popover-open','dropdown-open','tooltip-open','image-viewer','image-viewer-error'],sources:['components/ui/file-upload.tsx','components/ui/input.tsx','components/ui/image-viewer.tsx','components/ui/attachment-preview.tsx','components/ui/operation-toast.tsx','components/ui/operation-toast.css','components/ui/form-dialog.tsx','components/ui/form-dialog.css','date-input.tsx','project-stage-picker.tsx','table-menu.tsx','project-add-menu.tsx']},
@@ -162,14 +162,15 @@ export const scenes:Scene[] = [
   scene('news/daily','日报 · 阅读、历史与生成','资讯阅读',['news-daily-panel.tsx']),
   scene(`news/daily/${uuid(311)}`,'日报 · 固定版本','资讯阅读',['news-daily-panel.tsx']),
   scene(`news/stories/${readerStoryId}`,'资讯事件 · 报道与进展','详情与编辑',['news-reader-panels.tsx']),
-  scene('settings/news/sources/new','新增信源 · 弹窗','创建弹窗',['news-panels.tsx']),
-  scene(`settings/news/sources/${source.config.id}`,'编辑信源与预览','详情与编辑',['news-panels.tsx']),
+  scene('sources/processing','信源 · 处理与记录','主页面'),
+  scene('sources/new','新增信源 · 弹窗','创建弹窗',['news-panels.tsx']),
+  scene(`sources/${source.config.id}`,'编辑信源与预览','详情与编辑',['news-panels.tsx']),
   scene(`ideas/${idea.id}`,'定位灵感卡片','详情与编辑',['ideas-panels.tsx']),
   scene('news/materials','旧资料入口 → 采集资料','边界与别名',['news-panels.tsx']),
   scene('missing','不存在的页面','边界与别名'),
 ];
 const sourceStates = ['normal','dirty','pending','loading','error','long','preview','folds-open'];
-for (const item of scenes) if (item.id.startsWith('settings/news/sources/')) item.states=sourceStates;
+for (const item of scenes) if (item.id.startsWith('sources/')&&item.id!=='sources/processing') item.states=sourceStates;
 
 // 直接枚举当前源码；新增页面/组件但未登记会在总览提示，不能静默从清单消失。
 export const pageSources = import.meta.glob<string>(['../**/*.tsx','!../components/ui/**','!../ui-preview/**'],{query:'?raw',import:'default',eager:true});

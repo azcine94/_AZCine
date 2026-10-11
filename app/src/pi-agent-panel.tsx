@@ -1,3 +1,4 @@
+import { WorkspacePageHeader } from './components/ui/workspace-header.tsx';
 import { AgentQueuePanel } from './agent-queue-panel.tsx';
 import { supportedThinkingLevels, thinkingLabels } from './pi-thinking.ts';
 import { AgentSessionNavigation } from './agent-session-navigation.tsx';
@@ -185,7 +186,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
     {(compact||narrow||!navVisible)&&<Dialog open={sessionsOpen} onOpenChange={setSessionsOpen}><DialogContent layout="form" showCloseButton={false} className="pi-agent-layout pi-session-dialog" onCloseAutoFocus={event=>{event.preventDefault();sessionsTrigger.current?.focus();}}><DialogTitle className="sr-only">会话导航</DialogTitle><DialogDescription className="sr-only">选择已有会话或开始新的会话。</DialogDescription><nav className="pi-sessions" aria-label="会话导航">{sessionNavigation}</nav></DialogContent></Dialog>}
     <section className="pi-chat" aria-label="通用 Agent 对话">
       {dragging&&<div className="pi-attachment-drop" role="status"><div><PiIcon type="attachment"/><strong>松开以添加附件</strong><span>图片、PDF、表格或文本文件</span></div></div>}
-      <header className="pi-chat-heading">
+      <WorkspacePageHeader active={!compact} scope="pi-agent-layout"><header className="pi-chat-heading">
         <Button variant="app-quiet" size="icon-sm" ref={sessionsTrigger} data-agent-sessions={compact||narrow||!navVisible?true:undefined} aria-label={sessionListAction} title={sessionListAction} aria-haspopup={compact||narrow?'dialog':undefined} aria-expanded={compact||narrow?sessionsOpen:navVisible} onClick={()=>{if(compact||narrow)setSessionsOpen(true);else setNavVisible(value=>!value);}}>{navigationShown?<ChevronLeft aria-hidden="true"/>:<MessagesSquare aria-hidden="true"/>}</Button>
         <div className="pi-chat-identity"><h2 title={state?.sessionName??'新会话'}>{state?.sessionName??'新会话'}</h2><span className="pi-sr-only" role="status">{connection}{running&&(' · '+(waiting?'等待回答':activityText(projection!.activity)))}</span></div>
         <div className="pi-chat-controls">
@@ -203,7 +204,7 @@ export function AgentChat({model,preview=false,compact=false,onExpand,onClose,on
           </PopoverContent></Popover>
           {onClose&&<Button variant="app-quiet" size="icon-sm" aria-label="收起 Agent 侧栏" title="收起" onClick={onClose}><PiIcon type="close"/></Button>}
         </div>
-      </header>
+      </header></WorkspacePageHeader>
       <FormDialog returnFocus={moreTrigger.current} open={detailsOpen} onOpenChange={setDetailsOpen} title="会话设置" description="调整当前会话名称、查看连接与用量。">
         <div className="pi-agent-layout pi-session-settings">
           <form onSubmit={event=>{event.preventDefault();void model.sessionAction('pi_name_session',{name:model.sessionName});}}><label className="pi-field">会话名称<Input value={model.sessionName} maxLength={1000} onChange={event=>model.setSessionName(event.target.value)}/></label><Button variant="outline" size="sm" disabled={!ready||busy||running||!model.sessionName.trim()}>保存名称</Button></form>

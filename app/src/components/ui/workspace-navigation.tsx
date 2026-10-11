@@ -6,7 +6,7 @@ import {UILink} from './ui-link.tsx';
 import {StatusDot,type StatusDotTone} from './status-dot.tsx';
 import {notifyOperation} from './operation-toast.tsx';
 
-const tools:PageId[]=['agent','self-evolution','task-panel','jobs','dev-environment','resources'];
+const tools:PageId[]=['sources','agent','self-evolution','task-panel','jobs','dev-environment','resources'];
 const workbench=pages.filter(page=>page.id!=='settings'&&!tools.includes(page.id));
 const storageKey='azcine.navigation.v1';
 type Preferences={order:PageId[];toolsCollapsed:boolean};

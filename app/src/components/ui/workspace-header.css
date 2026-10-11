@@ -1,0 +1,27 @@
+.workspace-header-slot { flex:1; min-width:0; height:100%; display:flex; align-items:center; }
+.workspace-header-default,.workspace-header-custom { width:100%; min-width:0; display:flex; align-items:center; gap:var(--s-3); }
+.workspace-header-slot:has(>.workspace-header-custom)>.workspace-header-default { display:none; }
+.workspace-page-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); width:100%; min-width:0; }
+.workspace-page-heading .page-name { flex:1; min-width:0; }
+.workspace-page-heading h1 { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.workspace-page-heading h1:focus { outline:none; }
+.workspace-header-custom :is(h1,h2)[tabindex="-1"]:focus { outline:none; }
+.workspace-page-heading .agent-page-tools { flex:none; flex-wrap:nowrap; }
+.site-header .sidebar-trigger { flex:none; }
+/* Retain Agent styling and React state when its header is portalled into the shell. */
+.workspace-header-custom>.pi-agent-layout { display:contents; }
+.site-header .pi-agent-layout[data-redesign=true] .pi-chat-heading { display:flex; width:100%; min-width:0; min-height:0; margin:0; padding:0; border:0; }
+.site-header .gc-page-intro { display:flex; align-items:center; gap:var(--s-4); width:100%; min-width:0; }
+.site-header .gc-page-intro>div { display:flex; align-items:baseline; gap:var(--s-4); min-width:0; }
+.site-header .gc-page-intro h1 { flex:none; margin:0; font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.site-header .gc-page-sub { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:0; }
+.site-header .gc-page-intro>a { flex:none; margin-left:auto; }
+@media(max-width:1100px) {
+  .workspace-page-heading .agent-page-tools>.meta,.site-header .gc-page-sub { display:none; }
+}
+
+.workspace-header-custom>.reader-page { display:contents; }
+.reader-window-heading { display:flex; align-items:center; width:100%; min-width:0; gap:var(--s-4); }
+.site-header .reader-window-heading .reader-return { flex:none; margin:0; }
+.reader-window-heading h2 { flex:1; min-width:0; font:600 var(--fs-h)/var(--lh-h) var(--font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.site-header .reader-window-heading .reader-tools { flex:none; padding:0; margin:0; border:0; flex-wrap:nowrap; }

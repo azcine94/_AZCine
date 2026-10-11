@@ -7,9 +7,7 @@ export const settingsGroups = [
     { route: 'settings/runtime', title: '工作目录与环境', icon: 'folder' },
   ] },
   { title: '资讯管理', items: [
-    { route: 'settings/news', title: '信源管理', icon: 'source' },
     { route: 'settings/news/materials', title: '采集资料', icon: 'source' },
-    { route: 'settings/news/processing', title: '处理与记录', icon: 'clock' },
     { route: 'settings/news/rules', title: '分类与筛选', icon: 'filter' },
     { route: 'settings/news/ai', title: 'AI 处理', icon: 'model' },
     { route: 'settings/news/automation', title: '采集与日报', icon: 'clock' },
