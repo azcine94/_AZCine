@@ -109,6 +109,9 @@ fn configure_journal(db: &Connection) -> Result<(), StorageError> {
 }
 
 impl Manager {
+    pub(crate) fn local_config_directory(&self) -> Result<PathBuf, StorageError> {
+        self.locator.parent().map(|path|path.to_path_buf()).ok_or_else(||StorageError::new("config_path","无法定位本机应用配置目录。"))
+    }
     pub fn new(config_dir: PathBuf, default_root: PathBuf) -> Result<Self, StorageError> {
         fs::create_dir_all(&config_dir).map_err(io_error)?;
         let lock = lock_file(&config_dir.join("instance.lock"))?;

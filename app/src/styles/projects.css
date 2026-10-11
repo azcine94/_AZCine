@@ -1,7 +1,7 @@
 /* Project cards and documents share the app tokens and bounded workspace. */
 .project-content { --doc-title:24px; --doc-text-line:28px; width:100%; min-width:0; margin:0; }
 .workspace[data-page="projects"] .page-heading,.workspace[data-page^="projects/"] .page-heading { padding:var(--s-5); padding-bottom:var(--s-4); }
-.workspace[data-page="projects"] .workspace-scroll,.workspace[data-page^="projects/"] .workspace-scroll { padding:0 var(--s-5) var(--s-5); }
+.workspace[data-page="projects"] .workspace-scroll,.workspace[data-page^="projects/"] .workspace-scroll { padding:var(--s-4) var(--s-5) var(--s-5); }
 .workspace-scroll.workspace-scroll--project-document { display:flex; flex-direction:column; overflow:hidden; scrollbar-gutter:auto; }
 .project-document { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
 .project-document-header { flex:none; padding-bottom:var(--s-4); }

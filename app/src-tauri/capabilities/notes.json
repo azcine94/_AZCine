@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "notes-windows",
+  "description": "Owned local note windows; only note commands, no business or filesystem plugins.",
+  "windows": ["notes-*"],
+  "permissions": ["core:default", "allow-notes-local", "allow-notes-index", "allow-notes-read", "allow-notes-save", "allow-notes-binary", "allow-notes-attach"]
+}

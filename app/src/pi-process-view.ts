@@ -102,6 +102,8 @@ export function conversationView(projection: PiProjection, context: string, runS
     output.push({kind:'message',key,role:view.role,title:view.title,parts,status:view.status,error:view.error,messageIndex});
   }
   views.forEach((view, index) => {
+    // Internal model-context summaries are never a replacement for chat history.
+    if(view.role==='compactionSummary'||view.role==='branchSummary')return;
     // Pi can emit an empty system message at turn start; it has no display content.
     if(view.role==='system'&&!view.error&&view.parts.every(part=>part.kind==='text'&&!part.text.trim()))return;
     const key = `${context}/message/${index}`;

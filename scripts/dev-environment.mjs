@@ -12,7 +12,14 @@ export function prepareEnvironment(root) {
   const dependencyLock = (base,file) => {
     const text=readFileSync(path.join(base,file),'utf8').replaceAll('\r\n','\n');
     if(file.endsWith('Cargo.lock'))return text.replace(/(\[\[package\]\]\nname = "azcine"\nversion = )"[^"\n]+"/, '$1"workspace"');
-    const lock=JSON.parse(text);delete lock.version;if(lock.packages?.[''])delete lock.packages[''].version;return JSON.stringify(lock);
+    const lock=JSON.parse(text);delete lock.version;
+    if(lock.packages?.['']){
+      delete lock.packages[''].version;
+      // Root lifecycle scripts do not change app/node_modules. The Plainva
+      // editor installs its own dependencies outside this shared directory.
+      delete lock.packages[''].hasInstallScript;
+    }
+    return JSON.stringify(lock);
   };
   const sameDependencies = file => {try{return dependencyLock(root,file)===dependencyLock(main,file);}catch{return false;}};
   const declarations = base => {

@@ -1,0 +1,866 @@
+import { Decoration, ViewPlugin, EditorView, ViewUpdate, DecorationSet, WidgetType } from "@codemirror/view";
+import { Range, StateField, EditorState, Extension, EditorSelection, Facet } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
+import { parseCalloutMarker, calloutColorKey, calloutColor, calloutIconPath, calloutLineClass } from "./callouts";
+import { parseMarkdownTable, serializeTable, setCell, type TableModel, type TableAlign } from "./tableModel";
+import { editTextToTableCell, fitFieldHeight, tableCellToEditText } from "../lib/growingField";
+import { renderInlineMarkdown, type InlineLinkHandlers } from "../lib/inlineMarkdown";
+import { formatRelativeDate, DATE_TOKEN_RE } from "../services/dynamicDate";
+import { isEditorInteractive } from "./editorInteractive";
+import { anchorFramesAt, anchorFramesSignature, decorateAnchorTarget, hasAnchorHighlightChange, type AnchorFrame } from "./anchorHighlight";
+import i18n from "../i18n";
+import { isAnchorMarkerText } from "./anchorMarkerHide";
+import { listDepthAt } from "./listIndent";
+import { editorLineDirection } from "./textDirectionExtension";
+import { textDirectionOf, type TextDirection } from "../lib/textDirection";
+import { spellcheckAttr } from "../lib/spellcheck";
+import { onCompletedTap } from "./completedTap";
+import { scanTasks, setChecklistTaskDone } from "@plainva/core";
+import { minimalDocChange } from "../lib/textDiff";
+import { isLineFolded, listFoldRange, toggleFoldAtLine } from "./foldingExtension";
+import { frontmatterLines } from "./editorFrontmatter";
+
+const HIDE = Decoration.replace({});
+
+/** Link handlers for rendered table-cell content (wiki links, external URLs).
+ *  Provided by the editor; widgets read them via `view.state.facet(...)`. */
+export const tableLinkHandlers = Facet.define<InlineLinkHandlers, InlineLinkHandlers>({
+  combine: (values) => values[0] ?? {},
+});
+
+function buildFrontmatterDeco(state: EditorState, hide: boolean): DecorationSet {
+  const decos = [];
+  const block = frontmatterLines(state.doc);
+  if (block) {
+    if (hide) {
+      // From the very start: a byte order mark in front of the fence goes with the block.
+      decos.push(Decoration.replace({ block: true }).range(0, block.end));
+    } else {
+      // Apply line decoration to reset styles in Source Mode
+      for (let i = 1; i <= block.closeLine; i++) {
+        decos.push(Decoration.line({ class: "cm-frontmatter" }).range(state.doc.line(i).from));
+      }
+    }
+  }
+  return Decoration.set(decos, true);
+}
+
+export function frontmatterStateField(isLive: boolean) {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      return buildFrontmatterDeco(state, isLive);
+    },
+    update(value, tr) {
+      if (tr.docChanged) {
+        return buildFrontmatterDeco(tr.state, isLive);
+      }
+      return value;
+    },
+    provide: f => EditorView.decorations.from(f)
+  });
+}
+
+export function frontmatterProtectPlugin(isLive: boolean): Extension {
+  if (!isLive) return [];
+  return EditorState.transactionFilter.of(tr => {
+    // Asked on every transaction, also one that only moves the caret: the
+    // answer is kept per document (editorFrontmatter.ts).
+    const frontmatterEnd = frontmatterLines(tr.startState.doc)?.end ?? 0;
+
+    if (frontmatterEnd > 0) {
+      // Reject any user-initiated document changes inside the frontmatter
+      if (tr.docChanged && (tr.isUserEvent("input") || tr.isUserEvent("delete") || tr.isUserEvent("paste") || tr.isUserEvent("undo") || tr.isUserEvent("redo"))) {
+        let invalidChange = false;
+        tr.changes.iterChanges((fromA) => {
+          if (fromA < frontmatterEnd) {
+            invalidChange = true;
+          }
+        });
+        if (invalidChange) {
+          return []; // Reject transaction completely
+        }
+      }
+
+      // Force selection out of frontmatter
+      if (tr.selection) {
+        let selectionAdjusted = false;
+        const newRanges = tr.selection.ranges.map(range => {
+          if (range.head < frontmatterEnd || range.anchor < frontmatterEnd) {
+            selectionAdjusted = true;
+            const head = Math.max(range.head, frontmatterEnd);
+            const anchor = Math.max(range.anchor, frontmatterEnd);
+            return EditorSelection.range(anchor, head);
+          }
+          return range;
+        });
+        if (selectionAdjusted) {
+          return [tr, { selection: EditorSelection.create(newRanges, tr.selection.mainIndex) }];
+        }
+      }
+    }
+    return tr;
+  });
+}
+
+export function frontmatterHidePlugin(isLive: boolean): Extension {
+  return [frontmatterStateField(isLive), frontmatterProtectPlugin(isLive)];
+}
+
+/**
+ * Bullet glyph per nesting level (feedback round 2026-09-01, T8b): disc,
+ * circle, square — then again, the way the read view's native `<ul>` and
+ * Obsidian do it. Purely visual: the source keeps its `-`, `*` or `+`.
+ */
+export const BULLET_GLYPHS = ["•", "◦", "▪"] as const;
+export function bulletGlyphForDepth(depth: number): string {
+  const level = Math.max(1, depth);
+  return BULLET_GLYPHS[(level - 1) % BULLET_GLYPHS.length];
+}
+
+/**
+ * The bullet doubles as the fold control of a list item that has nested
+ * lines (feedback round 2026-09-01, T8c / E11): a tap target where there is
+ * something to fold, nothing where there is not. The phone has no fold
+ * keymap and no gutter, so this is the only way folding is reachable there;
+ * the desktop gets the same click on top of Ctrl/Cmd-Shift-[ and ].
+ */
+const bulletTapCleanup = new WeakMap<HTMLElement, () => void>();
+class BulletWidget extends WidgetType {
+  constructor(readonly glyph: string, readonly foldable: boolean, readonly folded: boolean) { super(); }
+  eq(other: BulletWidget) { return other.glyph === this.glyph && other.foldable === this.foldable && other.folded === this.folded; }
+  toDOM(view: EditorView) {
+    const span = document.createElement("span");
+    span.textContent = this.glyph;
+    span.className = this.foldable ? (this.folded ? "cm-md-bullet cm-md-bullet--foldable is-folded" : "cm-md-bullet cm-md-bullet--foldable") : "cm-md-bullet";
+    if (this.foldable) {
+      span.setAttribute("role", "button");
+      span.setAttribute("aria-expanded", this.folded ? "false" : "true");
+      bulletTapCleanup.set(span, onCompletedTap(span, () => {
+        const pos = view.posAtDOM(span);
+        toggleFoldAtLine(view, pos);
+      }));
+    }
+    return span;
+  }
+  ignoreEvent() { return !this.foldable; }
+  destroy(dom: HTMLElement) { bulletTapCleanup.get(dom)?.(); bulletTapCleanup.delete(dom); }
+}
+const bulletDecos = new Map<string, Decoration>();
+function bulletDecoFor(depth: number, foldable = false, folded = false): Decoration {
+  const glyph = bulletGlyphForDepth(depth);
+  const key = `${glyph}${foldable ? "|f" : ""}${folded ? "|c" : ""}`;
+  let deco = bulletDecos.get(key);
+  if (!deco) {
+    deco = Decoration.replace({ widget: new BulletWidget(glyph, foldable, folded) });
+    bulletDecos.set(key, deco);
+  }
+  return deco;
+}
+
+// Interactive task checkbox. Clicking toggles the source character between
+// " " and "x" at the recorded document position.
+class TaskWidget extends WidgetType {
+  /**
+   * `state` is for the two boxes the Markdown parser does not know (E12): `[/]`
+   * in progress draws the native "indeterminate" dash, `[-]` cancelled a ticked
+   * box on a muted line. A click still only moves between open and done — it
+   * completes what is in progress and reopens what was cancelled.
+   */
+  constructor(readonly checked: boolean, readonly pos: number, readonly state: "progress" | "cancelled" | null = null) { super(); }
+  eq(other: TaskWidget) { return other.checked === this.checked && other.pos === this.pos && other.state === this.state; }
+  toDOM(view: EditorView) {
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = this.checked;
+    box.indeterminate = this.state === "progress";
+    box.className = this.state ? `cm-md-task cm-md-task--${this.state}` : "cm-md-task";
+    if (this.state) box.dataset.taskState = this.state;
+    box.addEventListener("mousedown", (e) => e.preventDefault());
+    box.addEventListener("click", (e) => {
+      e.preventDefault();
+      const raw = view.state.doc.toString(), line = view.state.doc.lineAt(this.pos);
+      const task = scanTasks(raw).find(value => value.line === line.number - 1);
+      if (!task) return;
+      const result = setChecklistTaskDone(raw, task.ordinal, !this.checked);
+      const change = minimalDocChange(raw, result.content);
+      if (change) view.dispatch({ changes: change, userEvent: "input.task" });
+    });
+    return box;
+  }
+  ignoreEvent() { return false; }
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// Colored type icon shown at the start of a callout header (Obsidian-style),
+// replacing the raw "[!type]" marker in live mode.
+class CalloutIconWidget extends WidgetType {
+  constructor(readonly type: string) { super(); }
+  eq(other: CalloutIconWidget) { return other.type === this.type; }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-callout-icon";
+    span.style.color = calloutColor(this.type);
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    svg.innerHTML = calloutIconPath(this.type); // static, trusted markup
+    span.appendChild(svg);
+    return span;
+  }
+}
+
+// Renders an `@YYYY-MM-DD` token as a relative date chip (Heute/Morgen/… or the
+// full date), recomputed each render against the current day (#4 dynamic dates).
+class DateChipWidget extends WidgetType {
+  constructor(readonly iso: string) { super(); }
+  eq(other: DateChipWidget) { return other.iso === this.iso; }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-date-chip";
+    const locale = (i18n.language || "de").slice(0, 2);
+    span.textContent = formatRelativeDate(this.iso, new Date(), locale);
+    span.title = this.iso;
+    return span;
+  }
+}
+
+// Capitalized type name shown as the header when a callout has no custom title.
+class CalloutLabelWidget extends WidgetType {
+  constructor(readonly type: string) { super(); }
+  eq(other: CalloutLabelWidget) { return other.type === this.type; }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-callout-label";
+    span.style.color = calloutColor(this.type);
+    span.textContent = this.type.charAt(0).toUpperCase() + this.type.slice(1);
+    return span;
+  }
+}
+
+// Lines (1-based) touched by the selection — their raw markdown stays visible.
+export function activeLineSet(state: EditorState): Set<number> {
+  const set = new Set<number>();
+  for (const r of state.selection.ranges) {
+    const s = state.doc.lineAt(r.from).number;
+    const e = state.doc.lineAt(r.to).number;
+    for (let i = s; i <= e; i++) set.add(i);
+  }
+  return set;
+}
+
+// A column without an alignment starts where its cell's text starts (issue
+// issue 111): left in a left-to-right cell, right in a right-to-left one. `:---`
+// and `---:` stay what the author wrote.
+function alignToCss(a: TableAlign): "left" | "center" | "right" | "start" {
+  return a === "center" ? "center" : a === "right" ? "right" : a === "left" ? "left" : "start";
+}
+
+// Replace the table's source range [from, to] with a freshly serialized model.
+// No `selection` is set so the caret stays outside the table and the widget
+// keeps rendering (a caret inside the range would flip it back to raw markdown).
+function replaceTableRange(view: EditorView, from: number, to: number, model: TableModel) {
+  const safeTo = Math.min(to, view.state.doc.length);
+  view.dispatch({ changes: { from, to: safeTo, insert: serializeTable(model) }, userEvent: "input" });
+}
+
+// Renders a GFM table as a real <table>. Clicking a cell opens a native field
+// in place; committing on blur / Enter rewrites the canonical GFM source.
+// Right-clicking a cell opens the row/column context menu (handled in
+// Editor.tsx via a window event). The raw markdown stays reachable through
+// Source mode.
+//
+// A native form field is used (not contenteditable on the cell): the table
+// lives inside CodeMirror's editable contentDOM, and a contenteditable cell
+// would route keystrokes through CM's beforeinput handler and overwrite the
+// document. A form field has its own input model, so combined with
+// ignoreEvent / ignoreMutation CodeMirror stays entirely out of the cell.
+//
+// The field is a <textarea> that is as tall as its text (issue 118): the cell
+// wraps while it is read, and a one-line <input> showed a long cell through a
+// keyhole while it was edited. Shift+Enter adds a line break, written to the
+// source as `<br>` — the only way a GFM cell can hold one, and what the cell
+// display has rendered all along.
+class TableWidget extends WidgetType {
+  constructor(
+    readonly model: TableModel,
+    readonly from: number,
+    readonly to: number,
+    /**
+     * EVERY comment pointing into this table (Sammelplan C29). A table is one
+     * contiguous range, so two commented cells arrive as two frames over the
+     * same range — the old single-frame question drew the first and lost the
+     * second. See anchorHighlight.
+     */
+    readonly frames: readonly AnchorFrame[] = [],
+    /**
+     * The table's direction (issue 111) - the one its source lines have in
+     * the editor, so the columns run the way the table's text does.
+     */
+    readonly dir: TextDirection = "ltr",
+  ) { super(); }
+  eq(other: TableWidget) {
+    return other.from === this.from && other.to === this.to && other.dir === this.dir
+      // The frames join the identity: without them CodeMirror keeps the DOM it
+      // already built and a frame would never appear.
+      && anchorFramesSignature(other.frames) === anchorFramesSignature(this.frames)
+      && JSON.stringify(other.model) === JSON.stringify(this.model);
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("div");
+    wrap.className = "cm-md-table-wrap";
+    // The wrapper is not editable; cells open their own <input> on click. This
+    // keeps CodeMirror from treating the table chrome as editable text.
+    wrap.contentEditable = "false";
+    wrap.dir = this.dir;
+    const table = document.createElement("table");
+    table.className = "cm-md-table";
+    // Each cell is a block of its own: its first strong character decides,
+    // and a cell without one (a number, a date) runs with the table.
+    const cellDir = (raw: string) => textDirectionOf(raw, this.dir);
+
+    // Cell DISPLAY renders the inline-markdown subset (bold, links, <br>, …);
+    // editing keeps the raw markdown in the <input>.
+    const handlers = view.state.facet(tableLinkHandlers);
+    const renderCell = (cell: HTMLTableCellElement, raw: string) => {
+      cell.textContent = "";
+      cell.appendChild(renderInlineMarkdown(raw, handlers));
+    };
+
+    const openCellEditor = (cell: HTMLTableCellElement, kind: "header" | "body", rowIndex: number, colIndex: number) => {
+      if (cell.querySelector("textarea")) return; // already editing this cell
+      const original = (kind === "header" ? this.model.headers[colIndex] : this.model.rows[rowIndex]?.[colIndex]) ?? "";
+      // What is edited is the cell with its `<br>` as real line breaks. A cell
+      // left as it was is compared in that form too, so opening and closing a
+      // cell never rewrites `<br/>` into `<br>` behind the user's back.
+      const originalText = tableCellToEditText(original);
+      const input = document.createElement("textarea");
+      input.rows = 1;
+      input.className = "cm-md-table-input";
+      // A cell holds prose: it follows the spell-checking switch by the one
+      // rule every writing field follows (lib/spellcheck.ts).
+      input.setAttribute("spellcheck", spellcheckAttr("prose"));
+      input.value = originalText;
+      input.dir = cellDir(original);
+      input.style.textAlign = alignToCss(this.model.aligns[colIndex] ?? null);
+      // A textarea has no width of its own: without this the column would
+      // collapse to its narrowest while the cell is edited and the text would
+      // stand in a tall, thin stack. The cell keeps the width it had.
+      const heldWidth = cell.style.minWidth;
+      cell.style.minWidth = `${cell.getBoundingClientRect().width}px`;
+      cell.textContent = "";
+      cell.appendChild(input);
+      fitFieldHeight(input);
+      input.focus();
+      input.select();
+      let finished = false;
+      const finish = (save: boolean) => {
+        if (finished) return;
+        finished = true;
+        const changed = save && input.value !== originalText;
+        const value = changed ? editTextToTableCell(input.value) : original;
+        renderCell(cell, value); // remove the field, restore the rendered cell
+        cell.style.minWidth = heldWidth;
+        if (changed) {
+          replaceTableRange(view, this.from, this.to, setCell(this.model, kind, rowIndex, colIndex, value));
+        }
+      };
+      input.addEventListener("input", () => fitFieldHeight(input));
+      input.addEventListener("blur", () => finish(true));
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation(); // keep CM keymaps (e.g. select-all) out of the cell
+        // Enter while a word is still being composed confirms the word, not the cell.
+        if (e.isComposing) return;
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finish(true); }
+        else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+      });
+    };
+
+    const wireCell = (cell: HTMLTableCellElement, kind: "header" | "body", rowIndex: number, colIndex: number) => {
+      // The same speech bubble a picture shows on hover (K2). The cell menu
+      // keeps the entry as the second door; this is the one people see.
+      // A cell that already carries a comment offers no second one (finding
+      // 2026-09-03): its corner triangle is the way to the thread, and a
+      // bubble beside it would sit on the triangle.
+      const row = kind === "header" ? 0 : rowIndex + 1;
+      const commented = this.frames.some((frame) => frame.kind === "tableCell" && frame.row === row && frame.column === colIndex);
+      decorateAnchorTarget({
+        view,
+        host: cell,
+        target: cell,
+        range: { from: this.from, to: this.to },
+        display: { kind: "tableCell", row, column: colIndex },
+        frame: null,
+        bubbleLabel: commented ? undefined : i18n.t("comments.commentOnCell"),
+        bubbleClass: "cm-anchor-bubble--cell",
+      });
+      cell.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return; // left button only; right opens the menu
+        // The corner opens the card, not the cell editor (V7).
+        if (e.target instanceof HTMLElement && e.target.closest(".cm-anchor-corner")) return;
+        // Read-only (mobile read mode): a cell tap must not open the editor —
+        // the cell's own links (they stopPropagation) still handle their taps.
+        if (!isEditorInteractive(view.state)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openCellEditor(cell, kind, rowIndex, colIndex);
+      });
+      cell.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent("plainva-open-table-menu", {
+          detail: {
+            x: e.clientX, y: e.clientY,
+            from: this.from, to: this.to,
+            kind, rowIndex, colIndex,
+            align: this.model.aligns[colIndex] ?? null,
+          },
+        }));
+      });
+    };
+
+    // Row 0 is the header, row N the Nth body row - the same numbering the
+    // anchor stores, so a frame can find its cell without a second mapping.
+    const cells: HTMLTableCellElement[][] = [];
+
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    const headCells: HTMLTableCellElement[] = [];
+    this.model.headers.forEach((h, i) => {
+      const th = document.createElement("th");
+      renderCell(th, h);
+      th.dir = cellDir(h);
+      th.style.textAlign = alignToCss(this.model.aligns[i] ?? null);
+      wireCell(th, "header", -1, i);
+      headRow.appendChild(th);
+      headCells.push(th);
+    });
+    cells.push(headCells);
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    this.model.rows.forEach((row, r) => {
+      const tr = document.createElement("tr");
+      const rowCells: HTMLTableCellElement[] = [];
+      row.forEach((cell, i) => {
+        const td = document.createElement("td");
+        renderCell(td, cell);
+        td.dir = cellDir(cell);
+        td.style.textAlign = alignToCss(this.model.aligns[i] ?? null);
+        wireCell(td, "body", r, i);
+        tr.appendChild(td);
+        rowCells.push(td);
+      });
+      cells.push(rowCells);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    // One frame per commented cell. Move a row and a frame's coordinates
+    // point at nothing: framing the whole table is then the honest answer -
+    // the card says the cell may have moved, rather than the frame quietly
+    // landing on a stranger. The table itself is framed at most once, by the
+    // strongest such frame (quiet ones come first, the active one last).
+    let tableFrame: AnchorFrame | null = null;
+    for (const frame of this.frames) {
+      const cell = frame.kind === "tableCell" ? cells[frame.row ?? -1]?.[frame.column ?? -1] : undefined;
+      if (!cell) {
+        tableFrame = frame;
+        continue;
+      }
+      decorateAnchorTarget({
+        view,
+        host: wrap,
+        target: cell,
+        range: { from: this.from, to: this.to },
+        display: frame,
+        frame,
+        // No bubble here: `wireCell` already gave every cell its own.
+        // The corner triangle instead of an outline (V7).
+        corner: { label: i18n.t("comments.commentCellOpen") },
+      });
+    }
+    if (tableFrame) {
+      decorateAnchorTarget({ view, host: wrap, target: table, range: { from: this.from, to: this.to }, display: tableFrame, frame: tableFrame });
+    }
+    return wrap;
+  }
+  // Let the browser/cell handle its own events (typing, selection, context
+  // menu); CodeMirror must not treat them as editor input.
+  ignoreEvent() { return true; }
+  // Crucial for contenteditable cells: the cells live inside CodeMirror's
+  // editable contentDOM, so its DOMObserver would otherwise read every
+  // keystroke as a document edit (and replay it, wiping the doc). Ignoring
+  // mutations leaves the cell DOM under our control; the only path back into
+  // the document is the explicit commit in `replaceTableRange`.
+  ignoreMutation() { return true; }
+}
+
+function buildTableDecorations(state: EditorState, isLive: boolean): DecorationSet {
+  if (!isLive) return Decoration.none;
+  const decos: Range<Decoration>[] = [];
+  try {
+    const tree = syntaxTree(state);
+    const activeLines = activeLineSet(state);
+    tree.iterate({
+      enter: (node) => {
+        if (node.name !== "Table") return;
+        const startLine = state.doc.lineAt(node.from).number;
+        let endLine = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
+        // lezer folds the line directly below the table (when no blank line
+        // separates them) into the Table node. Trim back to the last real table
+        // row (one containing a pipe) so the caret being on that following line
+        // doesn't mark the table active (which would flip it to raw markdown).
+        while (endLine > startLine + 1 && !state.doc.line(endLine).text.includes("|")) endLine--;
+        for (let i = startLine; i <= endLine; i++) if (activeLines.has(i)) return false;
+        const from = state.doc.line(startLine).from;
+        const to = state.doc.line(endLine).to;
+        const model = parseMarkdownTable(state.sliceDoc(from, to));
+        if (model) {
+          decos.push(Decoration.replace({ widget: new TableWidget(model, from, to, anchorFramesAt(state, from, to), editorLineDirection(state, startLine)), block: true }).range(from, to));
+        }
+        return false;
+      },
+    });
+  } catch (e) {
+    console.error("[tableField] build error", e);
+    return Decoration.none;
+  }
+  return Decoration.set(decos, true);
+}
+
+// Block-level table widgets MUST come from a StateField (not a view plugin),
+// because they change line heights and have to be known before the viewport is
+// measured. (Same reason the frontmatter block decoration uses a field.)
+export function tableField(isLive: boolean) {
+  return StateField.define<DecorationSet>({
+    create: (state) => buildTableDecorations(state, isLive),
+    update: (value, tr) => {
+      if (tr.docChanged || tr.selection || hasAnchorHighlightChange(tr) || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+        return buildTableDecorations(tr.state, isLive);
+      }
+      return value;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+}
+
+const HIGHLIGHT_RE = /==([^=\n]+)==/g;
+
+/**
+ * Markdown editor decorations. Works in both "live" and "source" mode:
+ * - Blockquote left border and ==highlight== background are shown in both modes.
+ * - In live mode it additionally hides the markdown syntax marks on inactive
+ *   lines (headers, emphasis, strong, strikethrough, code, quote), renders
+ *   unordered list bullets, interactive task checkboxes and horizontal rules.
+ * Building is wrapped in try/catch so a parser edge case can never blank the editor.
+ *
+ * Live mode reveals markdown syntax only where the caret sits (Notion-like); the
+ * full raw markdown is always reachable through Source mode.
+ */
+export function markdownDecorationPlugin(isLive: boolean) {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = this.build(view);
+      }
+      update(update: ViewUpdate) {
+        // Rebuild on edits, viewport moves, and — crucially — when the syntax tree
+        // advances. The tree is parsed lazily/asynchronously, so right after a file
+        // is opened the first build can run against an incomplete tree and leave raw
+        // markdown ("code") on screen. CodeMirror dispatches an update when background
+        // parsing progresses, but that update has neither docChanged nor
+        // viewportChanged nor selectionSet — without this check the decorations would
+        // never refresh and the formatting would stay missing (Phase 9 block 1 bug).
+        let needsRebuild = update.docChanged || update.viewportChanged
+          || syntaxTree(update.startState) !== syntaxTree(update.state);
+        // Live mode reveals only the span under the cursor, so any caret move
+        // (even within a line) must rebuild the decorations — but only while the
+        // editor is genuinely EDITING. On mobile the live preview is also the
+        // read mode (editable but read-only); a selection there must not pop raw
+        // syntax, so no rebuild.
+        const interactiveNow = isEditorInteractive(update.state);
+        if (!needsRebuild && update.selectionSet && isLive && interactiveNow) {
+          needsRebuild = true;
+        }
+        // Toggling read <-> edit must rebuild so the reveal follows.
+        if (isEditorInteractive(update.startState) !== interactiveNow) {
+          needsRebuild = true;
+        }
+        if (needsRebuild) {
+          this.decorations = this.build(update.view);
+        }
+      }
+      build(view: EditorView): DecorationSet {
+        const decos: Range<Decoration>[] = [];
+        const { state } = view;
+        try {
+          const tree = syntaxTree(state);
+
+          // Lines that contain the cursor/selection — in live mode we keep their
+          // raw markdown visible so the user can edit it, but ONLY while editing.
+          // On mobile the live preview is also the read mode (editable but
+          // read-only): selecting text there keeps the rendered form, not raw markers.
+          const revealRaw = isLive && isEditorInteractive(state);
+          const activeLines = revealRaw ? activeLineSet(state) : new Set<number>();
+          // True when the selection touches [from, to] — used for "notion" token
+          // reveal; also gated on editable so read-mode selection reveals nothing.
+          const cursorInRange = (from: number, to: number) =>
+            revealRaw && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+
+          const quoteLineClass = new Map<number, string>();
+          const hrLines = new Set<number>();
+          // Ranges of tables rendered as widgets (by tableField); we must not add
+          // any inline decoration inside them or it would overlap the block widget.
+          const inactiveTableRanges: [number, number][] = [];
+
+          const frontmatterEnd = isLive ? frontmatterLines(state.doc)?.end ?? 0 : 0;
+
+          for (const { from, to } of view.visibleRanges) {
+            tree.iterate({
+              from,
+              to,
+              enter: (node) => {
+                if (node.name !== "Document" && node.from < frontmatterEnd) return false; // Skip nodes inside frontmatter
+
+                const name = node.name;
+
+                // HTML comments stay visible but unobtrusive in live mode —
+                // e.g. the invisible list separator from block drag (E2).
+                // A comment ANCHOR marker is not one of them: `anchorMarkerHidePlugin`
+                // replaces it outright (K1) - dimming an id nobody should read
+                // was exactly the finding.
+                if (isLive && (name === "CommentBlock" || name === "Comment")) {
+                  if (isAnchorMarkerText(state.sliceDoc(node.from, node.to))) return false;
+                  if (!activeLines.has(state.doc.lineAt(node.from).number)) {
+                    decos.push(Decoration.mark({ class: "cm-md-comment-dim" }).range(node.from, node.to));
+                    return false;
+                  }
+                }
+
+                // Blockquote: remember every spanned line (both modes). Detect an
+                // Obsidian callout from the first line for a type-colored border.
+                if (name === "Blockquote") {
+                  const startLine = state.doc.lineAt(node.from).number;
+                  const endLine = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
+                  const firstLine = state.doc.line(startLine);
+                  const firstText = firstLine.text.replace(/^\s*>+\s?/, "");
+                  const callout = parseCalloutMarker(firstText);
+                  // A callout is ONE card (finding 2026-09-19). The editor has no
+                  // block element to put a border on, so the card is built from
+                  // its lines: sides and tint on every line, the top on the
+                  // first, the bottom on the last. A plain quote keeps its bar.
+                  const colorKey = callout ? calloutColorKey(callout.type) : null;
+                  for (let i = startLine; i <= endLine; i++) {
+                    quoteLineClass.set(i, colorKey ? calloutLineClass(colorKey, i, startLine, endLine) : "cm-blockquote-line");
+                  }
+                  // In live mode, turn the (inactive) header line into an
+                  // Obsidian-style callout header: replace the raw "[!type]"
+                  // marker with a colored type icon, and show the type name when
+                  // there is no custom title (so the callout always says what it
+                  // is). A custom title is kept but styled bold + in the color.
+                  if (callout && isLive && !activeLines.has(startLine)) {
+                    const mm = firstLine.text.match(/\[![A-Za-z]+\][+-]?[ \t]?/);
+                    if (mm && mm.index !== undefined) {
+                      const mStart = firstLine.from + mm.index;
+                      const mEnd = mStart + mm[0].length;
+                      decos.push(
+                        Decoration.replace({ widget: new CalloutIconWidget(callout.type) }).range(mStart, mEnd)
+                      );
+                      if (callout.title) {
+                        decos.push(
+                          Decoration.mark({
+                            class: "cm-callout-title",
+                            attributes: { style: `color:${calloutColor(callout.type)}` },
+                          }).range(mEnd, firstLine.to)
+                        );
+                      } else {
+                        decos.push(
+                          Decoration.widget({ widget: new CalloutLabelWidget(callout.type), side: 1 }).range(mEnd)
+                        );
+                      }
+                    }
+                  }
+                  return;
+                }
+
+                if (!isLive) return;
+
+                // Tables: when inactive they are replaced by a block widget
+                // (tableField), so skip their children here to avoid overlap.
+                // When active, descend so the raw markdown stays editable.
+                if (name === "Table") {
+                  const startLine = state.doc.lineAt(node.from).number;
+                  let endLine = state.doc.lineAt(Math.min(node.to, state.doc.length)).number;
+                  // Match buildTableDecorations: trim the line lezer folds in
+                  // below the table so the widget and this skip agree on its range.
+                  while (endLine > startLine + 1 && !state.doc.line(endLine).text.includes("|")) endLine--;
+                  let active = false;
+                  for (let i = startLine; i <= endLine; i++) if (activeLines.has(i)) { active = true; break; }
+                  if (!active) {
+                    inactiveTableRanges.push([state.doc.line(startLine).from, state.doc.line(endLine).to]);
+                    return false;
+                  }
+                  return;
+                }
+
+                const lineNo = state.doc.lineAt(node.from).number;
+                const lineActive = activeLines.has(lineNo);
+
+                // Block-level marks reveal the whole line when the caret is on it
+                // (both styles): they belong to the line being edited.
+                if (name === "HorizontalRule") {
+                  if (lineActive) return;
+                  hrLines.add(lineNo);
+                  decos.push(HIDE.range(node.from, node.to));
+                  return;
+                }
+                if (name === "TaskMarker") {
+                  const text = state.doc.sliceString(node.from, node.to);
+                  const checked = /[xX]/.test(text);
+                  // A done task reads like one (finding 2026-09-19): muted and
+                  // struck through, as the task view, the board checklist and
+                  // the note cards have drawn it all along. A MARK over the
+                  // text only - the box and the bullet stay as they are - and
+                  // also while the caret is on the line: the task is still done.
+                  const taskLine = state.doc.lineAt(node.from);
+                  const textFrom = Math.min(node.to + 1, taskLine.to);
+                  if (checked && textFrom < taskLine.to) {
+                    decos.push(Decoration.mark({ class: "cm-md-task-done" }).range(textFrom, taskLine.to));
+                  }
+                  if (lineActive) return;
+                  // Toggle character sits between the brackets: "[ ]" -> index +1.
+                  decos.push(
+                    Decoration.replace({ widget: new TaskWidget(checked, node.from + 1) }).range(node.from, node.to)
+                  );
+                  return;
+                }
+                if (name === "ListMark") {
+                  if (lineActive) return;
+                  const text = state.doc.sliceString(node.from, node.to);
+                  // Ordered list numbers stay as-is.
+                  if (/^[-*+]$/.test(text)) {
+                    // For task items (- [ ] ...) hide the bullet AND the single
+                    // space after it so the checkbox sits flush like a bullet;
+                    // otherwise render a "•" bullet.
+                    const after = state.doc.sliceString(node.to, Math.min(node.to + 5, state.doc.length));
+                    // `[/]` and `[-]` (E12) are no TaskMarker to the parser, so
+                    // their box is drawn from here: same place, same widget.
+                    const other = /^( ?)\[([/-])\](?=\s|$)/.exec(after);
+                    if (other) {
+                      const boxFrom = node.to + other[1].length;
+                      const cancelled = other[2] === "-";
+                      const taskLine = state.doc.lineAt(node.from);
+                      decos.push(HIDE.range(node.from, boxFrom));
+                      decos.push(Decoration.replace({ widget: new TaskWidget(cancelled, boxFrom + 1, cancelled ? "cancelled" : "progress") }).range(boxFrom, boxFrom + 3));
+                      if (cancelled && boxFrom + 4 < taskLine.to) decos.push(Decoration.mark({ class: "cm-md-task-done" }).range(boxFrom + 4, taskLine.to));
+                    } else if (/^\s*\[[ xX]\]/.test(after)) {
+                      decos.push(HIDE.range(node.from, after.startsWith(" ") ? node.to + 1 : node.to));
+                    } else {
+                      const foldRange = listFoldRange(state, node.from);
+                      decos.push(
+                        bulletDecoFor(listDepthAt(state, node.from), foldRange !== null, foldRange !== null && isLineFolded(state, node.from)).range(node.from, node.to),
+                      );
+                    }
+                  }
+                  return;
+                }
+                if (name === "HeaderMark" || name === "QuoteMark" || name === "CodeMark") {
+                  if (lineActive) return;
+                  // "# " and "> " marks: hide the single following space too —
+                  // otherwise headings/quotes sit visibly indented by one
+                  // character compared to body text (maintainer report
+                  // 2026-07-06). CodeMark has no trailing-space semantics
+                  // (backticks hug their content), and setext/closing marks are
+                  // followed by a newline, which the guard leaves alone.
+                  let end = node.to;
+                  if (name !== "CodeMark" && state.doc.sliceString(end, end + 1) === " ") end += 1;
+                  decos.push(HIDE.range(node.from, end));
+                  return;
+                }
+                // Inline emphasis marks: precise reveal — only the span under the
+                // cursor shows its (dimmed) markers, the rest of the line stays
+                // formatted (Notion-like). The raw markdown is always reachable
+                // through Source mode.
+                if (name === "EmphasisMark" || name === "StrongEmphasisMark" || name === "StrikethroughMark") {
+                  const parent = node.node.parent;
+                  const sf = parent ? parent.from : node.from;
+                  const st = parent ? parent.to : node.to;
+                  if (cursorInRange(sf, st)) {
+                    decos.push(Decoration.mark({ class: "cm-md-mark" }).range(node.from, node.to));
+                    return;
+                  }
+                  decos.push(HIDE.range(node.from, node.to));
+                  return;
+                }
+              },
+            });
+          }
+
+          // Line decorations for blockquotes / callouts / horizontal rules.
+          for (const [ln, cls] of quoteLineClass) {
+            const line = state.doc.line(ln);
+            decos.push(Decoration.line({ class: cls }).range(line.from));
+          }
+          for (const ln of hrLines) {
+            const line = state.doc.line(ln);
+            decos.push(Decoration.line({ class: "cm-md-hr-line" }).range(line.from));
+          }
+
+          // ==highlight== background (both modes); hide the == marks in live mode.
+          for (const { from, to } of view.visibleRanges) {
+            const searchFrom = Math.max(from, frontmatterEnd);
+            if (searchFrom >= to) continue;
+            const text = state.doc.sliceString(searchFrom, to);
+            let m: RegExpExecArray | null;
+            HIGHLIGHT_RE.lastIndex = 0;
+            while ((m = HIGHLIGHT_RE.exec(text)) !== null) {
+              const start = searchFrom + m.index;
+              const end = start + m[0].length;
+              // Skip matches inside a table rendered as a block widget.
+              if (inactiveTableRanges.some(([f, t]) => start >= f && start < t)) continue;
+              decos.push(Decoration.mark({ class: "cm-md-highlight" }).range(start + 2, end - 2));
+              if (isLive && !cursorInRange(start, end)) {
+                decos.push(HIDE.range(start, start + 2));
+                decos.push(HIDE.range(end - 2, end));
+              }
+            }
+          }
+
+          // Dynamic date tokens @YYYY-MM-DD -> relative chip (live only); raw while
+          // the cursor sits in the token so it stays editable.
+          if (isLive) {
+            for (const { from, to } of view.visibleRanges) {
+              const searchFrom = Math.max(from, frontmatterEnd);
+              if (searchFrom >= to) continue;
+              const text = state.doc.sliceString(searchFrom, to);
+              DATE_TOKEN_RE.lastIndex = 0;
+              let dm: RegExpExecArray | null;
+              while ((dm = DATE_TOKEN_RE.exec(text)) !== null) {
+                const start = searchFrom + dm.index;
+                const end = start + dm[0].length;
+                if (inactiveTableRanges.some(([f, t]) => start >= f && start < t)) continue;
+                if (cursorInRange(start, end)) continue; // editing -> show raw
+                const iso = `${dm[1]}-${dm[2]}-${dm[3]}`;
+                decos.push(Decoration.replace({ widget: new DateChipWidget(iso) }).range(start, end));
+              }
+            }
+          }
+        } catch (e) {
+          // Never break editor rendering on a decoration error.
+          console.error("[markdownDecorationPlugin] build error", e);
+          return Decoration.none;
+        }
+        return Decoration.set(decos, true);
+      }
+    },
+    { decorations: (v) => v.decorations }
+  );
+}

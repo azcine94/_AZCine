@@ -102,7 +102,7 @@ export function NewsDailyPanel({model, editorial, news, editionId}: {model: News
   return <section ref={page} className="reader-page reader-daily">
     <div className="reader-toolbar"><NewsViewSelect daily/><div className="daily-top-actions">
       <UILink variant="text" href="#settings/news/materials">采集资料</UILink>
-      <UILink variant="text" href="#settings/news/processing">整理资料</UILink>
+      <UILink variant="text" href="#sources/processing">整理资料</UILink>
       <Button variant="app-pill" disabled={locked} onClick={() => void generate()} loading={generating} loadingText="正在生成…">{ currentEdition ? '重新生成当前刊期' : '生成当前刊期'}</Button>
     </div></div>
     <div className="daily-status" role="status" aria-live="polite">
@@ -126,7 +126,7 @@ export function NewsDailyPanel({model, editorial, news, editionId}: {model: News
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => void copy()}>复制整期</DropdownMenuItem>
               <DropdownMenuItem disabled={!isTauri() && document.documentElement.dataset.uiPreview !== 'true'} onSelect={() => void exportEdition()}>导出 Markdown</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => {location.hash = 'settings/news/processing';}}>查看生成记录</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => {location.hash = 'sources/processing';}}>查看生成记录</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -143,10 +143,10 @@ export function NewsDailyPanel({model, editorial, news, editionId}: {model: News
           {edition.selection ? <><p>符合时间窗口的已整理报道 {edition.selection.readyInWindow} 篇；生成时仍待整理 {edition.selection.pendingAtGeneration} 篇；截稿后才整理完成 {edition.selection.afterCutoff} 篇。</p><p>排除来源报道 {edition.selection.excludedArticles} 篇；未达选稿条件 {edition.selection.belowSelectionStories} 个事件；七日内重复进展 {edition.selection.repeatedStories} 个事件。</p></> : <p>这一旧版未保存选稿统计，无法还原当时的缺稿数量。</p>}
           {edition.gaps.length > 0 && <ul>{edition.gaps.map(gap => <li key={gap}>{gap}</li>)}</ul>}
           <p>主稿最多 12 条，每个来源最多 2 条；快讯最多 10 条。同一进展七日内去重。刊期保存后不随资讯库变化。</p>
-          <UILink variant="text" href="#settings/news/processing">检查待整理资料 →</UILink>
+          <UILink variant="text" href="#sources/processing">检查待整理资料 →</UILink>
         </Disclosure>
         <footer className="meta">{formatNewsTime(edition.generatedAt)} 生成 · 已保存的固定刊期</footer>
-      </article> : !initialLoading && !model.error ? <EmptyState className="daily-empty"><h2>{editionId ? '未找到这期日报' : '还没有日报'}</h2><p>{editionId ? '选择其他日期查看，原有刊期不会被替换。' : '完成资讯整理后，点击“生成当前刊期”。'}</p><UILink variant="text" href="#settings/news/processing">前往整理资料 →</UILink></EmptyState> : initialLoading ? <p className="daily-empty meta">正在读取已保存刊期…</p> : null}
+      </article> : !initialLoading && !model.error ? <EmptyState className="daily-empty"><h2>{editionId ? '未找到这期日报' : '还没有日报'}</h2><p>{editionId ? '选择其他日期查看，原有刊期不会被替换。' : '完成资讯整理后，点击“生成当前刊期”。'}</p><UILink variant="text" href="#sources/processing">前往整理资料 →</UILink></EmptyState> : initialLoading ? <p className="daily-empty meta">正在读取已保存刊期…</p> : null}
     </div>
   </section>;
 }

@@ -8,9 +8,11 @@ export const pages = [
   { id: 'models', title: '模型榜', icon: 'models' },
   { id: 'github', title: 'GitHub', icon: 'github' },
   { id: 'ai-works', title: 'AI 作品', icon: 'ai-works' },
-  { id: 'ideas', title: '灵感', icon: 'ideas' },
+  { id: 'ideas', title: '灵感库', icon: 'ideas' },
+  { id: 'notes', title: '笔记', icon: 'notes' },
   { id: 'bookkeeping', title: '记账', icon: 'bookkeeping' },
   { id: 'servers-credentials', title: '服务器和凭证', icon: 'servers-credentials' },
+  { id: 'sources', title: '信源', icon: 'sources' },
   { id: 'agent', title: 'Agent', icon: 'agent' },
   { id: 'self-evolution', title: '自进化', icon: 'resources' },
   { id: 'task-panel', title: '任务面板', icon: 'task-panel' },
@@ -21,14 +23,18 @@ export const pages = [
 ] as const;
 
 export type PageId = typeof pages[number]['id'];
-export type Route = PageId | SettingsRoute | `projects/${string}` | 'news/materials' | 'news/daily' | `news/daily/${string}` | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `settings/news/sources/${string}` | `ideas/${string}` | `bookkeeping/${string}` | `servers-credentials/servers/${string}` | `servers-credentials/credentials/${string}` | 'missing';
+export type Route = PageId | SettingsRoute | 'sources/processing' | `projects/${string}` | 'news/materials' | 'news/daily' | `news/daily/${string}` | `news/items/${string}` | `news/stories/${string}` | `news/events/${string}` | `sources/${string}` | `ideas/${string}` | `bookkeeping/${string}` | `servers-credentials/servers/${string}` | `servers-credentials/credentials/${string}` | 'missing';
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const projectPattern = new RegExp(`^projects/(${uuidPattern})(?:/(${uuidPattern})/(${uuidPattern}))?$`);
-const newsSourcePattern = new RegExp(`^settings/news/sources/(new|rss-[a-z0-9-]{1,96}|${uuidPattern})$`);
+const newsSourcePattern = new RegExp(`^sources/(new|rss-[a-z0-9-]{1,96}|${uuidPattern})$`);
 const sourcePattern = new RegExp(`^(ideas)/(${uuidPattern})$`);
 const bookkeepingPattern = new RegExp(`^bookkeeping/(new|${uuidPattern})$`);
 export function resolveRoute(hash: string): Route {
-  const id = hash.replace(/^#/, '') || 'today';
+  let id = hash.replace(/^#/, '') || 'today';
+  if(id==='settings/news')id='sources';
+  else if(id==='settings/news/processing')id='sources/processing';
+  else if(id.startsWith('settings/news/sources/'))id=id.replace('settings/news/sources/','sources/');
+  if(id==='sources/processing')return id;
   // Retired todo links return to the dashboard without exposing historical records.
   if (id.startsWith('today/')) return 'today';
   if (/^servers-credentials\/(servers|credentials)\/[a-z0-9-]+$/.test(id)) return id as Route;
@@ -43,7 +49,7 @@ export function resolveRoute(hash: string): Route {
   if(/^news\/items\/[a-f0-9]{32}$/.test(id))return id as `news/items/${string}`;
   if(/^news\/stories\/[a-f0-9]{64}$/.test(id))return id as `news/stories/${string}`;
   if (/^news\/events\/[a-f0-9]{64}$/.test(id)) return id as `news/events/${string}`;
-  if (newsSourcePattern.test(id)) return id as `settings/news/sources/${string}`;
+  if (newsSourcePattern.test(id)) return id as `sources/${string}`;
   if (sourcePattern.test(id)) return id as `ideas/${string}`;
   return pages.some(page => page.id === id) ? id as PageId : 'missing';
 }
@@ -56,7 +62,8 @@ export function navigationPage(route: Route): PageId | 'missing' {
   if (route.startsWith('servers-credentials/')) return 'servers-credentials';
   if (bookkeepingPattern.test(route)) return 'bookkeeping';
   if (route === 'projects/new' || projectPattern.test(route)) return 'projects';
-  if (settingsRoute(route) || newsSourcePattern.test(route)) return 'settings';
+  if(route==='sources'||route==='sources/processing'||newsSourcePattern.test(route))return 'sources';
+  if (settingsRoute(route)) return 'settings';
   if (route === 'news/materials' || route.startsWith('news/')) return 'news';
   if (sourcePattern.test(route)) return sourcePattern.exec(route)![1] as PageId;
   return route as PageId | 'missing';
@@ -65,6 +72,7 @@ export function sourceTarget(route: Route): string | null { return sourcePattern
 export function pageTitle(route: Route): string {
   if (route.startsWith('servers-credentials/')) return '服务器和凭证';
   if (bookkeepingPattern.test(route)) return route === 'bookkeeping/new' ? '记一笔' : '编辑开销';
+  if(route==='sources'||route==='sources/processing'||newsSourcePattern.test(route))return '信源';
   const setting = settingsTitle(route);
   if (setting) return setting;
   if (route === 'news/materials') return '采集资料';
@@ -72,7 +80,6 @@ export function pageTitle(route: Route): string {
   if (route.startsWith('news/events/')) return '文章详情';
   if (route.startsWith('news/items/')) return '文章详情';
   if (route.startsWith('news/stories/')) return '事件进展';
-  if (newsSourcePattern.test(route)) return route.endsWith('/new') ? '新增信源' : '编辑信源';
   if (route === 'projects/new') return '新建公司项目';
   if (projectPattern.test(route)) return '公司文档';
   if (sourcePattern.test(route)) return sourcePattern.exec(route)![1] === 'ideas' ? '灵感' : '今天';

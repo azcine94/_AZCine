@@ -8,7 +8,6 @@
 .gc-eyebrow { font:11px/18px var(--mono); letter-spacing:.12em; color:var(--muted-foreground); }
 .gc-page-head { flex:none; padding:24px 24px 0; }
 .gc-page-intro { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.gc-page-sub { margin-top:5px; font-size:13px; color:var(--muted-foreground); }
 .gc-category-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-top:20px; }
 .gc-category-tabs .ui-choice-chip { font-size:14px; padding:7px 22px; }
 .gc-tabs { display:flex; gap:24px; margin-top:16px; overflow:auto; border-bottom:1px solid var(--border); }
@@ -134,3 +133,6 @@
   .gc-reader-panel { gap:8px; padding:0; }.gc-video-caption { flex-direction:row; align-items:center; }.gc-caption-text { width:auto; }
   .gc-reader-panel .gc-preview-text { padding:10px; font-size:12px; line-height:21px; }
 }
+
+/* The page title lives in the window header; category controls start the content. */
+.gc-page-head .gc-category-tabs{margin-top:0}

@@ -134,6 +134,20 @@ fn assistant_outcome(message:Option<&Value>)->&'static str {
     }
 }
 impl Projection {
+    /// Stable navigation metadata: never advance on streaming deltas or tool calls.
+    pub fn navigation_times(&self) -> (Option<u64>, Option<u64>) {
+        let time = |message: &Value| message["timestamp"].as_u64()
+            .filter(|n| *n > 0 && *n <= 8_640_000_000_000_000);
+        let user = self.messages.iter().rev().find(|m| m["role"] == "user").and_then(time);
+        let assistant = if self.activity == "idle" {
+            self.messages.iter().rev().find(|m| m["role"] == "assistant"
+                && matches!(m["stopReason"].as_str(), Some("stop" | "error" | "aborted" | "length"))).and_then(time)
+        } else { None };
+        let reply = if self.activity == "idle" && self.outcome == "success" {
+            self.last_assistant.as_ref().and_then(time)
+        } else { None };
+        (user.into_iter().chain(assistant).max(), reply)
+    }
     pub fn submitted(&mut self) {
         if self.activity=="idle" {self.last_assistant=None;self.outcome="none".into();self.run_start=self.messages.len();self.activity="starting".into();}
     }

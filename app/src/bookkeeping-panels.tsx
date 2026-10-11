@@ -1,6 +1,6 @@
 import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Download, MoreHorizontal, Paperclip, Plus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Paperclip, Plus, RefreshCw } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
 import { Textarea } from './components/ui/textarea.tsx';
@@ -10,7 +10,7 @@ import { NativeSelect, NativeSelectOption } from './components/ui/native-select.
 import { MonthInput } from './components/ui/month-input.tsx';
 import { FormDialog, useCreationDialog } from './components/ui/form-dialog.tsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table.tsx';
-import { Badge } from './components/ui/badge.tsx';
+import { StatusBadge as SharedStatusBadge } from './components/ui/status-badge.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { EmptyState } from './components/ui/empty-state.tsx';
 import { LoadingStatus, LoadingPlaceholder } from './components/ui/loading-status.tsx';
@@ -34,7 +34,8 @@ function FeedbackArea({ model, showLoading = true, showErrors = true }: { model:
   </div>;
 }
 function StatusBadge({ status }: { status: ExpenseStatus }) {
-  return <Badge variant="secondary">{status === 'paid' && <Check size={12} aria-hidden="true" />}{expenseStatuses[status]}</Badge>;
+  const tone = { unclaimed: 'neutral', pending: 'warning', submitted: 'active', paid: 'success' } as const;
+  return <SharedStatusBadge variant="soft" tone={tone[status]}>{expenseStatuses[status]}</SharedStatusBadge>;
 }
 function ReceiptMenu({ row, model }: { row: Expense; model: BookkeepingController }) {
   if (!row.receipts.length) return <span className="subtle">—</span>;
@@ -112,7 +113,7 @@ export function BookkeepingPanel({ model, create = false, editId = null }: { mod
     </div>
     <div className="bookkeeping-filters">
       <div><Label htmlFor="expense-month">月份</Label><MonthInput id="expense-month" value={model.month} onChange={model.setMonth} /></div>
-      <div><Label htmlFor="expense-status">报销状态</Label><NativeSelect id="expense-status" value={model.filter} onChange={e => model.setFilter(e.target.value)}><NativeSelectOption value="">全部状态</NativeSelectOption>{Object.entries(expenseStatuses).map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}</NativeSelect></div>
+      <div><Label htmlFor="expense-status">报销状态</Label><NativeSelect id="expense-status" value={model.filter} onChange={e => model.setFilter(e.target.value)}><NativeSelectOption value="">全部状态</NativeSelectOption><NativeSelectOption value="waiting">要报销（未到账）</NativeSelectOption>{Object.entries(expenseStatuses).map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}</NativeSelect></div>
       <div className="bookkeeping-search"><Label htmlFor="expense-query">搜索</Label><Input id="expense-query" type="search" placeholder="搜索用途、备注" value={model.query} onChange={e => model.setQuery(e.target.value)} /></div>
       <Button variant="ghost" onClick={() => { model.setMonth(''); model.setFilter(''); model.setQuery(''); }}>查看全部</Button>
     </div>

@@ -14,6 +14,11 @@ pub fn persist_settled(app:&tauri::AppHandle,key:&str,snapshot:Value){
         match result{Ok(())=>changed(&app),Err(e)=>{let _=app.emit_to("main","azcine-agent-data-error",e);}}
     });
 }
+pub async fn attachment_snapshot(app:tauri::AppHandle,key:String,mut snapshot:Value)->Result<Value,PiError>{
+    let manager=app.state::<crate::agent_runtime::AgentRuntime>().manager(&key)?;
+    snapshot=crate::with_storage(app,move|m|{snapshot["messageAttachments"]=m.store()?.agent_message_attachments(&key,&snapshot)?;if let Some(map)=snapshot.as_object_mut(){map.remove("inputDeliveries");map.remove("messageKeys");}Ok(snapshot)}).await.map_err(pi)?;
+    manager.redact_display(snapshot)
+}
 #[tauri::command]
 pub async fn agent_bind(app:tauri::AppHandle,window:tauri::WebviewWindow,source:Source,fresh:bool)->Result<Value,StorageError>{allowed(&app,&window)?;crate::with_storage(app,move|m|m.store()?.agent_bind(source,fresh)).await}
 #[tauri::command]
@@ -25,12 +30,16 @@ pub async fn agent_view_conversation(app:tauri::AppHandle,window:tauri::WebviewW
     allowed(&app,&window).map_err(pi)?;
     let key=conversation_key.clone();let requested=session_path.clone();
     let (root,binding)=crate::with_storage(app.clone(),move|m|{let store=m.store()?;store.agent_check_open(&key,requested.as_deref())?;Ok((store.root.clone(),store.agent_conversation(&key)?))}).await.map_err(pi)?;
-    tauri::async_runtime::spawn_blocking(move||{
+    let resources=app.path().resource_dir().map_err(|_|PiError::new("pi_resources_path","无法定位本应用运行资源。"))?;
+    let handle=app.clone();let view_key=conversation_key.clone();
+    let snapshot=tauri::async_runtime::spawn_blocking(move||{
         let manager=app.state::<crate::agent_runtime::AgentRuntime>().manager(&conversation_key)?;
         let mut snapshot=manager.snapshot()?;
         if manager.resident()?||snapshot["projection"]["messages"].as_array().is_some_and(|messages|!messages.is_empty()){return Ok(snapshot);}
         let path=session_path.or_else(||binding["sessionPath"].as_str().map(str::to_owned)).or_else(||snapshot["state"]["sessionFile"].as_str().map(str::to_owned));
         let Some(path)=path else{return Ok(snapshot);};
+        let docs=manager.news_documents(&root,&resources)?;
+        let redactor=crate::pi_redactor::Redactor::from_documents(&docs[0],&docs[1]);
         let paths=crate::pi_launch_plan::PiPaths::prepare(&root)?;
         let (session,messages)=crate::pi_sessions::read_message_view(&paths,Path::new(&path))?;
         if manager.resident()?{return manager.snapshot();}
@@ -38,12 +47,14 @@ pub async fn agent_view_conversation(app:tauri::AppHandle,window:tauri::WebviewW
         let old_state=snapshot["state"].clone();
         let state=json!({"sessionId":session.id,"sessionFile":session.path,"sessionName":session.name,"model":old_state["model"],"thinkingLevel":old_state["thinkingLevel"].as_str().unwrap_or("off"),"isStreaming":false,"isCompacting":false,"pendingMessageCount":0,"messageCount":count});
         let generation=snapshot["generation"].as_u64().unwrap_or(0);let seq=snapshot["seq"].as_u64().unwrap_or(0);
-        if !manager.remember_history_view(generation,seq,state,session.cwd.clone())?{return manager.snapshot();}
+        if !manager.remember_history_view(generation,seq,state,session.cwd.clone(),redactor)?{return manager.snapshot();}
         snapshot=manager.snapshot()?;
         if snapshot["generation"].as_u64()!=Some(generation)||snapshot["seq"].as_u64()!=seq.checked_add(1){return Ok(snapshot);}
+        snapshot["messageKeys"]=json!(messages.as_array().into_iter().flatten().map(crate::agent_store::message_key).collect::<Vec<_>>());
         snapshot["projection"]=json!({"messages":messages,"partial":null,"tools":[],"steering":[],"followUp":[],"activity":"idle","outcome":"none","notice":null});
-        snapshot["cwd"]=json!(session.cwd);snapshot["historyReleased"]=json!(false);Ok(snapshot)
-    }).await.map_err(|_|PiError::new("pi_worker_interrupted","会话读取中断，原记录与输入保留。"))?
+        snapshot["cwd"]=json!(session.cwd);snapshot["historyReleased"]=json!(false);manager.redact_display(snapshot)
+    }).await.map_err(|_|PiError::new("pi_worker_interrupted","会话读取中断，原记录与输入保留。"))??;
+    attachment_snapshot(handle,view_key,snapshot).await
 }
 #[tauri::command]
 pub async fn agent_delete_conversation(app:tauri::AppHandle,window:tauri::WebviewWindow,target:crate::agent_runtime::ConversationDelete)->Result<Value,StorageError>{
@@ -61,8 +72,9 @@ pub async fn agent_context_catalog(app:tauri::AppHandle,window:tauri::WebviewWin
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct AgentSend{pub conversation_key:String,pub input:SendInput,pub objects:Vec<Source>,pub attachments:Vec<String>,#[serde(default)]pub source:Option<Source>}
 #[tauri::command]
-pub async fn agent_send(app:tauri::AppHandle,window:tauri::WebviewWindow,request:AgentSend)->Result<Value,PiError>{
+pub async fn agent_send(app:tauri::AppHandle,window:tauri::WebviewWindow,mut request:AgentSend)->Result<Value,PiError>{
     allowed(&app,&window).map_err(pi)?;
+    request.input.message=crate::agent_store::input_message(&request.input.message,!request.input.images.is_empty(),!request.objects.is_empty()||!request.attachments.is_empty());
     let native_command=request.input.message.trim_start().starts_with('/');if native_command&&(!request.attachments.is_empty()||!request.objects.is_empty()){return Err(PiError::new("agent_command_context","原生命令请单独发送；附加对象与文件仍保留，请另发资料请求。"));}
     let manager=app.state::<crate::agent_runtime::AgentRuntime>().manager(&request.conversation_key)?;let snapshot=manager.snapshot()?;
     if snapshot["generation"]!=request.input.generation||snapshot["state"]["sessionId"]!=request.input.session_id{return Err(PiError::new("pi_stale_session","会话已变化，文字与附件保留。"));}
@@ -76,7 +88,7 @@ pub async fn agent_send(app:tauri::AppHandle,window:tauri::WebviewWindow,request
     result?;let snapshot=manager.snapshot()?;persist_settled(&app,&remember_key,snapshot);let mut receipt=receipt.ok_or_else(||PiError::new("pi_receipt_invalid","发送回执无效，未自动重发。"))?;receipt["inputId"]=json!(input_id);Ok(receipt)
 }
 #[tauri::command]
-pub async fn agent_drafts(app:tauri::AppHandle,window:tauri::WebviewWindow)->Result<Vec<Value>,StorageError>{allowed(&app,&window)?;crate::with_storage(app,|m|m.store()?.agent_drafts()).await}
+pub async fn agent_drafts(app:tauri::AppHandle,window:tauri::WebviewWindow,history_offset:Option<u64>)->Result<Vec<Value>,StorageError>{allowed(&app,&window)?;crate::with_storage(app,move|m|m.store()?.agent_drafts_page(history_offset.unwrap_or(0))).await}
 #[tauri::command]
 pub async fn agent_revalidate_draft(app:tauri::AppHandle,window:tauri::WebviewWindow,id:String,revision:i64)->Result<Value,StorageError>{allowed(&app,&window)?;let providers=app.state::<Providers>().inner().clone();let result=crate::with_storage(app.clone(),move|m|m.store()?.agent_revalidate(&id,revision,&providers)).await;changed(&app);result}
 #[tauri::command]

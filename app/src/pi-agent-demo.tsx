@@ -69,8 +69,9 @@ export default function AgentDemo({onExit}:{onExit:()=>void}) {
   const switchSession=(session:PiSession)=>{setActive({...session,name:renamed[session.id]??session.name});setScenario('complete');setNotice(null);setSessionName('');};
   const queue=useAgentQueue(null);
   const controller:PiController={
+    sessionActivity:{entries:{},observe:()=>{},markRead:()=>{},forget:()=>{}},
     queue,continueQueue:async()=>{},modelCatalog:MODELS,modelCatalogError:'',modelCatalogLoading:false,refreshModels:async()=>{},
-    viewing:false,selectSession:async session=>{switchSession(session);},
+    sendPending:false,viewing:false,selectSession:async session=>{switchSession(session);},
     sessionPins,setSessionPinned:(sessionId,pinned)=>setSessionPins(before=>pinned?before.includes(sessionId)?before:[...before,sessionId]:before.filter(id=>id!==sessionId)),
     objects,prepareRedo:async()=>{},uiAnswers:{},setUiAnswer:()=>{},conversationKey:'ui-demo',source:{module:'agent',page:'agent',objectId:null},openSource:async()=>{},newConversation:async()=>{},selectConversation:async()=>{},runtimeSummary:null,refreshRuntime:async()=>{},saveLimit:async()=>{},files:[],attachFile:async()=>{},removeFile:()=>{},respondUi:async()=>{},stats:null,refreshStats:async()=>{},takeEditor:()=>{},
     deleteConversation:async target=>{if(target.sessionId===active.id&&scenario==='running')return{deleted:false,error:'请先结束运行，再删除示例会话。'};setRemovedSessions(before=>[...before,target.sessionId]);setSessionPins(before=>before.filter(id=>id!==target.sessionId));if(target.sessionId===active.id)switchSession(sessions.find(session=>session.id!==target.sessionId&&!removedSessions.includes(session.id))??{...sessions[0],id:'new-demo',path:'demo/new',name:'新示例会话',messageCount:0});return{deleted:true};},

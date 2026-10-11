@@ -4,6 +4,7 @@ use crate::storage::{Store,StorageError};
 use rusqlite::{Transaction,OptionalExtension,params};
 use serde::{Deserialize,Serialize};
 use serde_json::{Value,json};
+use sha2::{Digest,Sha256};
 use std::{collections::HashMap,sync::Arc};
 fn db(_:rusqlite::Error)->StorageError{StorageError::new("agent_storage","Agent记录无法完整保存，草稿保留。")}
 fn invalid(message:&str)->StorageError{StorageError::new("agent_invalid",message)}
@@ -73,6 +74,14 @@ impl Providers{
 }
 pub fn id(store:&Store)->Result<String,StorageError>{store.db.query_row("SELECT lower(hex(randomblob(16)))",[],|r|r.get(0)).map_err(db)}
 fn now()->String{chrono::Utc::now().to_rfc3339()}
+// Hash only stable user message fields: the same representation survives native history reload.
+pub fn message_key(message:&Value)->String{
+    let value=json!({"role":message["role"],"timestamp":message["timestamp"],"text":message_text(message)});
+    format!("{:x}",Sha256::digest(value.to_string().as_bytes()))
+}
+pub fn input_message(text:&str,images:bool,context:bool)->String{
+    if text.trim().is_empty()&&!images&&context{"请查看附加资料。".into()}else{text.into()}
+}
 fn encoded<T:Serialize>(value:&T)->Result<String,StorageError>{serde_json::to_string(value).map_err(|_|invalid("Agent记录格式无效。"))}
 impl Store{
     pub fn agent_bind(&mut self,source:Source,fresh:bool)->Result<Value,StorageError>{
@@ -84,7 +93,27 @@ impl Store{
         tx.commit().map_err(db)?;self.agent_conversation(&key)
     }
     pub fn agent_conversation(&self,key:&str)->Result<Value,StorageError>{self.db.query_row("SELECT source,session_path,native_session_id,cwd,title,updated_at FROM agent_conversations WHERE id=? AND deleted_at IS NULL",[key],|r|Ok(json!({"conversationKey":key,"source":serde_json::from_str::<Value>(&r.get::<_,String>(0)?).unwrap_or(Value::Null),"sessionPath":r.get::<_,Option<String>>(1)?,"sessionId":r.get::<_,Option<String>>(2)?,"cwd":r.get::<_,Option<String>>(3)?,"title":r.get::<_,Option<String>>(4)?,"updatedAt":r.get::<_,String>(5)?}))).map_err(db)}
-    pub fn agent_remember(&self,key:&str,state:&Value)->Result<(),StorageError>{if state["state"].is_null(){return Ok(());}self.db.execute("UPDATE agent_conversations SET session_path=?,native_session_id=?,cwd=?,title=?,updated_at=? WHERE id=? AND deleted_at IS NULL",params![state["state"]["sessionFile"].as_str().filter(|path|std::path::Path::new(path).is_file()),state["state"]["sessionId"].as_str(),state["cwd"].as_str(),state["state"]["sessionName"].as_str(),now(),key]).map_err(db)?;Ok(())}
+    pub fn agent_remember_deliveries(&self,key:&str,snapshot:&Value)->Result<(),StorageError>{
+        let tx=self.db.unchecked_transaction().map_err(db)?;
+        for delivery in snapshot["inputDeliveries"].as_array().into_iter().flatten(){
+            let Some(hash)=delivery["messageKey"].as_str().filter(|v|v.len()==64&&v.bytes().all(|b|b.is_ascii_hexdigit())) else{continue;};
+            tx.execute("UPDATE agent_inputs SET context=json_set(context,'$.deliveryKey',?1) WHERE id=?2 AND conversation_id=?3 AND session_id=?4 AND json_extract(context,'$.deliveryKey') IS NULL",params![hash,delivery["inputId"].as_str(),key,delivery["sessionId"].as_str()]).map_err(db)?;
+        }tx.commit().map_err(db)
+    }
+    pub fn agent_message_attachments(&self,key:&str,snapshot:&Value)->Result<Value,StorageError>{
+        self.agent_remember_deliveries(key,snapshot)?;
+        let mut result=json!({});let Some(session)=snapshot["state"]["sessionId"].as_str() else{return Ok(result);};
+        let keys=snapshot["messageKeys"].as_array().cloned().unwrap_or_default();
+        let mut statement=self.db.prepare("SELECT i.context FROM agent_inputs i JOIN agent_conversations c ON c.id=i.conversation_id WHERE i.session_id=?1 AND c.deleted_at IS NULL AND json_extract(i.context,'$.deliveryKey') IS NOT NULL ORDER BY i.created_at,i.id").map_err(db)?;
+        let contexts=statement.query_map([session],|row|row.get::<_,String>(0)).map_err(db)?;
+        for context in contexts{let context:Value=serde_json::from_str(&context.map_err(db)?).map_err(|_|invalid("附件关联记录损坏，未猜测归属。"))?;
+            let matches=keys.iter().enumerate().filter(|(_,hash)|**hash==context["deliveryKey"]).map(|(index,_)|index).collect::<Vec<_>>();
+            if matches.len()!=1{continue;}let index=matches[0].to_string();
+            let files=context["attachments"].as_array().into_iter().flatten().map(|file|json!({"id":file["id"],"name":file["name"],"mimeType":file["mimeType"],"bytes":file["bytes"]})).collect::<Vec<_>>();
+            if !files.is_empty(){result[&index]=json!(files);}
+        }Ok(result)
+    }
+    pub fn agent_remember(&self,key:&str,state:&Value)->Result<(),StorageError>{self.agent_remember_deliveries(key,state)?;if state["state"].is_null(){return Ok(());}self.db.execute("UPDATE agent_conversations SET session_path=?,native_session_id=?,cwd=?,title=?,updated_at=? WHERE id=? AND deleted_at IS NULL",params![state["state"]["sessionFile"].as_str().filter(|path|std::path::Path::new(path).is_file()),state["state"]["sessionId"].as_str(),state["cwd"].as_str(),state["state"]["sessionName"].as_str(),now(),key]).map_err(db)?;Ok(())}
     pub fn agent_deleted_paths(&self)->Result<Vec<String>,StorageError>{
         let mut query=self.db.prepare("SELECT path FROM agent_deleted_sessions").map_err(db)?;
         let result=query.query_map([],|r|r.get::<_,String>(0)).map_err(db)?.collect::<Result<Vec<_>,_>>().map_err(db)?;Ok(result)
@@ -130,7 +159,8 @@ impl Store{
         self.agent_check_open(key,None)?;
         self.db.query_row("SELECT d.id,d.conversation_id,d.input_id,d.payload,d.validation,d.status,d.receipt,d.revision,d.created_at,i.context,d.message_key FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id JOIN agent_conversations c ON c.id=d.conversation_id WHERE d.id=? AND i.session_id=? AND c.deleted_at IS NULL",params![id,session],|r|Ok(json!({"id":r.get::<_,String>(0)?,"conversationKey":r.get::<_,String>(1)?,"inputId":r.get::<_,String>(2)?,"payload":serde_json::from_str::<Value>(&r.get::<_,String>(3)?).unwrap_or(Value::Null),"validation":serde_json::from_str::<Value>(&r.get::<_,String>(4)?).unwrap_or(Value::Null),"status":r.get::<_,String>(5)?,"receipt":r.get::<_,Option<String>>(6)?.and_then(|s|serde_json::from_str::<Value>(&s).ok()),"revision":r.get::<_,i64>(7)?,"createdAt":r.get::<_,String>(8)?,"messageKey":r.get::<_,String>(10)?,"context":serde_json::from_str::<Value>(&r.get::<_,String>(9)?).unwrap_or(Value::Null)}))).optional().map_err(db)?.ok_or_else(||invalid("本会话草案不存在。"))
     }
-    pub fn agent_drafts(&self)->Result<Vec<Value>,StorageError>{let mut statement=self.db.prepare("SELECT d.id,d.conversation_id,d.input_id,d.payload,d.validation,d.status,d.receipt,d.revision,d.created_at,i.context,d.message_key FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id WHERE d.status!='discarded' ORDER BY d.created_at DESC LIMIT 200").map_err(db)?;statement.query_map([],|r|Ok(json!({"id":r.get::<_,String>(0)?,"conversationKey":r.get::<_,String>(1)?,"inputId":r.get::<_,String>(2)?,"payload":serde_json::from_str::<Value>(&r.get::<_,String>(3)?).unwrap_or(Value::Null),"validation":serde_json::from_str::<Value>(&r.get::<_,String>(4)?).unwrap_or(Value::Null),"status":r.get::<_,String>(5)?,"receipt":r.get::<_,Option<String>>(6)?.and_then(|s|serde_json::from_str::<Value>(&s).ok()),"revision":r.get::<_,i64>(7)?,"createdAt":r.get::<_,String>(8)?,"messageKey":r.get::<_,String>(10)?,"context":serde_json::from_str::<Value>(&r.get::<_,String>(9)?).unwrap_or(Value::Null)}))).map_err(db)?.collect::<Result<Vec<_>,_>>().map_err(db)}
+    pub fn agent_drafts(&self)->Result<Vec<Value>,StorageError>{self.agent_drafts_page(0)}
+    pub fn agent_drafts_page(&self,history_offset:u64)->Result<Vec<Value>,StorageError>{let mut statement=self.db.prepare("SELECT d.id,d.conversation_id,d.input_id,d.payload,d.validation,d.status,d.receipt,d.revision,d.created_at,i.context,d.message_key FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id WHERE d.status IN ('review','blocked','conflict') OR d.id IN (SELECT id FROM agent_drafts WHERE status='applied' ORDER BY created_at DESC,id DESC LIMIT 200 OFFSET ?1) ORDER BY d.created_at DESC,d.id DESC").map_err(db)?;statement.query_map([history_offset.min(i64::MAX as u64) as i64],|r|Ok(json!({"id":r.get::<_,String>(0)?,"conversationKey":r.get::<_,String>(1)?,"inputId":r.get::<_,String>(2)?,"payload":serde_json::from_str::<Value>(&r.get::<_,String>(3)?).unwrap_or(Value::Null),"validation":serde_json::from_str::<Value>(&r.get::<_,String>(4)?).unwrap_or(Value::Null),"status":r.get::<_,String>(5)?,"receipt":r.get::<_,Option<String>>(6)?.and_then(|s|serde_json::from_str::<Value>(&s).ok()),"revision":r.get::<_,i64>(7)?,"createdAt":r.get::<_,String>(8)?,"messageKey":r.get::<_,String>(10)?,"context":serde_json::from_str::<Value>(&r.get::<_,String>(9)?).unwrap_or(Value::Null)}))).map_err(db)?.collect::<Result<Vec<_>,_>>().map_err(db)}
     pub fn agent_revalidate(&mut self,draft_id:&str,revision:i64,providers:&Providers)->Result<Value,StorageError>{
         let tx=self.db.transaction().map_err(db)?;
         let (raw,context,status,actual):(String,String,String,i64)=tx.query_row("SELECT d.payload,i.context,d.status,d.revision FROM agent_drafts d JOIN agent_inputs i ON i.id=d.input_id WHERE d.id=?",[draft_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(db)?;

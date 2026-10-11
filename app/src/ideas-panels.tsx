@@ -53,7 +53,7 @@ function IdeaForm({ model, draft, draftKey, projects, projectsLoading, projectsE
     {model.pending[draftKey] && <div className="idea-pending"><p>保存结果尚未确认，原请求和输入已保留。</p><Button variant="app-idea" type="button" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.reconcile(draftKey)}>核对保存结果</Button></div>}
   </form>;
 }
-function Card({ idea, ordinal, model, projects, projectsLoading, projectsError, targeted, tagLinks = false }: { idea: Idea; ordinal: number; model: IdeasController; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; targeted: boolean; tagLinks?: boolean }) {
+function Card({ idea, ordinal, model, projects, projectsLoading, projectsError, targeted, tagLinks = false, showEditor = true, onTag }: { idea: Idea; ordinal: number; model: IdeasController; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; targeted: boolean; tagLinks?: boolean; showEditor?:boolean; onTag?:(tag:string)=>void }) {
   const [expanded, setExpanded] = useState(false);
   const [clipped, setClipped] = useState(false);
   const bodyRef = useRef<HTMLParagraphElement>(null);
@@ -62,7 +62,7 @@ function Card({ idea, ordinal, model, projects, projectsLoading, projectsError, 
   const dirty = !!model.drafts[idea.id] && !sameIdeaContent(contentFor(idea.id, model.drafts[idea.id]), idea);
   const blocked = !!model.busy || model.loading;
   const pendingKey = Object.entries(model.pending).find(([,request]) => request.content.id === idea.id)?.[0];
-  const edited = !!model.editing[idea.id] && !idea.deleted;
+  const edited = showEditor && !!model.editing[idea.id] && !idea.deleted;
   const editButton = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     const body = bodyRef.current;
@@ -80,7 +80,7 @@ function Card({ idea, ordinal, model, projects, projectsLoading, projectsError, 
     <div className="idea-card-content">
       <p ref={bodyRef} className={`idea-card-body${expanded ? ' is-expanded' : ''}`} tabIndex={expanded ? 0 : undefined} role={expanded ? 'region' : undefined} aria-label={expanded ? '灵感全文' : undefined}>{idea.body}</p>
       {(clipped || expanded) && <Button variant="app-idea" className="idea-action idea-expand" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? '收起内容' : '展开全文'}</Button>}
-      <div className="idea-card-tags">{idea.tags.map(t => tagLinks ? <UILink variant="plain" key={t} className="idea-tag" title={t} href="#ideas" onClick={() => { model.clearFilters(); model.setDeleted(false); model.setTag(t); }} aria-label={`查看标签：${t}`}>#{t}</UILink> : <Button variant="app-control" key={t} className="idea-tag" title={t} onClick={() => model.setTag(t)} aria-label={`筛选标签：${t}`}>#{t}</Button>)}{!idea.tags.length && <span className="meta">未分类</span>}</div>
+      <div className="idea-card-tags">{idea.tags.map(t => tagLinks ? <UILink variant="plain" key={t} className="idea-tag" title={t} href="#ideas" onClick={event => { if(onTag){event.preventDefault();onTag(t);}else{model.clearFilters();model.setDeleted(false);model.setTag(t);} }} aria-label={`查看标签：${t}`}>#{t}</UILink> : <Button variant="app-control" key={t} className="idea-tag" title={t} onClick={() => model.setTag(t)} aria-label={`筛选标签：${t}`}>#{t}</Button>)}{!idea.tags.length && <span className="meta">未分类</span>}</div>
       {idea.projectId && <UILink variant="plain" className="idea-project" href={`#projects/${idea.projectId}`}><Mark kind="folder"/>{project?.name ?? '打开关联公司'}</UILink>}
       {dirty && !idea.deleted && <span className="idea-draft-state">有未提交的编辑草稿</span>}
       {pendingKey && <div className="idea-pending"><span>保存结果待确认</span><Button variant="app-idea" className="idea-action" disabled={blocked} onClick={() => void model.reconcile(pendingKey)}>核对保存结果</Button></div>}
@@ -97,6 +97,7 @@ function Card({ idea, ordinal, model, projects, projectsLoading, projectsError, 
 }
 export function IdeasPanel({ model, projects, projectsLoading, projectsError, targetId, home = false }: { model: IdeasController; projects: ProjectDocument[]; projectsLoading: boolean; projectsError: string; targetId: string | null; home?: boolean }) {
   const creation = useCreationDialog();
+  const [allOpen,setAllOpen] = useState(false);
   const submitted = useRef<number | null>(null);
   useEffect(() => {
     if (submitted.current === null || model.busy) return;
@@ -113,32 +114,35 @@ export function IdeasPanel({ model, projects, projectsLoading, projectsError, ta
 {model.loadError && <Feedback tone="error" role="alert">{model.loadError}</Feedback>}
       <IdeaForm model={model} draft={model.drafts.new} draftKey="new" projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} onSave={() => { if (!model.busy && !model.loading) { submitted.current = creation.session.current; void model.save('new'); } }} onClose={() => creation.setOpen(false)} />
     </FormDialog>;
+  const allDialog = <FormDialog open={allOpen} onOpenChange={setAllOpen} title="全部文字灵感" description="查看、搜索和整理记录下来的文字灵感。" wide className="ideas-all-dialog"><IdeasPanel model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} targetId={null}/></FormDialog>;
   if (home) {
     // The dashboard always shows active records, independent of the full page's filters.
     const cards = filterIdeas(model.ideas, '', '', '', false);
     return <div className="ideas-home">
-      <header className="card-heading"><div className="ideas-home-heading"><h2>灵感</h2><LoadingStatus active={!creation.open && !editingOpen && (model.loading || !!model.busy)} className="ideas-home-status" delayMs={200}>{model.loading ? '读取中…' : '处理中…'}</LoadingStatus></div><div className="ideas-home-actions"><UILink variant="text" href="#ideas" onClick={() => { model.clearFilters(); model.setDeleted(false); }}>查看全部</UILink><Button variant="app-quiet" data-create="idea" onClick={() => creation.setOpen(true)}><Mark kind="plus"/>记灵感</Button></div></header>
+      <header className="card-heading"><div className="ideas-home-heading"><h2>灵感</h2><LoadingStatus active={!creation.open && !editingOpen && (model.loading || !!model.busy)} className="ideas-home-status" delayMs={200}>{model.loading ? '读取中…' : '处理中…'}</LoadingStatus></div><div className="ideas-home-actions"><UILink variant="text" href="#ideas" onClick={event => { event.preventDefault(); model.clearFilters(); model.setDeleted(false); setAllOpen(true); }}>查看全部</UILink><Button variant="app-quiet" data-create="idea" onClick={() => creation.setOpen(true)}><Mark kind="plus"/>记灵感</Button></div></header>
       {composer}
-      <datalist id="idea-tag-suggestions">{[...new Set(['流程','项目','画面','工具',...tags])].map(t => <option key={t} value={t}/>)}</datalist>
+      {allDialog}
+      {!allOpen&&<datalist id="idea-tag-suggestions">{[...new Set(['流程','项目','画面','工具',...tags])].map(t => <option key={t} value={t}/>)}</datalist>}
       <div className="ideas-feedback">
         {!creation.open && !editingOpen && model.loadError && <Feedback tone="error" role="alert">{model.loadError}<Button variant="app-quiet" disabled={model.loading || !!model.busy} onClick={() => void model.refresh()}>重新读取</Button></Feedback>}
         {!model.errorScope?.startsWith('save:') && !model.errorScope?.startsWith('reconcile:') && model.error && <Feedback tone="error" role="alert">{model.error}</Feedback>}
       </div>
       <div className="ideas-home-scroll" tabIndex={0} role="region" aria-label="灵感卡片，可滚动">
-        <div className="idea-grid">{cards.map((idea,index) => <Card key={idea.id} idea={idea} ordinal={index+1} model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} targeted={false} tagLinks/>)}
+        <div className="idea-grid">{cards.map((idea,index) => <Card key={idea.id} idea={idea} ordinal={index+1} model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} targeted={false} tagLinks showEditor={!allOpen} onTag={tag=>{model.clearFilters();model.setDeleted(false);model.setTag(tag);setAllOpen(true);}}/>)}
           {!cards.length && <div className="ideas-empty"><span className="ideas-empty-mark"><Mark/></span><h3>{model.loading ? '正在读取灵感…' : model.loadError ? '灵感暂时未能读取' : '还没有灵感'}</h3><p>{model.loadError ? '原记录保留，可以重新读取。' : '想到什么，就先记下来。'}</p>{!model.loading && !model.loadError && <Button variant="app-quiet" onClick={() => creation.setOpen(true)}>记下第一个灵感<Mark kind="plus"/></Button>}</div>}
         </div>
       </div>
     </div>;
   }
   return <div className="ideas-page">
+    {targetId&&allDialog}
     <div className="ideas-intro"><div><h2>记录一个想法</h2><p>画面、流程、链接，都可以先留在这里。</p></div><Button data-create="idea" onClick={() => creation.setOpen(true)}>记下新灵感</Button></div>
     {composer}
     <datalist id="idea-tag-suggestions">{[...new Set(['流程','项目','画面','工具',...tags])].map(t => <option key={t} value={t}/>)}</datalist>
     <div className="ideas-feedback" aria-live="polite"><span role="status">{creation.open || editingOpen ? '' : model.loading ? '正在读取灵感…' : model.busy ? '正在处理…' : ''}</span>{!model.errorScope?.startsWith('save:') && !model.errorScope?.startsWith('reconcile:') && model.error && <Feedback as="p" tone="error" className="form-error" role="alert">{model.error}</Feedback>}{!creation.open && !editingOpen && model.loadError && <Feedback as="p" tone="error" className="form-error" role="alert">{model.loadError}</Feedback>}</div>
-    <section className="ideas-collection" aria-labelledby="ideas-collection-title"><header className="ideas-collection-heading"><div><h2 id="ideas-collection-title">{targetId ? '来源灵感' : model.deleted ? '已移除的灵感' : '我的灵感'}</h2><span className="meta">{targetId ? '原卡与关联完整保留' : `${visible.length} 张${dirtyCount ? ` · ${dirtyCount} 张有编辑草稿` : ''}`}</span></div><div className="ideas-collection-actions">{targetId && <UILink variant="idea" className="idea-action" href="#ideas">返回全部灵感</UILink>}<Button variant="app-idea" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取</Button><Button variant="app-idea" className="idea-action" aria-pressed={model.deleted} onClick={() => { model.setDeleted(!model.deleted); model.setTag(''); if (targetId) window.location.hash = 'ideas'; }}><Mark kind="trash"/>{model.deleted ? '查看灵感' : `已移除${removed.length ? ` (${removed.length})` : ''}`}</Button></div></header>
+    <section className="ideas-collection" aria-labelledby="ideas-collection-title"><header className="ideas-collection-heading"><div><h2 id="ideas-collection-title">{targetId ? '来源灵感' : model.deleted ? '已移除的灵感' : '我的灵感'}</h2><span className="meta">{targetId ? '原卡与关联完整保留' : `${visible.length} 张${dirtyCount ? ` · ${dirtyCount} 张有编辑草稿` : ''}`}</span></div><div className="ideas-collection-actions">{targetId && <UILink variant="idea" className="idea-action" href="#today" onClick={event=>{event.preventDefault();model.clearFilters();model.setDeleted(false);setAllOpen(true);}}>全部文字灵感</UILink>}<Button variant="app-idea" className="idea-action" disabled={!!model.busy || model.loading} onClick={() => void model.refresh()}>重新读取</Button><Button variant="app-idea" className="idea-action" aria-pressed={model.deleted} onClick={() => { model.setDeleted(!model.deleted); model.setTag(''); if (targetId) setAllOpen(true); }}><Mark kind="trash"/>{model.deleted ? '查看灵感' : `已移除${removed.length ? ` (${removed.length})` : ''}`}</Button></div></header>
     {!targetId && <><div className="ideas-tools"><label className="ideas-search"><Mark kind="search"/><span className="visually-hidden">搜索灵感</span><Input variant="inline" value={model.query} onChange={e => model.setQuery(e.target.value)} placeholder="搜索内容或标签"/></label><label className="ideas-company-filter"><span className="visually-hidden">按公司筛选灵感</span><NativeSelect variant="inline" value={model.projectId} onChange={e => model.setProjectId(e.target.value)}><option value="">全部公司</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></label></div><div className="ideas-tags" aria-label="按标签筛选"><Button variant="app-idea-filter" className="idea-filter" aria-pressed={!model.tag} onClick={() => model.setTag('')}>全部<span>{model.ideas.filter(i => i.deleted === model.deleted).length}</span></Button>{tags.map(t => <Button variant="app-control" key={t} className="idea-filter" title={t} aria-pressed={model.tag === t} onClick={() => model.setTag(t)}><span className="idea-filter-label">{t}</span><span>{model.ideas.filter(i => i.deleted === model.deleted && i.tags.includes(t)).length}</span></Button>)}{model.tag && !tags.includes(model.tag) && <Button variant="app-idea-filter" className="idea-filter" aria-pressed onClick={() => model.setTag('')}>{model.tag} · 清除</Button>}</div></>}
-    <div className="idea-grid">{visible.map((idea,index) => <Card key={idea.id} idea={idea} ordinal={index+1} model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} targeted={targetId === idea.id}/>)}
+    <div className="idea-grid">{visible.map((idea,index) => <Card key={idea.id} idea={idea} ordinal={index+1} model={model} projects={projects} projectsLoading={projectsLoading} projectsError={projectsError} targeted={targetId === idea.id} showEditor={!allOpen}/>)}
     {!visible.length && <div className="ideas-empty"><span className="ideas-empty-mark"><Mark/></span><h3>{model.loading ? '正在打开你的灵感收集箱' : model.loadError ? '灵感暂时未能读取' : targetId ? '没有找到这张来源灵感' : model.query || model.tag || model.projectId ? '没有找到匹配的灵感' : model.deleted ? '没有已移除的灵感' : '第一个想法，从这里开始'}</h3><p>{model.loadError ? '原记录保留，重新读取后继续。' : targetId ? '请核对来源，或返回全部灵感查看。' : model.query || model.tag || model.projectId ? '换个关键词，或者清除筛选再看看。' : model.deleted ? '移除的卡片会保留在这里，随时可以恢复。' : '记下一束光、一段流程，或一个尚未成形的念头。'}</p>{(model.query || model.tag || model.projectId) && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={model.clearFilters}>清除筛选</Button>}{!model.deleted && !model.query && !model.tag && !model.projectId && !targetId && !model.loadError && <Button variant="app-pill" className="pill" disabled={model.loading} onClick={() => creation.setOpen(true)}>记下第一个灵感<Mark kind="plus"/></Button>}</div>}
     </div></section>
   </div>;

@@ -20,10 +20,8 @@ import { ProcessMonitorPanel } from './process-monitor-panel.tsx';
 import type { AppUpdateController } from './use-app-update.ts';
 import { PiProviderPanel } from './pi-provider-panel.tsx';
 import type { PiProvidersController } from './use-pi-providers.ts';
-import { NewsSourceManager, NewsSourceEditor, NewsFeed } from './news-panels.tsx';
+import { NewsFeed } from './news-panels.tsx';
 import { NewsPreferences } from './news-preferences-panel.tsx';
-import { NewsProcessingPanel } from './news-processing-panel.tsx';
-import type { NewsProcessingController } from './use-news-processing.ts';
 
 const iconPaths: Record<SettingsIconName, ReactNode> = {
   appearance: <><path d="m12 3 2 3 4-1 1 4 3 2-3 2 1 4-4 1-2 3-2-3-4 1-1-4-3-2 3-2-1-4 4-1Z" /><circle cx="12" cy="12" r="3" /></>,
@@ -66,22 +64,20 @@ interface SettingsProps {
   processPreview?:string;
   updatePreview?: AppUpdateController;
   route: Route;
-  sourceId: string | null;
   workspace: WorkspaceController;
   pi: PiController;
   providers: PiProvidersController;
   news: NewsController;
   editorial: EditorialController;
-  processing: NewsProcessingController;
   desktop: ReturnType<typeof useDesktopCheck>;
   theme: Theme;
   selectTheme: (theme: Theme) => void;
 }
 
-export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, news, editorial, processing, desktop, theme, selectTheme, updatePreview, processPreview }: SettingsProps) {
+export function SettingsWorkspace({ route, workspace, pi, providers, news, editorial, desktop, theme, selectTheme, updatePreview, processPreview }: SettingsProps) {
   const content = useRef<HTMLDivElement>(null);
   const positions = useRef<Record<string, number>>({});
-  const title = sourceId ? (sourceId === 'new' ? '信源管理' : '编辑信源') : settingsTitle(route) ?? '设置';
+  const title = settingsTitle(route) ?? '设置';
   useLayoutEffect(() => {
     const area = content.current;
     const heading = area?.querySelector<HTMLHeadingElement>('h2');
@@ -102,16 +98,12 @@ export function SettingsWorkspace({ route, sourceId, workspace, pi, providers, n
     <div className="check-actions"><Button variant="app-pill" className="pill on" onClick={() => void desktop.check()} disabled={!desktop.connected || desktop.state.status === 'loading'} loading={!!(desktop.state.status === 'loading')} loadingText="正在检查…">检查桌面连接</Button>{!desktop.connected && <p className="subtle">网页预览不能执行检查，请从项目根运行 npm run dev。</p>}</div>
   </section>;
   else if (!workspace.workspace?.root || workspace.loadError) page = <WorkspaceGate model={workspace} />;
-  else if (sourceId === 'new') page = <NewsSourceManager model={news} create />;
-  else if (sourceId) page = <NewsSourceEditor model={news} sourceId={sourceId} />;
-  else if (route === 'settings/news') page = <NewsSourceManager model={news} />;
   else if (route === 'settings/news/materials') page = <NewsFeed model={news} />;
-  else if (route === 'settings/news/processing') page = <NewsProcessingPanel model={editorial} news={news} processing={processing} />;
   else page = <>{pi.modelCatalogError&&<Feedback tone="error" role="alert">{pi.modelCatalogError}<Button type="button" variant="app-quiet" disabled={pi.modelCatalogLoading} onClick={()=>void pi.refreshModels()} loading={!!(pi.modelCatalogLoading)} loadingText="正在重试…">重试读取模型</Button></Feedback>}<NewsPreferences sources={news.snapshot?.sources??[]} model={editorial} models={pi.modelCatalog ?? pi.snapshot?.models ?? []} section={route === 'settings/news/ai' ? 'ai' : route === 'settings/news/automation' ? 'automation' : 'domains'} /></>;
 
   return <div className="settings-layout">
     <aside className="settings-sidebar"><nav aria-label="设置分类">{settingsGroups.map((group, index) => <section className="settings-nav-group" key={group.title} aria-labelledby={`settings-group-${index}`}>
-      <h2 id={`settings-group-${index}`}>{group.title}</h2>{group.items.map(item => <UILink variant="navigation" key={item.route} className="settings-nav-item" href={`#${item.route}`} aria-current={route === item.route || !!sourceId && item.route === 'settings/news' ? 'page' : undefined}><SettingsIcon name={item.icon} /><span>{item.title}</span></UILink>)}
+      <h2 id={`settings-group-${index}`}>{group.title}</h2>{group.items.map(item => <UILink variant="navigation" key={item.route} className="settings-nav-item" href={`#${item.route}`} aria-current={route === item.route ? 'page' : undefined}><SettingsIcon name={item.icon} /><span>{item.title}</span></UILink>)}
     </section>)}</nav></aside>
     <div ref={content} className="settings-content" role="region" aria-label={`${title}内容`} tabIndex={0}>{page}</div>
   </div>;

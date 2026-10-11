@@ -1,0 +1,3832 @@
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from "react";
+import { BookOpen, Code, Pencil, ArrowLeft, ArrowRight, MoreVertical, Bookmark, Trash2, FoldHorizontal, UnfoldHorizontal, Copy, History, ClipboardCopy, FolderOpen, FolderTree, Printer, FileDown, ExternalLink, Database, Mail, Paperclip, FileX, FolderInput, MessageSquare, PenLine } from "lucide-react";
+import { printElement } from "../services/printView";
+
+import { EditorView } from '@codemirror/view';
+import { getSettingsStore } from "../services/settingsStore";
+import { attachmentFolderKey, commentAnchorsKey, commentColumnKey, commentInlineKey, taskDatabaseKey, useVault } from "../contexts/VaultContext";
+import { useTranslation } from "react-i18next";
+import { CustomDatePicker } from "./DatePicker";
+import { TableSizePicker } from "./TableSizePicker";
+import { TableContextMenu, type TableMenuAction, type TableAlignValue } from "./TableContextMenu";
+import { Button, buildMarkdownTable, deleteColumn, deleteRow, ICON, insertColumn, insertRow, parseMarkdownTable, planPaste, planTableInsertion, serializeTable, setColumnAlign,
+  CommentOperationStatus, CommentDecisionReview, usePendingCommentOperations, observeCompletedCommentRounds, runVisibleCommentOperation, commentActionErrorKey, type CommentEditorSnapshot,
+  commentTaskReply, commentTaskTitle, commentTaskTrailer, createTaskInDatabase, errorText, importAttachment, useStableHandler,
+  adoptExternalMove, healMissingNote, movedChoiceBodyKey, movedFolderLabel, planMissingNote, vaultDisplayName, type KnownFileIdentity, type MissingFileSearch,
+  type AnchorFrameHint, type AnchorHighlight, reconcileParkedSuggestion, parkedSuggestionBlocks, suggestionBase } from "@plainva/ui";
+import { MarkdownReader } from "./MarkdownReader";
+import { registerTabDocument, type TransferredDocument } from "../services/tabTransfer";
+import { parkEditorSuggestion, clearEditorSuggestion } from "../services/editorSuggestionPark";
+import { readSourceSelection } from "@plainva/ui";
+import { DocumentHeaderRead } from "./DocumentHeaderRead";
+import { NoteDatabaseBar } from "./NoteDatabaseBar";
+import { isVirtualPath } from "./graph/virtualPaths";
+import { loadNoteDatabaseContextCached } from "../services/noteDatabaseContextCache";
+import { applyTextShape, editorTextOf, inShapeOf, isVaultPathLink, openEditorText, planRelativeLinkOpen, resolveOpenAction, resolveRelativeTarget, type LinkKind } from "@plainva/ui";
+import { ANCHOR_JUMP_EVENT, consumePendingAnchorJump, requestAnchorJump, resolveAnchor, splitLinkAnchor } from "@plainva/ui";
+import { EMPTY_NOTE_DATABASE_CONTEXT, noteDisplayName, type NoteDatabaseContext } from "@plainva/ui";
+import { answerEditorPathProbe } from "@plainva/ui";
+import { EmojiPicker, type EmojiPickerLabels } from "./EmojiPicker";
+import { docIconValue } from "@plainva/ui";
+import { ColorPopover } from "./ColorPopover";
+import { frontmatterBlockOf, frontmatterToAddress, plainvaMetaFromBlock, propertyAliasResolver, stripFrontmatter, toAnchorFrameHint } from "@plainva/ui";
+import { Banner, formatStampDate, staleSinceOf, trustBadgeOf, trustSignalsFromBlock } from "@plainva/ui";
+import { planCommentRound, commentOperationMatchesInput, commentActionController, planCommentDecision, CommentActionNotStartedError, type CommentOperation, type CommentOperationInput, insertAnchorMarkers, removeAnchorMarkers, wikiTargetForPath, setFrontmatterPath, deleteFrontmatterPath, PLAINVA_NAMESPACE_KEY, isPlainvaManagedIndex, stripPlainvaIndexMarker, buildCommentAnchor, buildPropertyCommentAnchor, frontmatterKeys, mintAnchorMarkerId, propertyAnchorKey, readFrontmatterPath, resolveCommentAnchor, resolvePropertyAnchor, type VaultFileInfo, type WorkspaceCommentAnchor, type WorkspaceCommentAnchorResolution, type WorkspaceCommentRecord, type WorkspacePolicyMember, type WorkspacePropertyAnchorResolution, createWorkspaceObjectId, MAX_ANCHOR_QUOTE_BYTES, stripWidgetAnchorMarkers, placeAnchorRange, repairAnchorMarkerPlacement, readParkedSuggestion, type ParkedSuggestion, type CommentStoreState } from "@plainva/core";
+import { WorkspaceCommentsColumn } from "./workspace/WorkspaceCommentsColumn";
+import { useCommentMute } from "../hooks/useCommentMute";
+import { COMMENT_JUMP_EVENT, takeCommentJump } from "@plainva/ui";
+import { Button as UiButton, TextInput } from "@plainva/ui";
+import { IconButton, isCommentThreadOpen } from "@plainva/ui";
+import { BasePicker } from "./BasePicker";
+
+import { generateIndexForFolder } from "../services/indexMd";
+import { resolveGoverningBase } from "../services/baseSchema";
+import { useDocumentIcons } from "../hooks/useDocumentIcons";
+import { useWikiResolver } from "../hooks/useWikiResolver";
+import { activeDocument, type DocChannel } from "../services/activeDocument";
+import { setEditorSelectionReader } from "../services/editorSelection";
+import { appConfirm, appPrompt } from "../services/appDialogs";
+import { toast } from "@plainva/ui";
+import { dirtyStore } from "../services/dirtyStore";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { readFile } from "@tauri-apps/plugin-fs";
+import { noteEmbedPlugin } from "./NoteEmbedPlugin";
+import { MenuSurface, MenuItem, MenuSeparator, MenuLabel } from "@plainva/ui";
+import { isOwnerWindow } from "../services/windowContext";
+import { applyIndexChanges, duplicateFile, promptRenameFile } from "../services/fileActions";
+import { retargetDesktopBookmarks } from "../services/bookmarks";
+import { sendTaskToProviderList } from "../services/pim/taskToProvider";
+import { getTemplateFolder } from "../services/newItemFlow";
+import { TemplateTargetsModal } from "./TemplateTargetsModal";
+import { rememberSessionViewMode, resolveViewModeForPath, type EditorViewMode } from "../services/viewModeDefault";
+import { notifyFileOps } from "../services/indexMdAutoUpdate";
+import { requestSaveFlush, type SaveFlushRequest } from "../services/saveFlush";
+import { SplitButton, type SplitDirection } from "./SplitButton";
+import { applySelectionFormat, baseEmbedText, createInlineBase, folderOf, SelectionToolbar, type FormatAction, type SelectionToolbarPosition } from "@plainva/ui";
+import { BlockMenu } from "./BlockMenu";
+import { applyBlockAction, performBlockMove, type BlockAction } from "@plainva/ui";
+import { createEditorSession, type EditorSession, type EditorSessionDeps } from "@plainva/ui";
+import { consumePendingSearchJump, consumePendingTemplateCaret, resolveSearchJump, findSourceTextRange, type SearchJump, findTextRange, selectAndRevealRange } from "@plainva/ui";
+import { setHtmlCheckboxChecked, toggleTaskAtIndex } from "@plainva/ui";
+import { decideDirtyExternalUpdate } from "@plainva/ui";
+import { setWikiResolver, type WikiTargetSet } from "@plainva/ui";
+import { parkTreeReveal } from "@plainva/ui";
+import { imageMimeType } from "@plainva/ui";
+import { openContextMenu } from "../services/contextMenuStore";
+import { pendingWriteFor, withPendingWrite, waitForPendingWrites } from "../services/pendingWrites";
+import { frontmatterSpan, mergeEditorText, containsTextChanges, readIndexedIdentity, type MissingFileOutcome } from "@plainva/core";
+import { EditorSaveLifetime } from "../services/editorSaveLifetime";
+import { propertyCommentStore } from "../services/propertyComments";
+import { editorCommandTarget } from "../services/editorCommandTarget";
+import { recallScrollTop, rememberScrollTop } from "@plainva/ui";
+
+/**
+ * Text shown in the composer for a property comment, and the anchor quote.
+ *
+ * A frontmatter value may be a scalar, a list, or a nested map. A map has no
+ * short reading, so it yields "" and the anchor falls back to the KEY - the
+ * honest label for "commented on this property", not an invented excerpt.
+ */
+function propertyValueText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map((v) => propertyValueText(v)).filter(Boolean).join(", ");
+  if (typeof value === "object") return "";
+  return String(value);
+}
+
+export const Editor: React.FC<{
+  activePath: string | null;
+  onOpenPath?: (path: string, newTab: boolean) => void;
+  onNavigateBack?: () => void;
+  onNavigateForward?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  isBookmarked?: boolean;
+  onToggleBookmark?: () => void;
+  onDelete?: () => void;
+  /**
+   * Closes this tab — and only that (issue 110). The states that show no note
+   * (missing, "Moved?", not text) offer it; they used to wire their "Close tab"
+   * button to `onDelete`, which asked "Really delete …?" instead.
+   */
+  onCloseTab?: () => void;
+  /** Tab retarget after the ⋮-menu rename (wired to the layout's renameTabPrefix). */
+  onRenamed?: (oldPath: string, newPath: string) => void;
+  onSplit?: (direction: SplitDirection) => void;
+  activeSplitDirection?: SplitDirection;
+  isActivePane?: boolean;
+  /** Compact peek variant (Base-UX2 P5): hides the nav/toolbar row — the peek modal supplies its own actions. */
+  peek?: boolean;
+  /** Scoped live-document channel (a floating peek passes its own so its inline
+   * Properties bind to the peek note, not the main pane). Defaults to the global. */
+  docChannel?: DocChannel;
+  /**
+   * The editor of a new pinboard entry (plan Befunde 2026-09-24, E14). The
+   * window around it names the destination and carries the title, so the
+   * database context line would only repeat the draft's timestamp name, and
+   * the comment column's switch has nothing to open yet.
+   */
+  newEntry?: boolean;
+}> = ({ activePath, onOpenPath, onNavigateBack, onNavigateForward, canGoBack, canGoForward, isBookmarked, onToggleBookmark, onDelete, onCloseTab, onRenamed, onSplit, activeSplitDirection, isActivePane = true, peek = false, docChannel, newEntry = false }) => {
+  const vaultContext = useVault();
+  // Broadcast editor commands (slash menu, template insert) reach the editor
+  // the person is working in — not every mounted one (editorCommandTarget).
+  const [commandId] = useState(() => editorCommandTarget.newId());
+  const isActivePaneRef = useRef(isActivePane);
+  useEffect(() => editorCommandTarget.mount(commandId), [commandId]);
+  useEffect(() => {
+    isActivePaneRef.current = isActivePane;
+    // Activating a pane is choosing where to work, the same as a click into
+    // its text: the later of the two wins.
+    if (isActivePane) editorCommandTarget.focus(commandId);
+  }, [isActivePane, commandId]);
+  const isCommandTarget = useCallback(() => editorCommandTarget.is(commandId, isActivePaneRef.current), [commandId]);
+  // A pinboard draft this editor shows is never taken for what a crash left
+  // behind (plan Befunde 2026-09-24, E15): the clean-up asks every editor.
+  const shownRef = useRef({ vaultKey: vaultContext.vaultPath ?? null, path: activePath ?? null });
+  useEffect(() => { shownRef.current = { vaultKey: vaultContext.vaultPath ?? null, path: activePath ?? null }; }, [vaultContext.vaultPath, activePath]);
+  useEffect(() => answerEditorPathProbe(() => shownRef.current), []);
+  // Live-document channel this editor publishes to. A scoped channel (peek) drives
+  // its own inline Properties; only the editor that owns the GLOBAL channel touches
+  // the shared sidebar/status-bar selection stats.
+  const channel = docChannel ?? activeDocument;
+  const ownsGlobalStats = channel === activeDocument;
+  const { vaultPath, queryService, vaultAdapter, indexer, pimRuntime, triggerFileTreeUpdate, workspaceSecurityStatus, getWorkspaceCapabilities, listWorkspaceComments, listPublicationComments, listWorkspaceMembers, getCommentSelfId, postWorkspaceComment, commentOperations, retryWorkspaceComment, discardWorkspaceComment, getCommentStoreState } = vaultContext;
+  const { t, i18n } = useTranslation();
+  // Performance telemetry removed to reduce console noise
+  const [content, setContent] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [workspaceCapabilities, setWorkspaceCapabilities] = useState<Awaited<ReturnType<typeof getWorkspaceCapabilities>>>(null);
+  const [workspaceComments, setWorkspaceComments] = useState<Awaited<ReturnType<typeof listWorkspaceComments>>>([]);
+  const [publicationComments, setPublicationComments] = useState<Awaited<ReturnType<typeof listPublicationComments>>>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspacePolicyMember[]>([]);
+  const [commentSelfId, setCommentSelfId] = useState<string | null>(null);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  /** A property a database asked us to compose on, until the note's text is here. */
+  const [pendingPropertyJump, setPendingPropertyJump] = useState<string | null>(null);
+  /**
+   * Whether the comment column is on screen (K3, decision E2).
+   *
+   * Three voices, in order: what the person did in THIS note (an explicit
+   * toggle, a click on a tinted passage, a comment request from a widget),
+   * then what they last chose for this vault, then the note itself - open when
+   * it carries open threads, closed when it does not. The first voice is
+   * session state and resets with the note, so the vault choice keeps winning
+   * for every note opened afterwards.
+   */
+  const [commentColumnSession, setCommentColumnSession] = useState<"open" | "closed" | null>(null);
+  const [commentColumnPref, setCommentColumnPref] = useState<"open" | "closed" | null>(null);
+  /**
+   * The suggestion mode (plan Vorschlagsmodus, V2): the person edits a copy,
+   * the file stays the base, nothing is saved until "send" turns the change
+   * blocks into a proposal round. A copy with unsent changes is parked per
+   * note when the note is left and restored when it is opened again
+   * The local parked copy also survives a restart. Auxiliary windows delegate
+   * its writes to the database owner, like every other durable mutation.
+   */
+  const [suggesting, setSuggesting] = useState(false);
+  const suggestingRef = useRef(false);
+  const [suggestCount, setSuggestCount] = useState(0);
+  const [suggestNote, setSuggestNote] = useState("");
+  /** A copy found in the vault database on opening the note (C34) - offered, not restored by itself. */
+  const [storedPark, setStoredPark] = useState<ParkedSuggestion | null>(null);
+  const parkWriteTimer = useRef<number | null>(null);
+  /**
+   * Writes the copy to the vault database, debounced (C34). Persisting is what
+   * lets the copy outlive the app; the in-memory park stays the fast path.
+   */
+  const schedulePark = (path: string, base: string | null, copy: string, note: string) => {
+    if (parkWriteTimer.current !== null) window.clearTimeout(parkWriteTimer.current);
+    parkWriteTimer.current = window.setTimeout(() => {
+      parkWriteTimer.current = null;
+      const db = vaultContext.queryService?.db;
+      if (!db || base === null) return;
+      void parkEditorSuggestion(db, { path, base, copy, note, savedAt: new Date().toISOString() }, vaultPath).catch((error) => {
+        console.warn("[Editor] parking the suggestion copy failed", error);
+      });
+    }, 500);
+  };
+  const forgetPark = (path: string) => {
+    if (parkWriteTimer.current !== null) { window.clearTimeout(parkWriteTimer.current); parkWriteTimer.current = null; }
+    const db = vaultContext.queryService?.db;
+    if (db) void clearEditorSuggestion(db, path, vaultPath).catch(() => {});
+  };
+  const suggestParkRef = useRef(new Map<string, { copy: string; note: string; base?: string }>());
+  /** Open suggestions drawn in the text (K5, decision E4: on by default), remembered per vault. */
+  const [suggestionsInline, setSuggestionsInline] = useState(true);
+  // Stufe F: whether this note is silenced. Null - and therefore no bell in the
+  // column - while notifications are off for the vault entirely.
+  const commentMute = useCommentMute(vaultPath, activePath);
+  // The quote a NEW comment would attach to. Held as text, not as a range: the
+  // selection moves on every keystroke, and re-rendering the editor that often
+  // is the fan-out class this project has fought before. Only a changed quote
+  // reaches React.
+  const [selectionQuote, setSelectionQuote] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<EditorViewMode>(() => resolveViewModeForPath(activePath));
+  // Remembers the last editing sub-mode (live/source) so Mod+E restores it when
+  // toggling back out of reading mode (default: live preview).
+  const lastEditModeRef = useRef<EditorViewMode>("live");
+  // Readable line length (#1): "narrow" centers the text column like the read view;
+  // "full" uses the whole pane. Persisted globally (like Obsidian's setting).
+  const [editorWidth, setEditorWidth] = useState<'narrow' | 'full'>(
+    () => (localStorage.getItem('plainva-editor-width') === 'full' ? 'full' : 'narrow')
+  );
+
+  // Managed index.md files are read-only with a banner (plan UI-UX P11): the
+  // generator owns the body; "Trotzdem bearbeiten" strips the marker and the
+  // file becomes a normal, manually maintained note.
+  const isIndexFile = !!activePath && (activePath.split(/[/\\]/).pop() ?? "").toLowerCase() === "index.md";
+  const managedIndex = isIndexFile && isPlainvaManagedIndex(content);
+  // Path -> custom document icon, drawn in front of the listing links (read mode).
+  const docIcons = useDocumentIcons();
+
+  // Every file opens in the configured default view mode unless the user
+  // manually switched the mode for it during this session (E1, plan
+  // 2026-07-07). The managed-index guard below still wins.
+  /**
+   * A text file is not a note (C15). It has exactly one way to be shown — the
+   * plain editor — so the three view modes do not apply: read mode would run a
+   * `.csv` through the markdown renderer, and "source" versus "live" is a
+   * distinction that only exists for markdown. The mode buttons are hidden and
+   * the mode is pinned, the same shape the managed index.md guard below uses.
+   */
+  const isPlainText = !!activePath && resolveOpenAction(activePath) === "text";
+
+  useEffect(() => {
+    setViewMode(isPlainText ? "live" : resolveViewModeForPath(activePath));
+  }, [activePath, isPlainText]);
+
+  // Asked in EVERY vault, not only in an encrypted workspace (N0, finding
+  // 2026-09-07): the context answers the plain vault's four capabilities since
+  // Stufe D, but this gate still switched the whole column off without a
+  // workspace - the desktop never showed what the phone had all along.
+  // `workspaceSecurityStatus` stays a dependency: unlocking changes the answer.
+  useEffect(() => {
+    let active = true;
+    if (!activePath) { setWorkspaceCapabilities(null); return; }
+    void getWorkspaceCapabilities(activePath).then((value) => { if (active) setWorkspaceCapabilities(value); }).catch(() => { if (active) setWorkspaceCapabilities([]); });
+    return () => { active = false; };
+  }, [activePath, getWorkspaceCapabilities, workspaceSecurityStatus]);
+  /**
+   * How the store holds remarks right now (N3): `locked` is the one state the
+   * column explains instead of listing nothing, and `hasOutbox` decides whether
+   * a card can offer retry and discard at all. Re-read with the note, after an
+   * unlock, and whenever the remarks changed.
+   */
+  const [commentStoreState, setCommentStoreState] = useState<CommentStoreState | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!activePath) { setCommentStoreState(null); return; }
+    const read = () => void getCommentStoreState().then((value) => { if (active) setCommentStoreState(value); }).catch(() => { if (active) setCommentStoreState(null); });
+    read();
+    window.addEventListener("plainva-encryption-changed", read);
+    window.addEventListener("plainva-workspace-comments-changed", read);
+    return () => { active = false; window.removeEventListener("plainva-encryption-changed", read); window.removeEventListener("plainva-workspace-comments-changed", read); };
+  }, [activePath, getCommentStoreState, workspaceSecurityStatus]);
+  const commentsLocked = commentStoreState?.mode === "locked";
+  // The way out of `locked`, from the column: the unlock prompt, even if it
+  // was dismissed once this session - this time the person asked for it.
+  const requestCommentUnlock = useCallback(() => {
+    if (commentStoreState?.hasOutbox) window.dispatchEvent(new CustomEvent("plainva-open-sync-settings", { detail: { area: "security" } }));
+    else window.dispatchEvent(new CustomEvent("plainva-encryption-locked", { detail: { vaultPath, force: true } }));
+  }, [vaultPath, commentStoreState?.hasOutbox]);
+  const workspaceReadOnly = workspaceCapabilities !== null && !workspaceCapabilities.includes("content.write");
+  const workspaceCanComment = workspaceCapabilities?.includes("comment.create") === true;
+  const workspaceCanSuggest = workspaceCanComment && workspaceCapabilities?.includes("comment.suggest") === true;
+  const workspaceCanReadComments = workspaceCapabilities?.includes("comment.read") === true;
+  const commentsAccessible = workspaceCanReadComments || commentsLocked;
+  useEffect(() => {
+    if (!activePath || !workspaceCanReadComments) { setWorkspaceComments([]); return; }
+    const refresh = () => void listWorkspaceComments(activePath).then(setWorkspaceComments).catch(() => setWorkspaceComments([]));
+    // "*" is every note (N2): a sync cycle or a foreign file in the folder.
+    const listener = (event: Event) => { const path = (event as CustomEvent<{ path: string }>).detail?.path; if (path === activePath || path === "*") refresh(); };
+    refresh(); window.addEventListener("plainva-workspace-comments-changed", listener);
+    return () => window.removeEventListener("plainva-workspace-comments-changed", listener);
+  }, [activePath, listWorkspaceComments, workspaceCanReadComments]);
+
+  /**
+   * Landing on the card somebody pointed at (Stufe F, §6).
+   *
+   * Two triggers, one handler: the request may already be parked when this note
+   * mounts (a notification opened it, or the overview did), or it may arrive
+   * while the note is already open. Both end in the same place, and taking the
+   * request clears it - a card that re-selects itself on every render could
+   * never be deselected by clicking it.
+   */
+  useEffect(() => {
+    if (!activePath) return;
+    const apply = () => {
+      const jump = takeCommentJump(activePath);
+      if (!jump) return;
+      setCommentColumnSession("open");
+      if (jump.commentId) { setActiveCommentId(jump.commentId); return; }
+      // A request from a database names a PROPERTY, not a card: there is no
+      // thread yet, the composer is the destination (finding 2026-09-04). The
+      // quote it shows is read from the note, so it waits for the content.
+      if (jump.property) setPendingPropertyJump(jump.property);
+    };
+    apply();
+    window.addEventListener(COMMENT_JUMP_EVENT, apply);
+    return () => window.removeEventListener(COMMENT_JUMP_EVENT, apply);
+  }, [activePath]);
+
+  /**
+   * What the recipients of this note's publications wrote back (D7).
+   *
+   * Its own effect rather than a second call inside the one above: these
+   * records live in other workspaces, arrive over the publication's own store,
+   * and must not be able to take this note's comments down with them. No
+   * listener either - nothing in this vault changes them; they change when a
+   * recipient publishes, which this side learns on the next refresh.
+   */
+  useEffect(() => {
+    let active = true;
+    if (!activePath || !workspaceCanReadComments) { setPublicationComments([]); return; }
+    void listPublicationComments(activePath)
+      .then((entries) => { if (active) setPublicationComments(entries); })
+      .catch(() => { if (active) setPublicationComments([]); });
+    return () => { active = false; };
+  }, [activePath, listPublicationComments, workspaceCanReadComments]);
+
+  useEffect(() => {
+    let active = true;
+    if (!workspaceCanReadComments) { setWorkspaceMembers([]); return; }
+    const read = () => void listWorkspaceMembers().then((members) => { if (active) setWorkspaceMembers(members); }).catch(() => { if (active) setWorkspaceMembers([]); });
+    read();
+    // A device whose file just arrived (N2) brings its name with it: the
+    // byline must not read "unknown" until the note is reopened.
+    window.addEventListener("plainva-workspace-comments-changed", read);
+    return () => { active = false; window.removeEventListener("plainva-workspace-comments-changed", read); };
+  }, [listWorkspaceMembers, workspaceCanReadComments]);
+
+  useEffect(() => {
+    let active = true;
+    if (!workspaceCanReadComments) { setCommentSelfId(null); return; }
+    void getCommentSelfId().then((id) => { if (active) setCommentSelfId(id); }).catch(() => { if (active) setCommentSelfId(null); });
+    return () => { active = false; };
+  }, [getCommentSelfId, workspaceCanReadComments]);
+
+  // A name is a CLAIM the policy carries, not a verified identity - the card
+  // keeps the member id reachable, so nobody has to take the name on faith.
+  const memberNames = useMemo(() => new Map(workspaceMembers.map((member) => [member.memberId, member.displayName])), [workspaceMembers]);
+
+  /**
+   * Where each anchored comment currently lands, in RAW offsets - which is what
+   * the editor document holds, so a resolution feeds a decoration directly.
+   * Recomputed whenever the text or the comment list changes: that is what makes
+   * a comment survive an edit above it without storing a position.
+   */
+  // Two anchor vocabularies, two maps. A text anchor resolves to a RANGE in the
+  // body; a property anchor (Stufe E, E2) resolves to a KEY in the frontmatter
+  // and has no range at all. Folding them into one map would force every reader
+  // to cast, and the text resolver's quote fallback would happily re-find a
+  // property's value somewhere in the prose - attaching the comment to a
+  // sentence nobody commented on.
+  const anchorResolutions = useMemo(() => {
+    const map = new Map<string, WorkspaceCommentAnchorResolution>();
+    for (const comment of workspaceComments) {
+      if (!comment.anchor || propertyAnchorKey(comment.anchor)) continue;
+      map.set(comment.commentId, resolveCommentAnchor(content, comment.anchor as WorkspaceCommentAnchor));
+    }
+    return map;
+  }, [workspaceComments, content]);
+
+  // The rename trail lives on the `.base` column (plan Stufe E, section 5:
+  // "Der Anker zieht mit"), so the alias source is the base governing this note.
+  // A note outside any base simply has no trail - a renamed key then orphans,
+  // which is the honest answer rather than a guess.
+  const [governingColumns, setGoverningColumns] = useState<Record<string, unknown> | null>(null);
+  // A `.base` edit bumps the tree version and clears the resolver's cache, so a
+  // freshly renamed column reaches the comment cards without reopening the note.
+  const governingVersion = vaultContext.fileTreeVersion;
+  useEffect(() => {
+    let alive = true;
+    setGoverningColumns(null);
+    if (!activePath || !queryService || !vaultAdapter) return;
+    resolveGoverningBase(activePath, queryService, vaultAdapter)
+      .then((base) => { if (alive) setGoverningColumns((base?.columns as Record<string, unknown>) ?? null); })
+      .catch(() => { if (alive) setGoverningColumns(null); });
+    return () => { alive = false; };
+  }, [activePath, queryService, vaultAdapter, governingVersion]);
+
+  const propertyResolutions = useMemo(() => {
+    const map = new Map<string, WorkspacePropertyAnchorResolution>();
+    const anchored = workspaceComments.filter((c) => c.anchor && propertyAnchorKey(c.anchor));
+    if (anchored.length === 0) return map;
+    const keys = new Set(frontmatterKeys(content));
+    const aliasOf = propertyAliasResolver(governingColumns ? [{ columns: governingColumns }] : []);
+    for (const comment of anchored) {
+      const key = propertyAnchorKey(comment.anchor!);
+      if (!key) continue;
+      map.set(comment.commentId, resolvePropertyAnchor(key, (candidate) => keys.has(candidate), aliasOf));
+    }
+    return map;
+  }, [workspaceComments, content, governingColumns]);
+
+  /**
+   * Thread count per frontmatter key, for the dot on the property row.
+   *
+   * THREADS, not messages: a reply inherits its thread's anchor and carries none
+   * of its own, so `propertyAnchorKey` is null for every reply and the filter
+   * counts roots by construction. Counting messages would inflate one busy
+   * discussion into the appearance of many separate remarks.
+   *
+   * An ORPHAN is left out - its key is gone from the frontmatter, so there is no
+   * row to put a number on; the card in the column still shows it. A renamed one
+   * counts against the key that exists TODAY, which is the row the reader sees.
+   */
+  const propertyCommentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const comment of workspaceComments) {
+      const key = comment.anchor ? propertyAnchorKey(comment.anchor) : null;
+      if (!key) continue;
+      const res = propertyResolutions.get(comment.commentId);
+      if (!res || res.status === "orphan") continue;
+      counts.set(res.key, (counts.get(res.key) ?? 0) + 1);
+    }
+    return counts;
+  }, [workspaceComments, propertyResolutions]);
+
+  useEffect(() => {
+    if (managedIndex && viewMode !== 'read') setViewMode('read');
+  }, [managedIndex, viewMode]);
+
+  const refreshManagedIndex = async () => {
+    if (!activePath || !vaultAdapter || !queryService) return;
+    try {
+      const folder = activePath.includes("/") ? activePath.slice(0, activePath.lastIndexOf("/")) : "";
+      const heading = folder ? folder.split("/").pop()! : (vaultPath?.split(/[/\\]/).pop() ?? "Vault");
+      await generateIndexForFolder({ adapter: vaultAdapter, queryService, folder, heading, subfoldersHeading: t("indexMd.subfoldersHeading"), skipBackup: true });
+      // Only the folder's index.md changed — reindex just that (Issue #9).
+      if (indexer) applyIndexChanges(indexer, { added: [folder ? `${folder}/index.md` : "index.md"] }).then(() => triggerFileTreeUpdate()).catch(() => {});
+      window.dispatchEvent(new CustomEvent("plainva-external-update", { detail: { path: activePath } }));
+    } catch (e) {
+      console.error("[Editor] refreshing the managed index failed", e);
+    }
+  };
+
+  const unlockManagedIndex = async () => {
+    if (!activePath || !vaultAdapter) return;
+    const ok = await appConfirm({ title: t("indexMd.editAnyway"), message: t("indexMd.editAnywayConfirm"), kind: "warning" });
+    if (!ok) return;
+    try {
+      const stripped = stripPlainvaIndexMarker(content);
+      // `content` is what the editor holds; the overview leaves in the shape
+      // its file has, as on the phone (`saveEditorText` there). It used to be
+      // written as it stood — `\n` throughout, and without the file's mark
+      // (finding 2026-10-09).
+      await vaultAdapter.writeTextFile(activePath, inShapeOf(await vaultAdapter.readTextFile(activePath), stripped));
+      setContent(stripped);
+      setViewMode('live');
+      rememberSessionViewMode(activePath, 'live');
+    } catch (e) {
+      console.error("[Editor] removing the managed marker failed", e);
+    }
+  };
+  const toggleWidth = () => setEditorWidth(w => {
+    const next = w === 'narrow' ? 'full' : 'narrow';
+    try { localStorage.setItem('plainva-editor-width', next); } catch { /* ignore */ }
+    return next;
+  });
+  const [showMenu, setShowMenu] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
+  // ---- ⋮-menu file actions (plan UI-Menüs 2026-07-05, P4) -------------------
+  // Rename/duplicate share the file-tree implementation (services/fileActions);
+  // the editor adds the prompt/toast shell around it.
+  const handleMenuRename = async () => {
+    if (!activePath || !vaultAdapter) return;
+    await promptRenameFile(activePath, {
+      adapter: vaultAdapter,
+      queryService: queryService ?? null,
+      indexer: indexer ?? null,
+      t,
+      prompt: appPrompt,
+      toast,
+      // Write any pending debounced save FIRST — after the rename it would
+      // resurrect the old path (same handshake the version restore uses).
+      flush: requestSaveFlush,
+      templateFolder: () => (vaultPath ? getTemplateFolder(vaultPath) : Promise.resolve(undefined)),
+      onRenamed,
+      refresh: triggerFileTreeUpdate,
+      notify: notifyFileOps,
+    });
+  };
+
+  const handleMenuDuplicate = async () => {
+    if (!activePath || !vaultAdapter) return;
+    try {
+      await requestSaveFlush(activePath);
+      const copy = await duplicateFile(vaultAdapter, activePath, t("fileTree.copySuffix"));
+      if (indexer) await applyIndexChanges(indexer, { added: [copy] });
+      triggerFileTreeUpdate();
+      notifyFileOps([{ type: "create", path: copy }]);
+      onOpenPath?.(copy, true);
+    } catch (err) {
+      console.error("[Editor] duplicate failed", err);
+      toast.error(t("dialogs.createErrorMsg", { error: (err as Error).message }));
+    }
+  };
+
+  const handleMenuCopyPath = async () => {
+    if (!activePath) return;
+    try {
+      await navigator.clipboard.writeText(activePath);
+      toast.info(t("fileTree.pathCopied", "Pfad kopiert."));
+    } catch (err) {
+      console.warn("[Editor] copying the path failed", err);
+    }
+  };
+
+  const handleMenuReveal = async () => {
+    if (!activePath || !vaultPath) return;
+    try {
+      await revealItemInDir(`${vaultPath}/${activePath}`);
+    } catch (err) {
+      console.warn("[Editor] reveal in file manager failed", err);
+      toast.error((err as Error)?.message ?? String(err));
+    }
+  };
+
+  // Hand the note to the OS default handler for its type (e.g. Byword for
+  // `.md`) — plain-Markdown interop, requested in issue #6. The file watcher
+  // picks up external edits, so changes flow back into Plainva automatically.
+  const handleMenuOpenInDefaultApp = async () => {
+    if (!activePath || !vaultPath) return;
+    try {
+      await openPath(`${vaultPath}/${activePath}`);
+    } catch (err) {
+      console.warn("[Editor] open in default app failed", err);
+      toast.error((err as Error)?.message ?? String(err));
+    }
+  };
+
+  // In-app counterpart of "reveal in file manager": expand + select the file
+  // in Plainva's own tree. Park + event: App un-collapses the sidebar /
+  // switches to the files tab on the event; a mounted tree handles it live,
+  // an unmounted one consumes the parked path when it mounts (lib/treeReveal).
+  // The tree deliberately never auto-reveals on opening a file — only this
+  // explicit menu action does.
+  const handleMenuRevealInTree = () => {
+    if (!activePath) return;
+    parkTreeReveal(activePath);
+    window.dispatchEvent(new CustomEvent("plainva-reveal-folder", { detail: { path: activePath } }));
+  };
+  /**
+   * Move this note into its own window (multi-window P1).
+   *
+   * Announced rather than executed here: the owner window holds the window list
+   * and the tab layout, and it is the only place that can both open the window
+   * and close the tab this note came from. In an auxiliary window the editor is
+   * already IN its own window — the entry is hidden there.
+   */
+  const handleMenuOpenInNewWindow = () => {
+    if (!activePath) return;
+    window.dispatchEvent(new CustomEvent("plainva-open-in-new-window", { detail: { path: activePath } }));
+  };
+  const [tablePicker, setTablePicker] = useState<{ x: number; y: number; pos: number } | null>(null);
+  // `@` mention -> "Datum wählen…" opens the calendar at the caret (#4).
+  const [dateMention, setDateMention] = useState<{ x: number; y: number; pos: number } | null>(null);
+  // `/`-menu "Datenbank einbetten" opens the .base picker; embed lands at `pos` (#8).
+  const [basePicker, setBasePicker] = useState<{ pos: number } | null>(null);
+  // "Ziel-Datenbanken…" dialog of a template note (plan Vorlagen-Datenbank-
+  // Zuordnung P3); the ⋮ entry only shows for notes inside the template folder.
+  const [showTemplateTargets, setShowTemplateTargets] = useState(false);
+  const [isTemplateFile, setIsTemplateFile] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setShowTemplateTargets(false);
+    if (!vaultPath || !activePath || !activePath.toLowerCase().endsWith(".md")) {
+      setIsTemplateFile(false);
+      return;
+    }
+    getTemplateFolder(vaultPath)
+      .then((folder) => {
+        if (alive) setIsTemplateFile(activePath.startsWith(folder + "/"));
+      })
+      .catch(() => {
+        if (alive) setIsTemplateFile(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [activePath, vaultPath]);
+  /**
+   * May a comment write its anchor pair into the Markdown (Stufe D, SD2)?
+   *
+   * Default ON: an anchor that survives an edit is the point of anchoring. Off,
+   * the comment still keeps its quote and still resolves - it just drifts once
+   * the passage around it changes, which is the trade somebody makes who does
+   * not want HTML comments in their files.
+   */
+  const [commentAnchorsEnabled, setCommentAnchorsEnabled] = useState(true);
+  useEffect(() => {
+    if (!vaultPath) { setCommentColumnPref(null); return; }
+    let alive = true;
+    void getSettingsStore()
+      .then((store) => store.get<"open" | "closed">(commentColumnKey(vaultPath)))
+      .then((value) => { if (alive) setCommentColumnPref(value === "open" || value === "closed" ? value : null); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [vaultPath]);
+  useEffect(() => {
+    if (!vaultPath) { setSuggestionsInline(true); return; }
+    let alive = true;
+    void getSettingsStore()
+      .then((store) => store.get<boolean>(commentInlineKey(vaultPath)))
+      .then((value) => { if (alive) setSuggestionsInline(value !== false); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [vaultPath]);
+  const toggleSuggestionsInline = useCallback(() => {
+    const next = !suggestionsInline;
+    setSuggestionsInline(next);
+    if (vaultPath) void getSettingsStore().then((store) => store.set(commentInlineKey(vaultPath), next).then(() => store.save())).catch(() => {});
+  }, [suggestionsInline, vaultPath]);
+  // A new note starts without a session voice - the vault choice or the note
+  // itself decides again.
+  useEffect(() => { setCommentColumnSession(null); }, [activePath]);
+  const openCommentThreads = useMemo(
+    () => workspaceComments.filter((comment) => !comment.parentCommentId && !comment.resolvedCommentId && isCommentThreadOpen(comment)).length,
+    [workspaceComments],
+  );
+  // A peek starts without the column (finding 2026-09-03): it is a glance at a
+  // note, and a column that the vault preference or an open thread forced
+  // open took half of it. Its switch is a session choice - a peek never
+  // rewrites the preference the main pane keeps.
+  const commentColumnOpen = commentsAccessible && (commentColumnSession ?? (peek ? "closed" : commentColumnPref ?? (openCommentThreads > 0 ? "open" : "closed"))) === "open";
+  const toggleCommentColumn = useCallback(() => {
+    const next = commentColumnOpen ? "closed" : "open";
+    setCommentColumnSession(next);
+    if (peek) return;
+    setCommentColumnPref(next);
+    if (vaultPath) void getSettingsStore().then((store) => store.set(commentColumnKey(vaultPath), next).then(() => store.save())).catch(() => {});
+  }, [commentColumnOpen, vaultPath, peek]);
+  useEffect(() => {
+    if (!vaultPath) return;
+    let alive = true;
+    const read = () => {
+      void getSettingsStore()
+        .then((store) => store.get<boolean>(commentAnchorsKey(vaultPath)))
+        .then((value) => {
+          if (alive) setCommentAnchorsEnabled(value !== false);
+        })
+        .catch(() => {});
+    };
+    read();
+    window.addEventListener("plainva-features-saved", read);
+    return () => {
+      alive = false;
+      window.removeEventListener("plainva-features-saved", read);
+    };
+  }, [vaultPath]);
+  // Floating formatting toolbar over a non-empty selection (#5).
+  const [selToolbar, setSelToolbar] = useState<SelectionToolbarPosition | null>(null);
+  // Block handle menu (#7): opened from a block's drag grip.
+  const [blockMenu, setBlockMenu] = useState<{ x: number; y: number; from: number } | null>(null);
+  // Document icon / header-color pickers (W3), anchored where the user clicked.
+  const [iconPicker, setIconPicker] = useState<{ x: number; y: number } | null>(null);
+  const [colorPicker, setColorPicker] = useState<{ x: number; y: number } | null>(null);
+  // Emoji-into-text picker (/emoji), anchored at the caret.
+  const [emojiTextPicker, setEmojiTextPicker] = useState<{ x: number; y: number } | null>(null);
+  const [tableMenu, setTableMenu] = useState<{
+    x: number; y: number; from: number; to: number;
+    kind: "header" | "body"; rowIndex: number; colIndex: number; align: TableAlignValue;
+  } | null>(null);
+  const saveTimeoutRef = useRef<number | null>(null);
+  const contentSyncTimeoutRef = useRef<number | null>(null);
+  // Every asynchronous save keeps the identity and refs of its original note.
+  const saveState = useMemo(() => new EditorSaveLifetime(vaultPath, activePath, vaultAdapter), [vaultPath, activePath, vaultAdapter]);
+  // The last on-disk content this editor knowingly produced or adopted (own
+  // save, load, external adopt, auto-merge, restore); null before the first
+  // load. Lets the external-update handler tell the watcher echo of our OWN
+  // save apart from a genuine external change while the user keeps typing —
+  // writing a .CONFLICT for that echo was the spurious-conflict bug.
+  // A sync conflict preserved the editor text in a .CONFLICT file; the target
+  // file on disk now holds the OTHER side. Shown as a persistent banner (a
+  // transient toast is too easy to miss for a "your text lives elsewhere now").
+  /** Set when the file could not be read — rendered as a state, not as text. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /**
+   * What became of a file that could not be read (issue 110, E9): `checking`
+   * while it is looked for, `ambiguous` with the files that carry its content
+   * when none of them is certain, `settled` once the missing state is the
+   * answer. `searching` while the vault-wide pass behind that first answer
+   * still runs. A certain match never lands here — the tab follows it instead.
+   */
+  const [missingLookup, setMissingLookup] = useState<{ kind: "checking" } | { kind: "ambiguous"; candidates: string[]; searching: boolean } | { kind: "settled"; searching: boolean } | null>(null);
+  /**
+   * The file of a note with UNSAVED text vanished while the note was open
+   * (issue 110, E9). The text stays in the editor — and in the draft journal —
+   * and the question sits above it; nothing is written back to the old place
+   * unless the reader says so.
+   */
+  const [vanished, setVanished] = useState<{ kind: "checking" } | { kind: "ask"; candidates: string[]; searching: boolean } | { kind: "gone"; searching: boolean } | null>(null);
+  /**
+   * Content hash and modification time the index held for this file at the
+   * last load or save. By the time an open note learns that its file
+   * vanished, the watcher has usually removed the row that carried them.
+   */
+  const knownIdentityRef = useRef<KnownFileIdentity | null>(null);
+  /** A clean note whose file vanished reloads, and the failed load looks for it. */
+  const [reloadNonce, setReloadNonce] = useState(0);
+  /** The vanish check, defined further down; a failed save asks it too. */
+  const vanishCheckRef = useRef<((path: string) => void) | null>(null);
+  /**
+   * A file whose NAME says text and whose bytes say otherwise (C15, S13). The
+   * extension is a claim: a rotated `.log` or a dump called `.csv` decodes to a
+   * lossy string, and saving that string back destroys the file. So it is not
+   * shown as text at all — the system app gets the offer instead.
+   */
+  const [notText, setNotText] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState<{ conflictPath: string; working?: boolean; foreignCopySnapshot?: string | null } | null>(null);
+  // Crash/draft recovery (P2.4): a journal snapshot survived that never made
+  // it to disk — offered in a banner, applied only on explicit user action.
+  const [draftOffer, setDraftOffer] = useState<{ text: string; savedAt: number; revision: number; sessionId?: string } | null>(null);
+  const draftTimerRef = useRef<number | null>(null);
+  // The CodeMirror session lives OUTSIDE React (P1/P2, Gesamtplan
+  // Editor-Stabilitaet 2026-07-05): one instance per open file, mounted into
+  // this container; React re-renders never touch or reconfigure it.
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<EditorSession | null>(null);
+  // Resolver set for unresolved-link styling (maintainer 2026-07-18): pushed
+  // into the CM view via a StateEffect; the ref lets the session-creation
+  // effect seed a freshly created view without re-running on every resolver bump.
+  const wikiResolver = useWikiResolver();
+  const wikiResolverRef = useRef<WikiTargetSet | null>(null);
+  useEffect(() => {
+    wikiResolverRef.current = wikiResolver;
+    const view = sessionRef.current?.view;
+    if (view) view.dispatch({ effects: setWikiResolver.of(wikiResolver) });
+  }, [wikiResolver]);
+  // Mirror of `content` for effects that must read the latest value without
+  // depending on it (the mount effect below), plus the loaded-file guard that
+  // prevents mounting a session with the PREVIOUS file's text during a switch.
+  const contentRef = useRef<string>("");
+  const loadedPathRef = useRef<string | null>(null);
+  // Scroll container around the read view / editor. Used to scope outline
+  // navigation to this pane's read view instead of a document-wide id lookup
+  // (which would hit the first/left pane in a split — #4).
+  const readScrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    saveState.activate();
+    return () => saveState.deactivate();
+  }, [saveState]);
+
+  // ---- Save pipeline (P2) --------------------------------------------------
+  // The session reports real edits via onDocChanged; the text is read from the
+  // view AT SAVE TIME (never from a stale closure). The read-mode properties
+  // fallback saves a fixed string instead.
+  const persistText = async (val: string) => {
+    if (saveState.transferFrozen) throw new Error("The note is being transferred to another window");
+    if (!activePath || !vaultAdapter) throw new Error("No writable note is open");
+    const path = activePath, draftVault = vaultPath ?? "";
+    const revAtSave = saveState.revision;
+    const shape = saveState.shape;
+    const current = () => saveState.isActive();
+    // Closing captures the final buffer even before the 400-ms journal timer.
+    // Confirmations only clear the draft of this particular editor lifetime.
+    const journal = import("../services/draftJournal").then(async ({ recordDraft }) => {
+      if (draftVault) await recordDraft(draftVault, path, val, revAtSave, saveState.id);
+    }).catch((error) => { console.error("Could not journal the pending note save", error); });
+    await withPendingWrite(draftVault, path, async () => {
+      await journal;
+      if (revAtSave < saveState.savedRevision || revAtSave <= saveState.discardedRevision) return;
+      saveState.update({ activeWrites: saveState.activeWrites + 1 });
+      if (current()) { setIsSaving(true); setSaveError(null); }
+      try {
+        const base = saveState.baseInput;
+        // Nothing to write: the editor holds what the file last said — the
+        // suggestion mode put its base back, or an edit was taken back before
+        // the save came. Writing it anyway cost a version and an upload for
+        // nothing, and a note that arrived with `\r\n` every one of its line
+        // ends, for an edit that never happened (finding 2026-10-08; the
+        // phone's saver has the same guard). A file that changed elsewhere
+        // meanwhile is the external update's business.
+        const unchanged = base !== null && val === base && val === saveState.persisted;
+        let candidate = val;
+        let conflictSession: import("@plainva/core").ConflictEditSession | null = null;
+        let confirmed: string;
+        if (unchanged) {
+          confirmed = val;
+        } else if (vaultAdapter.writeEditorText) {
+          const result = await vaultAdapter.writeEditorText(path, shape ? applyTextShape(val, shape) : val,
+            base === null ? null : shape ? applyTextShape(base, shape) : base);
+          conflictSession = result.session;
+          confirmed = editorTextOf(result.stored);
+          if (current()) setConflictInfo(conflictSession ? { conflictPath: conflictSession.workingCopyPath, working: true, foreignCopySnapshot: conflictSession.foreignCopySnapshot } : null);
+        } else {
+        // Whatever comes from disk is compared in the editor's text (ONE text
+        // space, see the core's textFileShape.ts).
+        const disk = editorTextOf(await vaultAdapter.readTextFile(path));
+        // A pull may already have advanced the sync index. The editor's own
+        // base still identifies changes it has not incorporated into its buffer.
+        if (base !== null && disk !== base && disk !== val) {
+          const merged = mergeEditorText(base, val, disk);
+          if (merged.hasConflicts) {
+            throw new Error("Conflict-safe editing is unavailable; the pending draft has been retained");
+          }
+          candidate = merged.mergedText;
+        }
+        await vaultAdapter.writeTextFile(path, shape ? applyTextShape(candidate, shape) : candidate);
+        confirmed = editorTextOf(await vaultAdapter.readTextFile(path));
+        if (!containsTextChanges(disk, candidate, confirmed)) throw new Error("The saved note could not be confirmed");
+        }
+        const stored = confirmed;
+        saveState.update({ baseInput: val });
+        saveState.update({ savedRevision: revAtSave });
+        saveState.update({ persisted: stored });
+        const sameRevision = saveState.revision === revAtSave;
+        if (sameRevision) dirtyStore.set(path, false, saveState.id);
+        if (current() && sameRevision) {
+          const session = sessionRef.current;
+          const live = session?.view.state.doc.toString() ?? contentRef.current;
+          if (live === val) {
+            session?.applyExternalText(stored);
+            contentRef.current = stored;
+            setContent(stored);
+            saveState.update({ baseInput: stored });
+            saveState.update({ dirty: false });
+            dirtyStore.set(path, false, saveState.id);
+            // Nothing was written, so nothing was learnt about a conflict.
+            if (!conflictSession && !unchanged) setConflictInfo(null);
+          }
+        }
+        if (draftVault) {
+          const { clearDraft } = await import("../services/draftJournal");
+          await clearDraft(draftVault, path, revAtSave, saveState.id);
+          const recovered = saveState.recoveredDraft;
+          if (recovered && sameRevision) {
+            await clearDraft(draftVault, path, recovered.revision, recovered.sessionId);
+            saveState.update({ recoveredDraft: null });
+          }
+        }
+        // No file was touched: no index to refresh, and no "saved" to announce.
+        if (unchanged) return;
+        // The note is committed even if refreshing its derived index fails.
+        try {
+          if (indexer) {
+            const storedPath = conflictSession?.workingCopyPath ?? path;
+            let info: VaultFileInfo;
+            try { info = await vaultAdapter.getFileInfo(storedPath); }
+            catch { info = { path: storedPath, name: storedPath.split(/[/\\]/).pop()!, isDirectory: false, mtime: Date.now(), size: stored.length }; }
+            const metaChanged = await indexer.indexFile(info);
+            if (metaChanged) triggerFileTreeUpdate([path]);
+          }
+          window.dispatchEvent(new CustomEvent("plainva-note-saved", { detail: { path, vaultPath: draftVault } }));
+        } catch (error) { console.error("Could not refresh the saved note index", error); }
+      } catch (error) {
+        const e = error as Error & { conflictPath?: string };
+        console.error("Failed to save file", error);
+        if (current()) {
+          setSaveError(e.message || String(error));
+          if (e.name === "ConflictError") {
+            setConflictInfo({ conflictPath: e.conflictPath ?? "" });
+            toast.warning(t("dialogs.conflictSavedMsg", { path: e.conflictPath ?? ".CONFLICT" }));
+          }
+        }
+        throw error;
+      } finally {
+        saveState.update({ activeWrites: saveState.activeWrites - 1 });
+        if (current()) setIsSaving(saveState.activeWrites > 0);
+      }
+    });
+  };
+
+  const scheduleSave = (getText: () => string) => {
+    if (saveState.transferFrozen) return;
+    if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    if (!activePath || !vaultAdapter) return;
+    const rev = saveState.nextRevision();
+    saveTimeoutRef.current = window.setTimeout(() => {
+      saveTimeoutRef.current = null;
+      void persistText(getText()).catch(() => {});
+    }, 1000); // 1s debounce
+    // Draft journal (P2.4): snapshot the dirty buffer BEFORE the save fires
+    // (400 ms < 1 s) so a hard crash between keystroke and save loses at most
+    // the last snapshot window. A successful save clears the entry up to the
+    // revision it covered; newer snapshots survive (latest wins).
+    if (vaultPath) {
+      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+      const draftVault = vaultPath;
+      const draftPath = activePath;
+      draftTimerRef.current = window.setTimeout(() => {
+        draftTimerRef.current = null;
+        const text = getText();
+        void import("../services/draftJournal")
+          .then(({ recordDraft }) => recordDraft(draftVault, draftPath, text, rev, saveState.id))
+          .catch(() => {});
+      }, 400);
+    }
+  };
+
+  // Session callback: a real (non-external) edit happened in the view.
+  const onDocChanged = (view: EditorView) => {
+    if (saveState.transferFrozen) return;
+    // In the suggestion mode the view holds a COPY (V2): nothing is dirty,
+    // nothing is saved, nothing is journaled - the copy is parked instead.
+    if (suggestingRef.current) {
+      if (activePath) {
+        const copy = view.state.doc.toString();
+        const base = suggestionBase(view.state);
+        suggestParkRef.current.set(activePath, { copy, note: suggestNote, base: base ?? undefined });
+        schedulePark(activePath, base, copy, suggestNote);
+      }
+      return;
+    }
+    saveState.update({ dirty: true });
+    contentRef.current = view.state.doc.toString();
+    if (activePath) dirtyStore.set(activePath, true, saveState.id);
+    // E3: debounce the React-state mirror — the status bar / properties panel
+    // and the read mode read from `content`, the editor itself never does, so
+    // typing no longer re-renders this component per keystroke. Very large
+    // documents mirror less often (P2.10): doc.toString() allocates the WHOLE
+    // document per tick, a visible stall in the multi-MB range.
+    const mirrorDelay = view.state.doc.length > 512_000 ? 2000 : 150;
+    if (contentSyncTimeoutRef.current) window.clearTimeout(contentSyncTimeoutRef.current);
+    contentSyncTimeoutRef.current = window.setTimeout(() => {
+      contentSyncTimeoutRef.current = null;
+      setContent(view.state.doc.toString());
+    }, mirrorDelay);
+    scheduleSave(() => view.state.doc.toString());
+  };
+
+  // Read-mode properties edits have no editor view; save the given text as-is.
+  const applyNonViewEdit = (val: string) => {
+    if (saveState.transferFrozen) return;
+    if (val === contentRef.current) return;
+    saveState.update({ dirty: true });
+    if (activePath) dirtyStore.set(activePath, true, saveState.id);
+    contentRef.current = val;
+    setContent(val);
+    scheduleSave(() => val);
+  };
+
+  // Read-mode task checkbox clicked (P3.1): flip the matching [ ]/[x] marker
+  // in the source and run it through the normal save pipeline.
+  const handleToggleTask = (index: number, checked: boolean) => {
+    const result = toggleTaskAtIndex(contentRef.current, index, checked);
+    if (result.changed) applyNonViewEdit(result.content);
+  };
+  /** A box written as HTML — a checklist in a table cell (finding 2026-09-22). */
+  const handleToggleHtmlBox = (index: number, checked: boolean) => {
+    const result = setHtmlCheckboxChecked(contentRef.current, index, checked);
+    if (result.changed) applyNonViewEdit(result.content);
+  };
+
+  // Print / save as PDF (P3.10): always prints the READ view — from live or
+  // source mode the editor switches to read first (the CM surface with its
+  // widgets does not print usefully), waits one frame for the render, prints.
+  const handleMenuPrint = () => {
+    const printNow = () => {
+      const reader = readScrollRef.current?.querySelector<HTMLElement>(".markdown-reader");
+      if (reader) void printElement(reader);
+    };
+    if (viewMode === "read") {
+      printNow();
+      return;
+    }
+    setViewMode("read");
+    // Two frames: one for React to commit, one for the reader to lay out.
+    requestAnimationFrame(() => requestAnimationFrame(printNow));
+  };
+
+  // "Export as Markdown…" (issue #6): saved-state copy via the OS save dialog.
+  const handleMenuExportMarkdown = () => {
+    if (!activePath || !vaultAdapter) return;
+    void import("../services/exportNote")
+      .then(({ exportNoteAsMarkdown }) => exportNoteAsMarkdown(vaultAdapter, activePath))
+      .catch((e) => { console.error("[Editor] markdown export failed", e); toast.error(t("editor.exportFailed")); });
+  };
+
+  // Send via email (mail-client E5): the LIVE document (view = source of truth)
+  // opens the compose dialog — inline as the body, or as a .md attachment.
+  const currentDocText = () => sessionRef.current?.view?.state.doc.toString() ?? "";
+  const noteTitleFromPath = () => (activePath?.split("/").pop() ?? "").replace(/\.md$/i, "");
+  const handleMenuSendMail = () => {
+    if (!activePath) return;
+    // Strip the YAML frontmatter from the body (it must not travel in the mail)
+    // and lift a reply-as-note `to:` into the recipient field.
+    const text = currentDocText();
+    window.dispatchEvent(new CustomEvent("plainva-compose-mail", { detail: { subject: noteTitleFromPath(), markdown: stripFrontmatter(text), to: frontmatterToAddress(text) ?? undefined } }));
+  };
+  const handleMenuSendMailAttachment = () => {
+    if (!activePath) return;
+    const bytes = new TextEncoder().encode(currentDocText());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const name = activePath.split("/").pop() ?? "note.md";
+    window.dispatchEvent(
+      new CustomEvent("plainva-compose-mail", {
+        detail: { subject: noteTitleFromPath(), markdown: "", attachments: [{ name, mime: "text/markdown", contentBase64: btoa(bin) }] },
+      })
+    );
+  };
+
+  const openExternalUrl = (url: string) => {
+    openUrl(url).catch((err) => {
+      toast.error(t("dialogs.openWebLinkErrorMsg", { error: err }));
+    });
+  };
+
+  // Frontmatter edits from the properties panel. The CURRENT text comes from
+  // the view (the source of truth while an editor is mounted) — the `content`
+  // state may lag behind by the E3 debounce and would yield stale offsets.
+  //
+  // Only what stands in front of the note's text is exchanged: the properties
+  // block, and with it a byte order mark the note starts with. A block that got
+  // its first entry, lost its last one or merely changed is one and the same
+  // step — and the empty block `---` on `---` is a block here like anywhere
+  // else: it used to count as none, so the next entry landed in a second block
+  // on top of it.
+  const handlePropertiesChange = (newContent: string) => {
+    const view = sessionRef.current?.view;
+    if (view) {
+      const current = view.state.doc.toString();
+      const oldBlock = frontmatterSpan(current);
+      const newBlock = frontmatterSpan(newContent);
+      const headEnd = (text: string, block: typeof oldBlock) => block?.end ?? (text.charCodeAt(0) === 0xfeff ? 1 : 0);
+
+      if (current.trim() === "") {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: newContent },
+          selection: { anchor: newContent.length }
+        });
+      } else if (oldBlock || newBlock) {
+        view.dispatch({
+          changes: { from: 0, to: headEnd(current, oldBlock), insert: newContent.slice(0, headEnd(newContent, newBlock)) }
+        });
+      } else {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: newContent }
+        });
+      }
+    } else {
+      applyNonViewEdit(newContent);
+    }
+  };
+
+  // Publish the live document to the shared channel (status bar + right-sidebar
+  // Properties read from it) and bridge frontmatter edits back into this editor.
+  useEffect(() => {
+    // The GLOBAL channel is only driven by the focused pane (status bar +
+    // right-sidebar Properties), so split panes don't fight over it. A scoped
+    // channel (a floating peek) always publishes — it drives its own inline
+    // Properties, independent of pane focus.
+    if (ownsGlobalStats && !isActivePane) return;
+    channel.set({ path: activePath, content: activePath ? content : "", kind: activePath ? "markdown" : "none" });
+  }, [activePath, content, isActivePane, channel, ownsGlobalStats]);
+  // Register a stable wrapper so the channel doesn't need re-registration on
+  // every render (handlePropertiesChange is a fresh closure each time).
+  const handlePropertiesChangeRef = useRef(handlePropertiesChange);
+  useLayoutEffect(() => { handlePropertiesChangeRef.current = handlePropertiesChange; });
+  useEffect(() => {
+    if (ownsGlobalStats && !isActivePane) return;
+    channel.registerApplyFrontmatter((c) => handlePropertiesChangeRef.current(c));
+    return () => channel.registerApplyFrontmatter(null);
+  }, [isActivePane, channel, ownsGlobalStats]);
+
+  // Document icon + header color (W3): derived from the frontmatter block only,
+  // so body edits on every keystroke don't re-parse YAML.
+  const fmBlock = frontmatterBlockOf(content);
+  const docMeta = React.useMemo(() => plainvaMetaFromBlock(fmBlock), [fmBlock]);
+  // OKF 0.2 trust signals (plan P3a): the lifecycle badge in the read header
+  // and the stale banner derive from the same block as the doc meta.
+  const trustSignals = React.useMemo(() => trustSignalsFromBlock(fmBlock), [fmBlock]);
+  const trustBadge = React.useMemo(() => trustBadgeOf(trustSignals), [trustSignals]);
+  const staleSince = React.useMemo(() => staleSinceOf(trustSignals), [trustSignals]);
+  const badgeTexts = React.useMemo(
+    () => ({ statusDraft: t("docHeader.statusDraft"), statusDeprecated: t("docHeader.statusDeprecated") }),
+    [t]
+  );
+
+  // Database context (plan P4): which database this note is a row of, its
+  // parent and its sub-items. Derived from `.base` sources + the link index,
+  // never written back; cached per (path, index version) so switching notes
+  // does not re-parse every base. A failure leaves the bar hidden.
+  const [dbContext, setDbContext] = useState<NoteDatabaseContext>(EMPTY_NOTE_DATABASE_CONTEXT);
+  // Read as three values, not as `vaultContext`: the context object is a new
+  // identity on every provider render, which would rebuild the context (and
+  // re-parse every `.base`) on unrelated state changes.
+  const { vaultAdapter: dbCtxAdapter, queryService: dbCtxQuery, fileTreeVersion: dbCtxVersion } = vaultContext;
+  useEffect(() => {
+    const adapter = dbCtxAdapter;
+    const queryService = dbCtxQuery;
+    const fileTreeVersion = dbCtxVersion;
+    if (!activePath || !adapter || !queryService || isVirtualPath(activePath) || activePath.endsWith(".base")) {
+      setDbContext(EMPTY_NOTE_DATABASE_CONTEXT);
+      return;
+    }
+    let cancelled = false;
+    void loadNoteDatabaseContextCached(adapter, queryService, activePath, fileTreeVersion).then((ctx) => {
+      if (!cancelled) setDbContext(ctx);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePath, dbCtxAdapter, dbCtxQuery, dbCtxVersion]);
+
+  // Current document text: the mounted view is the source of truth; the
+  // `content` state (used in read mode) may lag by the E3 sync debounce.
+  const currentText = () => sessionRef.current?.view.state.doc.toString() ?? content;
+
+  const applyPlainvaValue = (key: "icon" | "header_color", value: string | null) => {
+    try {
+      const base = currentText();
+      const next =
+        value === null
+          ? deleteFrontmatterPath(base, [PLAINVA_NAMESPACE_KEY, key])
+          : setFrontmatterPath(base, [PLAINVA_NAMESPACE_KEY, key], value);
+      if (next !== base) handlePropertiesChange(next);
+    } catch (e) {
+      console.warn("[Editor] updating plainva frontmatter failed", e);
+    }
+  };
+
+  // Icon + tint are written together: emoji picks clear a stale tint, icon-set
+  // picks ("lucide:<name>") persist their color in plainva.icon_color.
+  const applyDocIcon = (value: string | null, color: string | null) => {
+    try {
+      const base = currentText();
+      let next =
+        value === null
+          ? deleteFrontmatterPath(base, [PLAINVA_NAMESPACE_KEY, "icon"])
+          : setFrontmatterPath(base, [PLAINVA_NAMESPACE_KEY, "icon"], value);
+      next =
+        color === null
+          ? deleteFrontmatterPath(next, [PLAINVA_NAMESPACE_KEY, "icon_color"])
+          : setFrontmatterPath(next, [PLAINVA_NAMESPACE_KEY, "icon_color"], color);
+      if (next !== base) handlePropertiesChange(next);
+    } catch (e) {
+      console.warn("[Editor] updating plainva icon failed", e);
+    }
+  };
+
+  // Slash commands `/icon` + `/header color` fire window events; anchor the
+  // picker at the caret (fallback: top-left of the pane). The editor the
+  // person works in answers (editorCommandTarget) — a pinboard entry window
+  // is not the active pane, and the pane behind it must not take its `/icon`.
+  useEffect(() => {
+    const anchorAtCursor = (): { x: number; y: number } => {
+      const view = sessionRef.current?.view;
+      if (view) {
+        const coords = view.coordsAtPos(view.state.selection.main.head);
+        if (coords) return { x: coords.left, y: coords.bottom + 6 };
+      }
+      const rect = readScrollRef.current?.getBoundingClientRect();
+      return { x: (rect?.left ?? 100) + 32, y: (rect?.top ?? 100) + 48 };
+    };
+    const onOpenIcon = () => { if (isCommandTarget()) setIconPicker(anchorAtCursor()); };
+    const onOpenColor = () => { if (isCommandTarget()) setColorPicker(anchorAtCursor()); };
+    const onOpenEmoji = () => { if (isCommandTarget()) setEmojiTextPicker(anchorAtCursor()); };
+    window.addEventListener("plainva-open-icon-picker", onOpenIcon);
+    window.addEventListener("plainva-open-header-color", onOpenColor);
+    window.addEventListener("plainva-open-emoji-picker", onOpenEmoji);
+    return () => {
+      window.removeEventListener("plainva-open-icon-picker", onOpenIcon);
+      window.removeEventListener("plainva-open-header-color", onOpenColor);
+      window.removeEventListener("plainva-open-emoji-picker", onOpenEmoji);
+    };
+  }, [isCommandTarget]);
+
+  const emojiPickerLabels: EmojiPickerLabels = {
+    searchPlaceholder: t("emojiPicker.search"),
+    clearSearch: t("sidebar.clearSearch"),
+    recent: t("emojiPicker.recent"),
+    remove: t("emojiPicker.remove"),
+    noResults: t("emojiPicker.noResults"),
+    modeEmoji: t("emojiPicker.modeEmoji"),
+    modeIcons: t("emojiPicker.modeIcons"),
+    tint: t("emojiPicker.tint"),
+    tintDefault: t("emojiPicker.tintDefault"),
+    tintCustom: t("emojiPicker.tintCustom"),
+    categories: {
+      smileys: t("emojiPicker.catSmileys"),
+      people: t("emojiPicker.catPeople"),
+      animals: t("emojiPicker.catAnimals"),
+      food: t("emojiPicker.catFood"),
+      activities: t("emojiPicker.catActivities"),
+      travel: t("emojiPicker.catTravel"),
+      objects: t("emojiPicker.catObjects"),
+      symbols: t("emojiPicker.catSymbols"),
+    },
+    iconCategories: {
+      knowledge: t("emojiPicker.iconCategories.knowledge"),
+      work: t("emojiPicker.iconCategories.work"),
+      tech: t("emojiPicker.iconCategories.tech"),
+      people: t("emojiPicker.iconCategories.people"),
+      media: t("emojiPicker.iconCategories.media"),
+      life: t("emojiPicker.iconCategories.life"),
+      nature: t("emojiPicker.iconCategories.nature"),
+      travel: t("emojiPicker.iconCategories.travel"),
+      finance: t("emojiPicker.iconCategories.finance"),
+      symbols: t("emojiPicker.iconCategories.symbols"),
+    },
+  };
+
+  useEffect(() => {
+    const handleInsertText = (e: Event) => {
+      // One editor takes the text (editorCommandTarget): with a pinboard entry
+      // open over an embedded board, the host note took the template too.
+      if (!isCommandTarget()) return;
+      const customEvent = e as CustomEvent<{ text: string; cursorOffset?: number }>;
+      const view = sessionRef.current?.view;
+      if (view) {
+        const textToInsert = customEvent.detail.text;
+        const { cursorOffset } = customEvent.detail;
+        const selection = view.state.selection.main;
+        view.dispatch({
+          changes: {
+            from: selection.from,
+            to: selection.to,
+            insert: textToInsert,
+          },
+          // A template can mark the caret with {{cursor}}; otherwise land at the end.
+          selection: { anchor: selection.from + (cursorOffset ?? textToInsert.length) },
+        });
+        view.focus();
+      }
+    };
+    window.addEventListener("plainva-insert-text", handleInsertText);
+    return () => window.removeEventListener("plainva-insert-text", handleInsertText);
+  }, [isCommandTarget]);
+
+  // Open the graphical table size picker at the caret (triggered by /table).
+  useEffect(() => {
+    const openPicker = () => {
+      if (!isCommandTarget()) return;
+      const view = sessionRef.current?.view;
+      if (!view) return;
+      const pos = view.state.selection.main.head;
+      const coords = view.coordsAtPos(pos);
+      setTablePicker({ x: coords?.left ?? 240, y: coords?.bottom ?? 160, pos });
+    };
+    window.addEventListener("plainva-open-table-picker", openPicker);
+    return () => window.removeEventListener("plainva-open-table-picker", openPicker);
+  }, [isCommandTarget]);
+
+  // Jump to a heading (outline click, #10). Only the active pane responds so a
+  // split doesn't scroll both editors; live/source scroll the CodeMirror view,
+  // read mode scrolls the heading element within THIS pane's container (#4).
+  // Returns false when the place is not there yet (read view not painted,
+  // session not mounted) so a caller may retry a frame later.
+  const jumpToHeading = useCallback((line?: number, slug?: string): boolean => {
+    if (viewMode === 'read') {
+      const root = readScrollRef.current?.querySelector(".markdown-reader");
+      if (!root) return false;
+      const escaped = slug?.replace(/["\\]/g, "\\$&");
+      const selector = escaped ? `[id="${escaped}"]` : `[data-source-line="${line}"]`;
+      const el = Array.from(root.querySelectorAll(selector)).find((element) => element.closest(".markdown-reader") === root);
+      if (!el) return false;
+      (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "start" });
+      return true;
+    }
+    const view = sessionRef.current?.view;
+    if (!view || !line) return false;
+    const ln = view.state.doc.line(Math.max(1, Math.min(line, view.state.doc.lines)));
+    view.dispatch({ selection: { anchor: ln.from }, effects: EditorView.scrollIntoView(ln.from, { y: "start" }) });
+    view.focus();
+    return true;
+  }, [viewMode]);
+  useEffect(() => {
+    const onGoto = (e: Event) => {
+      if (!isActivePane) return;
+      const detail = (e as CustomEvent).detail || {};
+      jumpToHeading(detail.line as number | undefined, detail.slug as string | undefined);
+    };
+    window.addEventListener("plainva-goto-heading", onGoto);
+    return () => window.removeEventListener("plainva-goto-heading", onGoto);
+  }, [isActivePane, jumpToHeading]);
+
+  // An anchor link (issue #92): `[[Note#Heading]]`, `[[#Heading]]`,
+  // `[text](#heading)`, `[[Note#^block]]`. Resolved against THIS pane's
+  // text — the literal heading, then the GitHub slug, then the block id — and
+  // taken to the outline's own jump. A miss says so; before this a click on
+  // `[[#Heading]]` did nothing at all. Retries a few frames, because the
+  // note may still be painting when the park is consumed.
+  const anchorRafRef = useRef(0);
+  const applyAnchor = useCallback((anchor: string) => {
+    const text = sessionRef.current?.view.state.doc.toString() ?? contentRef.current;
+    const hit = resolveAnchor(text, anchor);
+    if (!hit) {
+      toast.warning(t("dialogs.anchorNotFoundMsg", { anchor: anchor.replace(/^#/, ""), defaultValue: 'Section "{{anchor}}" not found.' }));
+      return;
+    }
+    cancelAnimationFrame(anchorRafRef.current);
+    const tick = (left: number) => {
+      if (jumpToHeading(hit.line, hit.slug ?? undefined) || left <= 0) return;
+      anchorRafRef.current = requestAnimationFrame(() => tick(left - 1));
+    };
+    tick(60);
+  }, [jumpToHeading, t]);
+  useEffect(() => {
+    if (!isActivePane) return;
+    const onAnchor = (e: Event) => {
+      const d = (e as CustomEvent).detail as { path?: string } | undefined;
+      if (!d?.path || d.path !== activePath) return;
+      const a = consumePendingAnchorJump(d.path);
+      if (a) applyAnchor(a);
+    };
+    window.addEventListener(ANCHOR_JUMP_EVENT, onAnchor);
+    return () => window.removeEventListener(ANCHOR_JUMP_EVENT, onAnchor);
+  }, [isActivePane, activePath, applyAnchor]);
+  useEffect(() => {
+    if (!isActivePane || isLoading || !activePath) return;
+    const a = consumePendingAnchorJump(activePath);
+    if (!a) return;
+    let tries = 120;
+    const wait = () => {
+      if (loadedPathRef.current !== activePath && tries-- > 0) { anchorRafRef.current = requestAnimationFrame(wait); return; }
+      applyAnchor(a);
+    };
+    anchorRafRef.current = requestAnimationFrame(wait);
+  }, [isActivePane, isLoading, activePath, applyAnchor]);
+  useEffect(() => () => cancelAnimationFrame(anchorRafRef.current), []);
+
+  // Print via the command palette (P3.10): the palette dispatches one window
+  // event; only the active pane prints, like the outline jump above.
+  useEffect(() => {
+    const onPrint = () => { if (isActivePane) handleMenuPrint(); };
+    window.addEventListener("plainva-print-active", onPrint);
+    return () => window.removeEventListener("plainva-print-active", onPrint);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActivePane, viewMode]);
+
+  // Toggle the view mode from the global keyboard shortcuts: Mod+E flips
+  // reading↔editing (restoring the last edit sub-mode), Mod+Shift+E flips live
+  // preview↔source. Only the active pane reacts; managed OKF index.md stays
+  // locked to reading.
+  useEffect(() => {
+    const onToggle = (e: Event) => {
+      // A plain text file has one mode; the shortcuts must not reach past the
+      // hidden buttons and put a `.csv` into the markdown reader.
+      if (!isActivePane || managedIndex || isPlainText) return;
+      const axis = (e as CustomEvent).detail?.axis as "read" | "source" | undefined;
+      let next: EditorViewMode | null = null;
+      if (axis === "read") {
+        if (viewMode === "read") next = lastEditModeRef.current || "live";
+        else { lastEditModeRef.current = viewMode; next = "read"; }
+      } else if (axis === "source") {
+        next = viewMode === "source" ? "live" : "source";
+      }
+      if (next && next !== viewMode) {
+        setViewMode(next);
+        if (activePath) rememberSessionViewMode(activePath, next);
+      }
+    };
+    window.addEventListener("plainva-toggle-view-mode", onToggle);
+    return () => window.removeEventListener("plainva-toggle-view-mode", onToggle);
+  }, [isActivePane, managedIndex, isPlainText, viewMode, activePath]);
+
+  // Rename the active note from the global F2 shortcut (mirrors the ⋮ menu,
+  // including the save-flush + link-update chain).
+  useEffect(() => {
+    const onRename = () => { if (isActivePane) void handleMenuRename(); };
+    window.addEventListener("plainva-rename-active", onRename);
+    return () => window.removeEventListener("plainva-rename-active", onRename);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActivePane]);
+
+  // Open the calendar at the caret when the @-menu's "Datum wählen…" is chosen.
+  useEffect(() => {
+    const open = (e: Event) => {
+      const pos = (e as CustomEvent).detail?.pos as number | undefined;
+      const view = sessionRef.current?.view;
+      if (!view || pos == null) return;
+      const coords = view.coordsAtPos(Math.min(pos, view.state.doc.length));
+      setDateMention({ x: coords?.left ?? 240, y: coords?.bottom ?? 160, pos });
+    };
+    window.addEventListener("plainva-open-date-mention", open);
+    return () => window.removeEventListener("plainva-open-date-mention", open);
+  }, []);
+
+  // Insert the chosen date as a dynamic `@YYYY-MM-DD` token at the saved caret.
+  const handleDateMentionSelect = (iso: string) => {
+    const view = sessionRef.current?.view;
+    if (view && dateMention) {
+      const pos = Math.min(dateMention.pos, view.state.doc.length);
+      const token = `@${iso}`;
+      view.dispatch({ changes: { from: pos, insert: token }, selection: { anchor: pos + token.length }, userEvent: "input" });
+      view.focus();
+    }
+    setDateMention(null);
+  };
+
+  // Insert a `![[path]]` base embed at a document position (#8).
+  const embedBaseAtPos = (basePath: string, pos: number) => {
+    const view = sessionRef.current?.view;
+    if (!view) return;
+    const p = Math.min(pos, view.state.doc.length);
+    const text = baseEmbedText(basePath);
+    view.dispatch({ changes: { from: p, insert: text }, selection: { anchor: p + text.length }, userEvent: "input" });
+    view.focus();
+  };
+
+  // Create a new inline `.base` in the current note's folder and embed it.
+  const createAndEmbedBase = useCallback(async (pos: number) => {
+    if (!vaultAdapter || !indexer || !activePath) return;
+    try {
+      const folder = folderOf(activePath);
+      const newPath = await createInlineBase(vaultAdapter, folder, t("editor.inlineBaseDefaultName", { defaultValue: "Datenbank" }), t("database.viewTable", { defaultValue: "Table" }));
+      await applyIndexChanges(indexer, { added: [newPath] });
+      triggerFileTreeUpdate();
+      embedBaseAtPos(newPath, pos);
+    } catch (e) {
+      console.error("Failed to create inline base", e);
+    }
+  }, [vaultAdapter, indexer, activePath, t, triggerFileTreeUpdate]);
+
+  // Open the .base picker (/ menu) or create one directly (@ / slash "new base").
+  useEffect(() => {
+    const openPicker = (e: Event) => { if (isCommandTarget()) setBasePicker({ pos: (e as CustomEvent).detail?.pos ?? 0 }); };
+    const createBase = (e: Event) => { if (isCommandTarget()) createAndEmbedBase((e as CustomEvent).detail?.pos ?? 0); };
+    window.addEventListener("plainva-open-base-picker", openPicker);
+    window.addEventListener("plainva-create-inline-base", createBase);
+    return () => {
+      window.removeEventListener("plainva-open-base-picker", openPicker);
+      window.removeEventListener("plainva-create-inline-base", createBase);
+    };
+  }, [createAndEmbedBase, isCommandTarget]);
+
+  // Wrap the current selection with Markdown markers (selection toolbar, #5).
+  // Selection toolbar (#5). Inline formats TOGGLE: applying again removes the
+  // markers instead of stacking them (feedback). Link always wraps.
+  const applyFormat = (action: FormatAction) => {
+    const view = sessionRef.current?.view;
+    if (!view) return;
+    // Shared with the phone since S18: the six actions must not differ.
+    applySelectionFormat(view, action, () =>
+      toast.info(t("editor.fmtMultilineLink", { defaultValue: "Links können nur innerhalb einer Zeile erstellt werden." })),
+    );
+  };
+
+  useEffect(() => {
+    const onConflict = (event: Event) => {
+      const detail = (event as CustomEvent<{ view?: EditorView }>).detail;
+      if (detail?.view !== sessionRef.current?.view) return;
+      toast.info(t("editor.blockFormatConflict", { defaultValue: "Eine Zeile kann nicht gleichzeitig Überschrift und Aufgabe sein. Nutze Fett für einen hervorgehobenen Aufgabentitel." }));
+    };
+    window.addEventListener("plainva-editor-block-format-conflict", onConflict);
+    return () => window.removeEventListener("plainva-editor-block-format-conflict", onConflict);
+  }, [t]);
+
+  // Resolve a clicked in-app link and open it. Shared by the wiki-link plugin
+  // and the rendered table-cell links (tableLinkHandlers).
+  //
+  // `kind` matters (issue #61). A WIKI target is a name the index resolves, and
+  // a miss there is an invitation to create the note (Obsidian parity,
+  // 2026-07-18). A relative MARKDOWN target is a path on disk: it gets resolved
+  // against this note's folder, and a miss is a missing file — never a new note
+  // called `../_resources/x.mp3.md`.
+  const openWikiTarget = async (linkText: string, newTab: boolean, kind?: LinkKind, anchor?: string | null) => {
+    if (!onOpenPath || !queryService) return;
+
+    // The anchor (issue #92) either arrives separately (the wiki-link plugin
+    // splits it) or still sits in the text (a table cell, a markdown href).
+    const split = splitLinkAnchor(linkText);
+    const anchorPart = anchor ?? split.anchor;
+    // `[[#Heading]]`, `[text](#heading)`: a place in THIS note.
+    if (!split.target && anchorPart) {
+      applyAnchor(anchorPart);
+      return;
+    }
+
+    if (kind === "markdown" && activePath && isVaultPathLink(linkText)) {
+      const target = resolveRelativeTarget(activePath, linkText);
+      if (target) {
+        // Same rule the reading view uses — one function, two renderers.
+        const outcome = vaultAdapter
+          ? await planRelativeLinkOpen(target, (p) => vaultAdapter.exists(p))
+          : { action: "notFound" as const, path: target.path };
+        if (outcome.action === "open") {
+          onOpenPath(outcome.path, newTab);
+          if (target.anchor) requestAnchorJump(outcome.path, target.anchor);
+        }
+        else if (outcome.action === "revealFolder") window.dispatchEvent(new CustomEvent("plainva-reveal-folder", { detail: { path: outcome.path } }));
+        else toast.warning(t("dialogs.linkNotFoundMsg", { target: outcome.path }));
+        return;
+      }
+    }
+
+    const searchTarget = split.target;
+
+    // Where the link leads is the link rule's answer (`resolveNotePath`) — the
+    // one the reading view, the graph and the phone give for the same text.
+    const resolved = await queryService.resolveNotePath(searchTarget, activePath ?? undefined);
+    if (resolved) {
+      onOpenPath(resolved, newTab);
+      // Parked under the path: the pane that shows the note — this one after
+      // the switch, or a fresh tab — takes it once the text is in.
+      if (anchorPart) requestAnchorJump(resolved, anchorPart);
+    } else {
+      // Target note doesn't exist yet — create it (Obsidian parity, maintainer
+      // 2026-07-18). App owns the write/index/open (+ optional confirm).
+      window.dispatchEvent(new CustomEvent("plainva-create-note-from-link", { detail: { target: searchTarget, hostPath: activePath, newTab } }));
+    }
+  };
+
+  // Block handle menu + drag reorder (#7).
+  useEffect(() => {
+    const onMenu = (e: Event) => {
+      const d = (e as CustomEvent).detail as { from: number; x: number; y: number };
+      setBlockMenu({ from: d.from, x: d.x, y: d.y });
+    };
+    const onMove = (e: Event) => {
+      const d = (e as CustomEvent).detail as { from: number; targetFrom: number };
+      const view = sessionRef.current?.view;
+      if (!view) return;
+      // Shared with the mobile shell (R1.2): list-separator guards included.
+      performBlockMove(view, d.from, d.targetFrom);
+    };
+    window.addEventListener("plainva-open-block-menu", onMenu);
+    window.addEventListener("plainva-move-block", onMove);
+    return () => {
+      window.removeEventListener("plainva-open-block-menu", onMenu);
+      window.removeEventListener("plainva-move-block", onMove);
+    };
+  }, []);
+
+  const handleBlockAction = (action: BlockAction) => {
+    const view = sessionRef.current?.view;
+    if (view && blockMenu) applyBlockAction(view, blockMenu.from, action);
+    setBlockMenu(null);
+    view?.focus();
+  };
+
+  // Smart paste (#10), OS file drop (P3.2) and the file picker (#56) share one
+  // import: the file is copied into the attachment folder, images embed as
+  // ![[…]], everything else links as [[…]]. Dropped, copied and picked files
+  // keep their original name (numbered on collision); clipboard bitmaps arrive
+  // without one and get a timestamp. The naming and the reference live in
+  // @plainva/ui so the phone produces the same thing — it used to write
+  // `![[Report.pdf]]` and draw a broken image for it.
+  const importBytesAtSelection = async (file: { name: string; mime: string; bytes: Uint8Array }) => {
+    const view = sessionRef.current?.view;
+    if (!view || !vaultAdapter || !activePath) return;
+    try {
+      // The folder is a setting now (S17). It used to be "beside the note",
+      // which scatters attachments across every folder that ever received one
+      // and leaves them behind when the note moves. An empty setting keeps the
+      // old behaviour on purpose.
+      const configured = (await getSettingsStore().then((st) => st.get<string>(attachmentFolderKey(vaultPath ?? "")))) ?? "Attachments";
+      const { path, insert } = await importAttachment(
+        file,
+        { configuredFolder: configured, noteFolder: folderOf(activePath) },
+        {
+          exists: (candidate) => vaultAdapter.exists(candidate),
+          createDir: (dir) => vaultAdapter.createDir(dir),
+          writeBinaryFile: (p, bytes) => vaultAdapter.writeBinaryFile(p, bytes),
+        },
+      );
+      if (indexer) { await indexer.indexPath(path); triggerFileTreeUpdate([path]); }
+      const sel = view.state.selection.main;
+      view.dispatch({ changes: { from: sel.from, to: sel.to, insert }, selection: { anchor: sel.from + insert.length }, userEvent: "input" });
+    } catch (e) {
+      console.error("Failed to import file", e);
+      toast.error(t("editor.fileImportFailed", { name: file.name || "?" }));
+    }
+  };
+
+  const importFileAtSelection = async (file: File) =>
+    importBytesAtSelection({ name: file.name || "", mime: file.type, bytes: new Uint8Array(await file.arrayBuffer()) });
+
+  /**
+   * Attach a file from the computer (issue #56). Until now dragging from the
+   * file manager was the ONLY way to get an arbitrary file into a note — a
+   * gesture nobody discovers from inside the app, and one that a maximised
+   * window makes awkward.
+   *
+   * The dialog gives paths, not File objects, so the bytes come from plugin-fs
+   * and the MIME type is left empty on purpose: importAttachment falls back to
+   * the file extension, which is the only signal a path carries.
+   */
+  const attachFile = useStableHandler(async () => {
+    if (!vaultAdapter || !activePath) return;
+    let picked: string | string[] | null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      picked = await open({ multiple: true, title: t("editor.attachFile", { defaultValue: "Datei anhängen…" }) });
+    } catch (e) {
+      console.error("Failed to open the file dialog", e);
+      return;
+    }
+    if (!picked) return; // Dismissed.
+    const paths = Array.isArray(picked) ? picked : [picked];
+    for (const p of paths) {
+      const name = p.split(/[/\\]/).pop() ?? p;
+      try {
+        const bytes = await readFile(p);
+        await importBytesAtSelection({ name, mime: "", bytes });
+      } catch (e) {
+        console.error("Failed to read the picked file", e);
+        toast.error(t("editor.attachFileFailed", { name, error: errorText(e) }));
+      }
+    }
+  });
+
+  // The slash command reaches every mounted editor, so only the focused pane
+  // may answer — in a split the file would otherwise land wherever the first
+  // listener happened to be. Its own effect (rather than a line in the picker
+  // effect above) because `attachFile` is declared down here: a const is not
+  // hoisted, and reading it earlier is a runtime error, not a lint nicety.
+  useEffect(() => {
+    const onAttachFile = () => { if (isCommandTarget()) void attachFile(); };
+    window.addEventListener("plainva-attach-file", onAttachFile);
+    return () => window.removeEventListener("plainva-attach-file", onAttachFile);
+  }, [isCommandTarget, attachFile]);
+
+  const handlePaste = (event: ClipboardEvent, view: EditorView): boolean => {
+    const cd = event.clipboardData;
+    if (!cd) return false;
+    const sel = view.state.selection.main;
+    // The decision is shared with the phone (S17) so a paste means the same
+    // thing on both; only the storing differs.
+    const plan = planPaste(Array.from(cd.files || []), cd.getData("text/plain"), {
+      empty: sel.empty,
+      text: view.state.sliceDoc(sel.from, sel.to),
+    });
+    if (plan.kind === "file" && vaultAdapter && activePath) {
+      event.preventDefault();
+      void importFileAtSelection(plan.file);
+      return true;
+    }
+    if (plan.kind === "link") {
+      event.preventDefault();
+      view.dispatch({ changes: { from: sel.from, to: sel.to, insert: plan.insert }, selection: { anchor: sel.from + plan.insert.length }, userEvent: "input" });
+      return true;
+    }
+    return false;
+  };
+
+  // OS file drop into the editor (P3.2): the sibling of smart paste — every
+  // switcher tries dragging a file from the Explorer as one of the first
+  // things. Text drags (CodeMirror selection drags) carry no files.
+  const handleDrop = (event: DragEvent, view: EditorView): boolean => {
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0 || !vaultAdapter || !activePath) return false;
+    event.preventDefault();
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos != null) view.dispatch({ selection: { anchor: pos } });
+    void (async () => {
+      for (const file of files) {
+        await importFileAtSelection(file);
+      }
+    })();
+    return true;
+  };
+
+  // Insert a GFM table of the chosen size at the saved caret position.
+  const handleTableSelect = (rows: number, cols: number) => {
+    const view = sessionRef.current?.view;
+    if (view && tablePicker) {
+      const pos = Math.min(tablePicker.pos, view.state.doc.length);
+      const docLen = view.state.doc.length;
+      const built = buildMarkdownTable(rows, cols, t("editor.tableColumn", { defaultValue: "Spalte" }));
+      const prev = pos >= 1 ? view.state.sliceDoc(pos - 1, pos) : "";
+      const prevPrev = pos >= 2 ? view.state.sliceDoc(pos - 2, pos - 1) : "";
+      const next = pos < docLen ? view.state.sliceDoc(pos, pos + 1) : "";
+      const nextNext = pos + 1 < docLen ? view.state.sliceDoc(pos + 1, pos + 2) : "";
+      const { insert, caretOffset } = planTableInsertion(built.text, prev, prevPrev, next, nextNext);
+      // Land the caret on the line after the table so it renders as a widget
+      // right away (TS3: cells are edited by clicking them, not the raw source).
+      const caret = Math.min(pos + caretOffset, docLen + insert.length);
+      view.dispatch({
+        changes: { from: pos, insert },
+        selection: { anchor: caret },
+        userEvent: "input",
+      });
+      view.focus();
+    }
+    setTablePicker(null);
+  };
+
+  // Open the table row/column context menu (dispatched by the live table widget
+  // on right-click). Coordinates are viewport-relative.
+  useEffect(() => {
+    const open = (e: Event) => {
+      const d = (e as CustomEvent).detail as {
+        x: number; y: number; from: number; to: number;
+        kind: "header" | "body"; rowIndex: number; colIndex: number; align: TableAlignValue;
+      };
+      setTableMenu(d);
+    };
+    window.addEventListener("plainva-open-table-menu", open);
+    return () => window.removeEventListener("plainva-open-table-menu", open);
+  }, []);
+
+  /**
+   * The widget the reader asked to comment on (Stufe E, E1).
+   *
+   * A widget click carries no text selection, and selecting the widget's range
+   * instead would flip live preview back to raw Markdown - the very view the
+   * reader was pointing at. So the target is parked here and `postComment`
+   * prefers it over the live selection.
+   */
+  const commentTargetRef = useRef<{ from: number; to: number; display: AnchorFrameHint; anchor?: WorkspaceCommentAnchor } | null>(null);
+  /** Frontmatter key a comment was started on, parked until the composer posts. */
+  const propertyTargetRef = useRef<string | null>(null);
+
+  /**
+   * Start a comment on a frontmatter property (plan Stufe E, section E2).
+   *
+   * The Properties panel is NOT rendered by this editor - the right sidebar and
+   * a peek window render it - so the request arrives through
+   * `propertyCommentStore`, which compares its path against ours before it lets
+   * anything through.
+   *
+   * Parks the KEY, not a range: a property has none, and the two routes must not
+   * be folded together (see `postComment`).
+   */
+  const requestPropertyComment = useCallback((key: string) => {
+    propertyTargetRef.current = key;
+    commentTargetRef.current = null;
+    const value = readFrontmatterPath(contentRef.current, [key]);
+    const shown = propertyValueText(value);
+    // The column shows a quote to compose against. A value that has no short
+    // reading leaves the key, which is what the anchor stores too.
+    setSelectionQuote(shown.length > 0 ? shown : key);
+  }, []);
+
+  // Publish the counts of the note we show, keyed BY that path: a peek on
+  // another note must never inherit them. Publishing is a no-op on unchanged
+  // input, so this effect cannot loop through the subscribers.
+  useEffect(() => {
+    if (!activePath || !workspaceCanReadComments) {
+      propertyCommentStore.clear();
+      return;
+    }
+    propertyCommentStore.publish(activePath, propertyCommentCounts, workspaceCanComment && !workspaceReadOnly);
+  }, [activePath, workspaceCanReadComments, workspaceCanComment, workspaceReadOnly, propertyCommentCounts]);
+
+  useEffect(() => {
+    propertyCommentStore.registerRequest(requestPropertyComment);
+    return () => propertyCommentStore.registerRequest(null);
+  }, [requestPropertyComment]);
+
+  // The parked property request (finding 2026-09-04), once the note's text is
+  // here: the composer quotes the value, and quoting the key because the file
+  // had not loaded yet would be a worse first impression than one frame later.
+  useEffect(() => {
+    if (!pendingPropertyJump || content.length === 0) return;
+    requestPropertyComment(pendingPropertyJump);
+    setPendingPropertyJump(null);
+  }, [pendingPropertyJump, content, requestPropertyComment]);
+
+  // A closed editor leaves no counts behind: the panel outlives it (the sidebar
+  // keeps rendering), and a stale number would point at a note nobody has open.
+  useEffect(() => () => propertyCommentStore.clear(), []);
+
+  const requestWidgetComment = useCallback((req: { from: number; to: number; display: AnchorFrameHint }) => {
+    const view = sessionRef.current?.view;
+    const source = view?.state.doc.toString();
+    commentTargetRef.current = source === undefined ? req : { ...req, anchor: buildCommentAnchor(source, req.from, req.to, mintAnchorMarkerId(source), req.display) };
+    // The column shows a quote to compose against; a widget has none of its own,
+    // so it borrows the Markdown it replaces.
+    if (view) setSelectionQuote(view.state.sliceDoc(req.from, Math.min(req.to, req.from + 120)));
+    // The compose box lives in the column: asking to comment opens it (K3).
+    setCommentColumnSession("open");
+  }, []);
+
+  // Apply a context-menu action. The model is re-parsed from the current
+  // document (the source of truth) so the mutation always targets fresh state.
+  const handleTableMenuAction = (action: TableMenuAction) => {
+    const view = sessionRef.current?.view;
+    if (view && tableMenu) {
+      const { from, to, kind, rowIndex, colIndex } = tableMenu;
+      const safeTo = Math.min(to, view.state.doc.length);
+      // Comment on the cell (Stufe E, E1). No model parse: the anchor covers the
+      // table's source range, the coordinates only say which cell to frame.
+      if (action === "cell-comment") {
+        requestWidgetComment({ from, to: safeTo, display: { kind: "tableCell", row: kind === "header" ? 0 : rowIndex + 1, column: colIndex } });
+        setTableMenu(null);
+        return;
+      }
+      // Delete the whole table (requirement #9): drop the table's source range plus
+      // one trailing newline so no empty line is left behind. No model parse needed.
+      if (action === "table-delete") {
+        let end = safeTo;
+        if (end < view.state.doc.length && view.state.sliceDoc(end, end + 1) === "\n") end++;
+        view.dispatch({ changes: { from, to: end, insert: "" }, userEvent: "input" });
+        view.focus();
+        setTableMenu(null);
+        return;
+      }
+      const model = parseMarkdownTable(view.state.sliceDoc(from, safeTo));
+      if (model) {
+        let next = model;
+        switch (action) {
+          case "row-above": next = insertRow(model, kind === "header" ? 0 : rowIndex); break;
+          case "row-below": next = insertRow(model, kind === "header" ? 0 : rowIndex + 1); break;
+          case "row-delete": next = deleteRow(model, rowIndex); break;
+          case "col-left": next = insertColumn(model, colIndex); break;
+          case "col-right": next = insertColumn(model, colIndex + 1); break;
+          case "col-delete": next = deleteColumn(model, colIndex); break;
+          case "align-left": next = setColumnAlign(model, colIndex, "left"); break;
+          case "align-center": next = setColumnAlign(model, colIndex, "center"); break;
+          case "align-right": next = setColumnAlign(model, colIndex, "right"); break;
+        }
+        view.dispatch({ changes: { from, to: safeTo, insert: serializeTable(next) }, userEvent: "input" });
+        view.focus();
+      }
+    }
+    setTableMenu(null);
+  };
+
+  // Keep the mirror in sync for effects that read the latest content without
+  // depending on it (declared BEFORE the session mount effect: layout effects
+  // run in declaration order).
+  useLayoutEffect(() => { contentRef.current = content; });
+
+  // Jump-to-match from the sidebar search (plan Suche P5/O1). The click parks
+  // the request in the searchJump store — this pane may not even be mounted
+  // yet (lazy Editor, first file open). Two consumers pick it up one-shot:
+  // the poke event (already-mounted pane, incl. "file already open") and the
+  // load effect below (pane mounted/switched after the click). Execution
+  // retries per animation frame until content is loaded and painted; the
+  // selection itself is the highlight.
+  const searchJumpRafRef = useRef(0);
+  const viewModeRef = useRef(viewMode);
+  useEffect(() => { viewModeRef.current = viewMode; });
+  const startSearchJump = useStableHandler((jump: SearchJump) => {
+    cancelAnimationFrame(searchJumpRafRef.current);
+    const tick = (attemptsLeft: number) => {
+      if (attemptsLeft <= 0) return;
+      const retry = () => { searchJumpRafRef.current = requestAnimationFrame(() => tick(attemptsLeft - 1)); };
+      if (loadedPathRef.current !== jump.path) return retry();
+      if (viewModeRef.current === 'read') {
+        // The read view has no lines; a backlink's jump (P7) carries the line
+        // text as its term for exactly this case.
+        if (!jump.term) return;
+        const root = readScrollRef.current;
+        const addressed = resolveSearchJump(contentRef.current, jump);
+        if (jump.from !== undefined && !addressed) { toast.info(t("searchResults.changed")); return; }
+        const range = root ? (addressed && (jump.from !== undefined || jump.line !== undefined) ? findSourceTextRange(root, addressed.from, addressed.to, contentRef.current) : findTextRange(root, jump.term)) : null;
+        if (!range) return retry(); // read view may not have painted yet
+        selectAndRevealRange(range);
+        return;
+      }
+      const view = sessionRef.current?.view;
+      if (!view) return retry(); // session mounts in a layout effect
+      // A backlink names its line (P7); the search names a term.
+      const match = resolveSearchJump(view.state.doc.toString(), jump);
+      if (!match) { if (jump.from !== undefined) toast.info(t("searchResults.changed")); return; }
+      view.dispatch({
+        selection: { anchor: match.from, head: match.to },
+        effects: EditorView.scrollIntoView(match.from, { y: 'center' }),
+      });
+      view.focus();
+    };
+    // A result click can also commit navigation state and replace reader text
+    // nodes. Select after that commit so the native range survives the click.
+    searchJumpRafRef.current = requestAnimationFrame(() => tick(120));
+  });
+  useEffect(() => {
+    if (!isActivePane) return;
+    const onSearchJump = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path?: string } | undefined;
+      const jump = consumePendingSearchJump(detail?.path ?? null);
+      if (jump) startSearchJump(jump);
+    };
+    window.addEventListener('plainva-search-jump', onSearchJump);
+    return () => window.removeEventListener('plainva-search-jump', onSearchJump);
+  }, [isActivePane, startSearchJump]);
+  useEffect(() => {
+    if (!isActivePane || isLoading || !activePath) return;
+    const jump = consumePendingSearchJump(activePath);
+    if (jump) startSearchJump(jump);
+  }, [isActivePane, isLoading, activePath, startSearchJump]);
+  useEffect(() => () => cancelAnimationFrame(searchJumpRafRef.current), []);
+
+  // `{{cursor}}` of a template the note was just created from (plan
+  // Vorlagen-Engine, P3). Same two consumers and the same retry loop as the
+  // search jump above — the pane is usually mounted only AFTER the file was
+  // written. Read mode has no caret, so the jump simply does not apply there.
+  const caretRafRef = useRef(0);
+  const startTemplateCaret = (caret: { path: string; offset: number }) => {
+    cancelAnimationFrame(caretRafRef.current);
+    const tick = (attemptsLeft: number) => {
+      if (attemptsLeft <= 0) return;
+      const retry = () => { caretRafRef.current = requestAnimationFrame(() => tick(attemptsLeft - 1)); };
+      if (loadedPathRef.current !== caret.path) return retry();
+      if (viewModeRef.current === 'read') return;
+      const view = sessionRef.current?.view;
+      if (!view) return retry();
+      // The offset comes from the template text; the note on disk carries the
+      // OKF frontmatter in front of it, so clamp instead of trusting it.
+      const pos = Math.min(Math.max(caret.offset, 0), view.state.doc.length);
+      view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+      view.focus();
+    };
+    tick(120);
+  };
+  useEffect(() => {
+    if (!isActivePane) return;
+    const onCaret = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path?: string } | undefined;
+      const caret = consumePendingTemplateCaret(detail?.path ?? null);
+      if (caret) startTemplateCaret(caret);
+    };
+    window.addEventListener('plainva-template-caret', onCaret);
+    return () => window.removeEventListener('plainva-template-caret', onCaret);
+  }, [isActivePane]);
+  useEffect(() => {
+    if (!isActivePane || isLoading || !activePath) return;
+    const caret = consumePendingTemplateCaret(activePath);
+    if (caret) startTemplateCaret(caret);
+  }, [isActivePane, isLoading, activePath]);
+  useEffect(() => () => cancelAnimationFrame(caretRafRef.current), []);
+
+  // A new path starts without a remembered identity; a reload of the same path
+  // (the vanish check below) keeps the one it had.
+  useEffect(() => { knownIdentityRef.current = null; setVanished(null); }, [activePath]);
+
+  // Load content when activePath changes
+  useEffect(() => {
+    if (!vaultAdapter || !activePath) {
+      loadedPathRef.current = null;
+      saveState.update({ persisted: null });
+      setContent("");
+      setIsLoading(false);
+      setSaveError(null);
+      return;
+    }
+
+    let isMounted = true;
+    loadedPathRef.current = null;
+    saveState.update({ persisted: null });
+    setIsLoading(true);
+    setLoadError(null);
+    setNotText(false);
+    setConflictInfo(null);
+    setDraftOffer(null);
+    if (draftTimerRef.current) { window.clearTimeout(draftTimerRef.current); draftTimerRef.current = null; }
+    // Wait for an in-flight write to this file (P1.7) — loading mid-write
+    // would show the pre-write content and re-save it over the newer text.
+    const inFlight = pendingWriteFor(vaultPath ?? "", activePath);
+    const readAfterWrites = Promise.resolve(inFlight).catch(() => {}).then(async () => {
+      const conflict = await vaultAdapter.getConflictSession?.(activePath);
+      if (isMounted && conflict) setConflictInfo({ conflictPath: conflict.workingCopyPath, working: true, foreignCopySnapshot: conflict.foreignCopySnapshot });
+      return vaultAdapter.readTextFile(conflict?.workingCopyPath ?? activePath);
+    });
+    readAfterWrites.then(text => {
+      if (isMounted) {
+        loadedPathRef.current = activePath;
+        // One rule for both shells (C15, S13; finding 2026-10-08): the editor
+        // gets `\n` text without a byte order mark, the save gets the shape to
+        // put back — the file's own, for a note as for any other text file
+        // (since 2026-10-09) — and a file whose bytes do not agree with its
+        // name is not shown at all. The check runs on the decoded text we
+        // already hold: a 0x00 byte decodes to U+0000, so this is the same
+        // evidence without a second read.
+        const opened = openEditorText(activePath, text);
+        if (!opened) {
+          setNotText(true);
+          setIsLoading(false);
+          return;
+        }
+        saveState.update({ shape: opened.shape });
+        const normalized = opened.text;
+        // The freshly loaded disk state counts as "our" persisted baseline.
+        saveState.update({ persisted: normalized });
+        saveState.update({ baseInput: normalized });
+        contentRef.current = normalized;
+        setContent(normalized);
+        setIsLoading(false);
+        if (vaultAdapter.acknowledgeExternalUpdate) {
+          vaultAdapter.acknowledgeExternalUpdate(activePath).catch(console.error);
+        }
+        // Crash/draft recovery (P2.4): a surviving journal snapshot that
+        // differs from the disk state means an edit never made it to disk
+        // (crash or failed save) — offer it in a banner, never auto-apply.
+        if (vaultPath) {
+          void import("../services/draftJournal").then(async ({ readDraft }) => {
+            const draft = await readDraft(vaultPath, activePath, normalized);
+            // A draft is an editor's text. One journalled before the editor
+            // stopped holding a note's byte order mark still starts with it;
+            // restoring that as it is would write the mark twice.
+            const draftText = draft ? editorTextOf(draft.text) : null;
+            if (isMounted && draft && draftText !== null && draftText !== normalized) {
+              setDraftOffer({ text: draftText, savedAt: draft.savedAt, revision: draft.revision, sessionId: draft.sessionId });
+            }
+          }).catch(() => {});
+        }
+      }
+    }).catch(e => {
+      console.error("Failed to load file content:", e);
+      if (isMounted) {
+        // A missing file is a STATE, never content (issue #34): the error text
+        // used to land in the editor buffer, so the next keystroke made the
+        // autosave write "Fehler beim Laden der Datei." to disk — recreating a
+        // deleted note with the error message as its body. `loadedPathRef`
+        // stays null, which keeps the save path shut.
+        setLoadError(e instanceof Error ? e.message : String(e));
+        setContent("");
+        setIsLoading(false);
+      }
+    });
+
+    return () => { isMounted = false; };
+    // `reloadNonce`: a clean note whose file vanished while open loads again,
+    // and the failed load looks for the file (issue 110, E9).
+  }, [vaultAdapter, activePath, vaultPath, saveState, reloadNonce]);
+
+  // The identity of what was just loaded, kept for the day the file vanishes.
+  useEffect(() => {
+    if (isLoading || loadError || !activePath || loadedPathRef.current !== activePath || !queryService?.db) return;
+    let stale = false;
+    void readIndexedIdentity(queryService.db, activePath)
+      .then((identity) => { if (!stale && identity) knownIdentityRef.current = identity; })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [isLoading, loadError, activePath, queryService]);
+
+  // A file that could not be read is looked for before the missing state is
+  // shown (issue 110, E9) — moved outside Plainva, it sits somewhere else
+  // with the same content. One match at the same modification time (a move
+  // keeps it): the tab follows and says where. Anything less certain: the
+  // card asks. None: the missing state, and the index row is already gone
+  // (searchMissingFile removes it once the file is PROVEN missing). The first
+  // answer comes from the parent folder; a vault-wide pass may still change
+  // it, and the surface updates when it does.
+  const followMovedFile = useStableHandler((from: string, to: string) => {
+    // Every surface that shows an editor can navigate; one that could not
+    // would be left "looking" forever, so it settles on the missing state.
+    if (!onRenamed && !onOpenPath) {
+      setMissingLookup({ kind: "settled", searching: false });
+      return;
+    }
+    toast.info(t("editor.movedFileFollowed", {
+      defaultValue: "Moved outside Plainva. The tab now shows the file in {{folder}}.",
+      folder: movedFolderLabel(to, vaultDisplayName(vaultPath ?? "")),
+    }));
+    // A surface without tab retargeting (the peek window, an auxiliary
+    // window's pane) opens the file where it lives now instead.
+    if (onRenamed) onRenamed(from, to);
+    else onOpenPath?.(to, false);
+  });
+  /**
+   * What a move made in Plainva carries along — bookmarks, pinboard places,
+   * the note's remarks — for a move made elsewhere, once it is proven or the
+   * reader picked the file. Links in other notes stay as they are.
+   */
+  const adoptMove = useStableHandler(async (from: string, to: string) => {
+    if (!vaultAdapter) return;
+    await adoptExternalMove({
+      retargetBookmarks: (f, tt) => retargetDesktopBookmarks(vaultAdapter, f, tt),
+      pinboard: { adapter: vaultAdapter, queryService },
+      reindex: async (paths) => { if (indexer) await applyIndexChanges(indexer, { added: paths }); },
+    }, from, to);
+  });
+  /** One search for this path, shared with every other surface that asks. */
+  const searchFor = useStableHandler((path: string): Promise<MissingFileSearch> | null => {
+    if (!vaultAdapter || !indexer || !queryService?.db) return null;
+    return healMissingNote(path, { exists: (p) => vaultAdapter.exists(p), db: queryService.db, indexer }, vaultPath ?? "",
+      { known: knownIdentityRef.current, onProvenMove: adoptMove });
+  });
+  /** A failed load can be looked into: the lookup below runs for it. */
+  const canLookForMissing = !!(activePath && vaultAdapter && indexer && queryService?.db);
+  useEffect(() => {
+    const path = activePath;
+    const search = loadError && path ? searchFor(path) : null;
+    if (!search || !path) {
+      setMissingLookup(null);
+      return;
+    }
+    let stale = false;
+    setMissingLookup({ kind: "checking" });
+    const apply = (outcome: MissingFileOutcome, searching: boolean) => {
+      // Every answer but "present" changed the index (the stale row went,
+      // the new place came in), and the tree hears of it even when this
+      // editor has moved on meanwhile. Structural: a move made in another
+      // app may have created or emptied folders, which the tree lists from
+      // the disk.
+      if (outcome.kind !== "present") triggerFileTreeUpdate();
+      if (stale) return;
+      const step = planMissingNote(outcome, false);
+      if (step.kind === "follow") {
+        followMovedFile(path, step.to);
+        return;
+      }
+      setMissingLookup(step.kind === "ask" ? { kind: "ambiguous", candidates: step.candidates, searching } : { kind: "settled", searching });
+    };
+    const fail = (e: unknown) => {
+      console.warn("[Editor] looking for a missing file failed", e);
+      if (!stale) setMissingLookup((m) => (m && m.kind !== "checking" ? { ...m, searching: false } : { kind: "settled", searching: false }));
+    };
+    void search.then((found) => {
+      apply(found.first, !!found.settled);
+      found.settled?.then((outcome) => apply(outcome, false), fail);
+    }, fail);
+    return () => { stale = true; };
+    // The lookup belongs to one failed load of one path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadError, activePath]);
+
+  // The file of an OPEN note vanished — the watcher, a reconcile or sync
+  // removed it, or a save found it gone (issue 110, E9). A clean note simply
+  // loads again, and the failed load above looks for it. A note with unsaved
+  // text keeps it on screen and asks above it; if the file turns out moved,
+  // the text is written to the NEW place first and the tab follows.
+  const aliveRef = useRef(true);
+  const activePathRef = useRef(activePath);
+  useEffect(() => { activePathRef.current = activePath; }, [activePath]);
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+  const vanishTimerRef = useRef<number | null>(null);
+  useEffect(() => () => { if (vanishTimerRef.current !== null) window.clearTimeout(vanishTimerRef.current); }, []);
+  const liveText = () => sessionRef.current?.view.state.doc.toString() ?? contentRef.current;
+  /** Writes the unsaved text to where the file lives now, then follows it there. */
+  const carryAndFollow = useStableHandler(async (from: string, to: string, picked: boolean) => {
+    if (!vaultAdapter || !aliveRef.current) return;
+    if (saveTimeoutRef.current !== null) { window.clearTimeout(saveTimeoutRef.current); saveTimeoutRef.current = null; }
+    if (draftTimerRef.current !== null) { window.clearTimeout(draftTimerRef.current); draftTimerRef.current = null; }
+    const shape = saveState.shape;
+    const draft = liveText();
+    const text = shape ? applyTextShape(draft, shape) : draft;
+    const persisted = saveState.persisted;
+    // The new file holds what was last saved (its hash matched), so that is
+    // the base the unsaved text applies to; a different disk merges or keeps
+    // a conflict copy, as every editor save does.
+    const base = persisted === null ? null : shape ? applyTextShape(persisted, shape) : persisted;
+    // Held still while it travels: a keystroke now would land at the old place.
+    sessionRef.current?.setEditable(false);
+    try {
+      await withPendingWrite(vaultPath ?? "", to, async () => {
+        if (vaultAdapter.writeEditorText) {
+          await vaultAdapter.writeEditorText(to, text, base);
+        } else {
+          const disk = await vaultAdapter.readTextFile(to);
+          if (base !== null && disk !== base && disk !== text) throw new Error("The file changed at its new place");
+          await vaultAdapter.writeTextFile(to, text);
+        }
+      });
+      if (indexer) await applyIndexChanges(indexer, { added: [to] }).catch(() => {});
+    } catch (e) {
+      console.error("[Editor] carrying the unsaved text to the moved file failed", e);
+      toast.error(t("editor.saveFailed"));
+      sessionRef.current?.setEditable(!workspaceReadOnly && !saveState.transferFrozen);
+      return;
+    }
+    if (picked) await adoptMove(from, to);
+    // The old place holds nothing any more; its journal entry is settled.
+    saveState.update({ dirty: false });
+    dirtyStore.set(from, false, saveState.id);
+    if (vaultPath) {
+      void import("../services/draftJournal").then(({ clearDraft }) => clearDraft(vaultPath, from, saveState.revision, saveState.id)).catch(() => {});
+    }
+    setVanished(null);
+    followMovedFile(from, to);
+  });
+  /** "Save here again": the reader brings the file back where it was. */
+  const restoreHere = useStableHandler(async () => {
+    const path = activePath;
+    if (!vaultAdapter || !path) return;
+    const shape = saveState.shape;
+    const draft = liveText();
+    try {
+      // The plain write on purpose: the editor save refuses to recreate a
+      // vanished file; this is the reader saying it should.
+      await withPendingWrite(vaultPath ?? "", path, () => vaultAdapter.writeTextFile(path, shape ? applyTextShape(draft, shape) : draft));
+      if (indexer) await applyIndexChanges(indexer, { added: [path] }).catch(() => {});
+    } catch (e) {
+      console.error("[Editor] saving the vanished file back failed", e);
+      toast.error(t("editor.saveFailed"));
+      return;
+    }
+    saveState.update({ persisted: draft });
+    saveState.update({ baseInput: draft });
+    saveState.update({ dirty: false });
+    dirtyStore.set(path, false, saveState.id);
+    setSaveError(null);
+    setVanished(null);
+    if (queryService?.db) {
+      const identity = await readIndexedIdentity(queryService.db, path).catch(() => null);
+      if (identity) knownIdentityRef.current = identity;
+    }
+    if (vaultPath) {
+      void import("../services/draftJournal").then(({ clearDraft }) => clearDraft(vaultPath, path, saveState.revision, saveState.id)).catch(() => {});
+    }
+    triggerFileTreeUpdate([path]);
+  });
+  const lookForVanishedFile = useStableHandler(async (path: string) => {
+    if (!vaultAdapter || path !== activePath || !aliveRef.current || loadError) return;
+    // Another program's atomic save deletes and writes again — the file may
+    // simply be back.
+    if (await vaultAdapter.exists(path).catch(() => true)) return;
+    if (!aliveRef.current || path !== activePath) return;
+    if (!saveState.dirty) {
+      // Nothing unsaved: the load's own way — it fails, and looks.
+      setReloadNonce((n) => n + 1);
+      return;
+    }
+    const search = searchFor(path);
+    if (!search) return;
+    setVanished({ kind: "checking" });
+    const apply = (outcome: MissingFileOutcome, searching: boolean) => {
+      if (outcome.kind !== "present") triggerFileTreeUpdate();
+      if (!aliveRef.current || path !== activePathRef.current) return;
+      const step = planMissingNote(outcome, true);
+      if (step.kind === "stay") {
+        // Back after all: the failed save is simply made again.
+        setVanished(null);
+        scheduleSave(liveText);
+      } else if (step.kind === "follow") {
+        void carryAndFollow(path, step.to, false);
+      } else if (step.kind === "ask") {
+        setVanished({ kind: "ask", candidates: step.candidates, searching });
+      } else {
+        setVanished({ kind: "gone", searching });
+      }
+    };
+    try {
+      const found = await search;
+      apply(found.first, !!found.settled);
+      found.settled?.then((outcome) => apply(outcome, false), () => setVanished((v) => (v && v.kind !== "checking" ? { ...v, searching: false } : v)));
+    } catch (e) {
+      console.warn("[Editor] looking for a vanished file failed", e);
+      setVanished({ kind: "gone", searching: false });
+    }
+  });
+  /**
+   * Entry point for every report that the open file may be gone. Deferred a
+   * moment: a deletion made in Plainva closes this tab right after, and a
+   * watcher batch indexes the other side of a move in the same breath.
+   */
+  const noticeVanished = useStableHandler((path: string) => {
+    // Once asked, the question stands until the reader answers it; the saves
+    // that keep failing meanwhile do not search again.
+    if (path !== activePath || vanishTimerRef.current !== null || loadError || vanished) return;
+    vanishTimerRef.current = window.setTimeout(() => {
+      vanishTimerRef.current = null;
+      void lookForVanishedFile(path);
+    }, 400);
+  });
+  useEffect(() => { vanishCheckRef.current = noticeVanished; return () => { vanishCheckRef.current = null; }; }, [noticeVanished]);
+  // A save that failed because the file is gone hands over to the vanish
+  // check: the editor save refuses to write it back at the old place.
+  useEffect(() => {
+    const path = activePath;
+    if (!saveError || !path || !vaultAdapter) return;
+    let stale = false;
+    void vaultAdapter.exists(path).then((there) => { if (!stale && !there) noticeVanished(path); }).catch(() => {});
+    return () => { stale = true; };
+  }, [saveError, activePath, vaultAdapter, noticeVanished]);
+  // A save that landed: the file is there — a vanished-file question is
+  // answered — and what the index holds for it now is what it knows.
+  useEffect(() => {
+    const onSaved = (event: Event) => {
+      const d = (event as CustomEvent<{ path?: string; vaultPath?: string }>).detail;
+      if (!activePath || d?.path !== activePath || (d.vaultPath !== undefined && d.vaultPath !== (vaultPath ?? ""))) return;
+      setVanished(null);
+      if (queryService?.db) {
+        void readIndexedIdentity(queryService.db, activePath).then((identity) => { if (identity) knownIdentityRef.current = identity; }).catch(() => {});
+      }
+    };
+    window.addEventListener("plainva-note-saved", onSaved);
+    return () => window.removeEventListener("plainva-note-saved", onSaved);
+  }, [activePath, vaultPath, queryService]);
+
+  // Listen for external updates
+  useEffect(() => {
+    // Adopt externally produced text WITHOUT replacing the whole document
+    // (P5 jitter fix): identical content is a full no-op (the local watcher
+    // also sees our own saves, and sync cycles often rewrite unchanged files),
+    // otherwise the session dispatches only the changed range — annotated as
+    // external (no dirty/save loop) and excluded from the undo history (E4),
+    // with caret/scroll surviving instead of a full-doc rebuild jump.
+    const applyExternalText = (text: string, reason: string) => {
+      const session = sessionRef.current;
+      if (session) {
+        if (!session.applyExternalText(text)) {
+          console.log(`[Editor] ${reason} for ${activePath} matches the editor content — nothing to reload`);
+          return;
+        }
+        console.log(`[Editor] adopting ${reason} for ${activePath} as a minimal range change`);
+      } else {
+        // Read mode has no CodeMirror session and re-parses the WHOLE markdown
+        // on a content change. Identical disk content (the 15 s no-op sync
+        // tick / the watcher echo of our own save) must be a no-op here too —
+        // otherwise the re-parse remounts the Mermaid diagram and it flickers.
+        // (Live mode already gets this guard from session.applyExternalText.)
+        if (text === contentRef.current) {
+          console.log(`[Editor] ${reason} for ${activePath} matches the read view — nothing to reload`);
+          return;
+        }
+        console.log(`[Editor] adopting ${reason} for ${activePath}`);
+      }
+      contentRef.current = text;
+      setContent(text);
+    };
+
+    const current = () => saveState.isActive() && !saveState.transferFrozen;
+    const handleExternalUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<{ path: string; vaultPath?: string }>).detail;
+      if (!activePath || !vaultAdapter || detail.path !== activePath
+        || (detail.vaultPath && detail.vaultPath !== vaultPath)) return;
+      const path = activePath;
+      const capturedSession = sessionRef.current;
+      void withPendingWrite(vaultPath ?? "", path, async () => {
+        if (!current() || sessionRef.current !== capturedSession) return;
+        const conflict = await vaultAdapter.getConflictSession?.(path);
+        if (current()) setConflictInfo(conflict ? { conflictPath: conflict.workingCopyPath, working: true, foreignCopySnapshot: conflict.foreignCopySnapshot } : null);
+        const raw = await vaultAdapter.readTextFile(conflict?.workingCopyPath ?? path);
+        if (!current() || sessionRef.current !== capturedSession) return;
+        // The shape is that of the file as it lies there NOW: another program
+        // may have changed the line ends along with the text, and neither the
+        // next save nor a conflict copy beside the file may turn them back.
+        const reopened = openEditorText(path, raw);
+        if (reopened) saveState.update({ shape: reopened.shape });
+        const disk = editorTextOf(raw);
+        const draft = capturedSession?.view.state.doc.toString() ?? contentRef.current;
+        const revision = saveState.revision;
+        const action = saveState.dirty
+          ? decideDirtyExternalUpdate({ disk, draft, lastPersisted: saveState.persisted }) : "realign";
+        if (action === "own-echo") return;
+        if (action !== "realign") {
+          if (!vaultAdapter.preserveConflict) throw new Error("Conflict-safe editing is unavailable; the pending draft has been retained");
+          const shape = saveState.shape;
+          const kept = await vaultAdapter.preserveConflict(path, shape ? applyTextShape(draft, shape) : draft, "editor-external");
+          if (current()) setConflictInfo({ conflictPath: kept.workingCopyPath, working: true, foreignCopySnapshot: kept.foreignCopySnapshot });
+          // The scheduled save still owns any typing that arrived while
+          // preserving. It will update this same working copy.
+          return;
+        }
+        if (!current() || sessionRef.current !== capturedSession || saveState.revision !== revision
+          || (capturedSession?.view.state.doc.toString() ?? contentRef.current) !== draft) return;
+        if (saveTimeoutRef.current !== null) {
+          window.clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+        if (draftTimerRef.current !== null) {
+          window.clearTimeout(draftTimerRef.current);
+          draftTimerRef.current = null;
+        }
+        // Already queued snapshots of this revision are obsolete only AFTER
+        // its preservation succeeded and the same buffer adopted the disk.
+        saveState.update({ discardedRevision: revision });
+        saveState.update({ baseInput: disk });
+        saveState.update({ persisted: disk });
+        applyExternalText(disk, "external modification");
+        saveState.update({ dirty: false });
+        dirtyStore.set(path, false, saveState.id);
+        if (vaultPath) {
+          const { clearDraft } = await import("../services/draftJournal");
+          await clearDraft(vaultPath, path, revision, saveState.id);
+        }
+        await vaultAdapter.acknowledgeExternalUpdate?.(path);
+      }).catch(async (error) => {
+        if (!current()) return;
+        // The file is gone — moved or deleted outside Plainva, or by sync
+        // (issue 110, E9). That is not a failed save; the vanish check takes
+        // over. Asked by existence, because a client window's error comes
+        // over the bus without its class.
+        if (!(await vaultAdapter.exists(path).catch(() => true))) {
+          vanishCheckRef.current?.(path);
+          return;
+        }
+        console.error("[Editor] external update could not be completed", error);
+        if (current()) setSaveError(error instanceof Error ? error.message : String(error));
+      });
+    };
+
+    // A merge notification is a disk update, not permission to replace a
+    // newer buffer synchronously while its original save is still finishing.
+    const handleAutoMerged = handleExternalUpdate;
+
+    const handleFlushRequest = (e: Event) => {
+      const request = (e as CustomEvent<SaveFlushRequest>).detail;
+      if (request.path !== activePath || (request.vaultPath !== undefined && request.vaultPath !== vaultPath)) return;
+      const flush = async () => {
+        if (saveState.transferFrozen) throw new Error("The note is being transferred to another window");
+        while (current()) {
+          if (saveTimeoutRef.current !== null) {
+            window.clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+          }
+          if (!saveState.dirty) break;
+          const view = sessionRef.current?.view;
+          await persistText(view ? view.state.doc.toString() : contentRef.current);
+        }
+        if (activePath) await waitForPendingWrites(activePath, vaultPath ?? "");
+      };
+      request.waitUntil(flush());
+    };
+
+    const handleFileRestored = handleExternalUpdate;
+    const handleReloadFile = (e: Event) => {
+      const { path } = (e as CustomEvent<{ path: string }>).detail;
+      if (path !== activePath || !vaultAdapter) return;
+      if (saveState.dirty) {
+        toast.warning(t("tabMenu.reloadDirty"));
+        return;
+      }
+      handleExternalUpdate(e);
+    };
+
+    window.addEventListener("plainva-external-update", handleExternalUpdate);
+    window.addEventListener("plainva-auto-merged", handleAutoMerged);
+    window.addEventListener("plainva-flush-pending-save", handleFlushRequest);
+    window.addEventListener("plainva-file-restored", handleFileRestored);
+    window.addEventListener("plainva-reload-file", handleReloadFile);
+    return () => {
+      window.removeEventListener("plainva-external-update", handleExternalUpdate);
+      window.removeEventListener("plainva-auto-merged", handleAutoMerged);
+      window.removeEventListener("plainva-flush-pending-save", handleFlushRequest);
+      window.removeEventListener("plainva-file-restored", handleFileRestored);
+      window.removeEventListener("plainva-reload-file", handleReloadFile);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath, vaultAdapter, saveState]);
+
+  // ---- CodeMirror session (P1/P2) ------------------------------------------
+  // Mutable host bindings for the session's stable extensions. Refreshed on
+  // every render, BEFORE the mount effect below (declaration order). This is
+  // the latest-ref pattern: deliberately no dependency array, nothing is
+  // called here — only stored for the session to read later.
+  const sessionDepsRef = useRef<EditorSessionDeps>(null as unknown as EditorSessionDeps);
+  // The pill on an inline suggestion (K5) reaches the accept/decline handlers
+  // through this ref: they are declared further down (they need the anchor
+  // resolutions), and a closure taken here would read them before their line.
+  const suggestionActionsRef = useRef<{ apply: (comment: WorkspaceCommentRecord) => void; decline: (comment: WorkspaceCommentRecord) => void } | null>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    sessionDepsRef.current = {
+      queryService,
+      vaultContext,
+      hostPath: activePath ?? undefined,
+      onOpenPath,
+      openWikiTarget: (target, newTab, kind, anchor) => { void openWikiTarget(target, newTab, kind, anchor); },
+      // A tag pill (finding 2026-09-19): the shell opens its tag pane on the tag;
+      // an auxiliary window routes it to the window that has one (auxBridge).
+      onOpenTag: (tag) => window.dispatchEvent(new CustomEvent("plainva-open-tag", { detail: { tag } })),
+      openExternalUrl,
+      handlePaste,
+      handleDrop,
+      onDocChanged,
+      onSelectionToolbar: setSelToolbar,
+      // Selection counts for the status bar (P3.9): only the focused pane that
+      // owns the global channel publishes, so split panes (and floating peeks)
+      // don't fight over the shared channel.
+      onSelectionStats: (stats) => { if (ownsGlobalStats && isActivePane) activeDocument.setSelectionStats(stats); },
+      onSelectionRange: (range) => {
+        // Only a CHANGED quote is worth a render - see the state declaration.
+        const view = sessionRef.current?.view;
+        const next = range && view ? view.state.sliceDoc(range.from, Math.min(range.to, range.from + 120)) : null;
+        setSelectionQuote((previous) => (previous === next ? previous : next));
+      },
+      // A click on a tinted passage names its card - and brings the column
+      // back if it was hidden (K3).
+      onAnchorActivate: (commentId) => { setActiveCommentId(commentId); setCommentColumnSession("open"); },
+      // Whether a widget may offer a comment bubble at all: the right to
+      // comment, not the right to write (K2, same gate as the cell menu).
+      commentAnchorsEnabled: () => workspaceCanComment,
+      onCommentAnchorRequest: (req) => requestWidgetComment(req),
+      // The pill on an inline suggestion (K5): accepting is a write, declining
+      // only closes the thread - the same rights the card asks for.
+      onSuggestionChunks: (count) => setSuggestCount(count),
+      onSuggestionApply: workspaceReadOnly ? undefined : (commentId) => { const found = workspaceComments.find((c) => c.commentId === commentId); if (found) suggestionActionsRef.current?.apply(found); },
+      onSuggestionDecline: workspaceCanComment ? (commentId) => { const found = workspaceComments.find((c) => c.commentId === commentId); if (found) suggestionActionsRef.current?.decline(found); } : undefined,
+      onPickIcon: setIconPicker,
+      onPickColor: setColorPicker,
+      // Shell capabilities injected into the shared session (ADR 0011).
+      readBinaryFile: (absolutePath) => readFile(absolutePath),
+      // The `[[Note#` completion lists that note's headings (issue #92).
+      readNote: (p) => (vaultAdapter ? vaultAdapter.readTextFile(p).catch(() => null) : Promise.resolve(null)),
+      // Where an embed may point (P3, Build-91 feedback): beside the note or,
+      // as Obsidian writes it, by bare basename anywhere in the vault.
+      imageLookup: () => ({
+        notePath: activePath ?? "",
+        resolveByName: (name) => vaultContext.queryService?.findByFileName(name, activePath ?? undefined) ?? Promise.resolve(null),
+      }),
+      onOpenImage: (absolutePath: string) => { const root = (vaultPath ?? "").replace(/\\/g, "/").replace(/\/$/, "") + "/"; if (absolutePath.startsWith(root)) onOpenPath?.(absolutePath.slice(root.length), false); },
+      onImageContext: (e, absolutePath) => openContextMenu({
+        x: e.clientX, y: e.clientY, selection: "", editable: null,
+        image: { open: () => { const root = (vaultPath ?? "").replace(/\\/g, "/").replace(/\/$/, "") + "/"; if (absolutePath.startsWith(root)) onOpenPath?.(absolutePath.slice(root.length), false); }, loadBytes: () => readFile(absolutePath), filename: absolutePath.split(/[/\\]/).pop() ?? "image", mime: imageMimeType(absolutePath) },
+      }),
+      buildNoteEmbedExtension: (context, isLive) => noteEmbedPlugin(context, isLive),
+    };
+  });
+
+  // Losing pane focus / switching files / closing the pane clears the
+  // published selection — the fresh session starts unselected. A scoped-channel
+  // editor (peek) never touches the global selection stats.
+  useEffect(() => {
+    if (!ownsGlobalStats || isActivePane) return;
+    activeDocument.setSelectionStats(null);
+  }, [isActivePane, ownsGlobalStats]);
+  useEffect(() => { if (ownsGlobalStats) activeDocument.setSelectionStats(null); }, [activePath, ownsGlobalStats]);
+  useEffect(() => () => { if (ownsGlobalStats) activeDocument.setSelectionStats(null); }, [ownsGlobalStats]);
+
+  // `{{selection}}` reads the marked text from the ACTIVE pane, on demand
+  // (plan Vorlagen-Engine P5). A reader rather than a published value: the
+  // selection changes on every cursor move, the token is asked for once.
+  useEffect(() => {
+    if (!ownsGlobalStats || !isActivePane) return;
+    setEditorSelectionReader(() => {
+      const view = sessionRef.current?.view;
+      if (!view) return null;
+      return view.state.selection.ranges
+        .filter((r) => !r.empty)
+        .map((r) => view.state.sliceDoc(r.from, r.to))
+        .join("\n") || null;
+    });
+    return () => setEditorSelectionReader(null);
+  }, [ownsGlobalStats, isActivePane]);
+
+  // One CodeMirror session per open file: created when the pane shows an
+  // editor (live/source) with loaded content, destroyed on file switch / read
+  // mode / unmount. A language switch rebuilds it (localized header labels).
+  const isReadMode = viewMode === 'read';
+  useLayoutEffect(() => {
+    if (isLoading || isReadMode || !activePath || loadedPathRef.current !== activePath) return;
+    const parent = editorContainerRef.current;
+    if (!parent) return;
+    const session = createEditorSession({
+      parent,
+      doc: contentRef.current,
+      mode: viewMode === 'source' ? 'source' : 'live',
+      // A text file is not a note (C15, S14) — same rule that decided it opens
+      // here at all, asked once more for how.
+      plainTextFile: activePath && resolveOpenAction(activePath) === "text" ? activePath : undefined,
+      vaultPath: vaultPath || "",
+      i18n,
+      headerTexts: {
+        addIcon: t("docHeader.addIcon"),
+        addColor: t("docHeader.addColor"),
+        changeIcon: t("docHeader.changeIcon"),
+        changeColor: t("docHeader.changeColor"),
+        statusDraft: t("docHeader.statusDraft"),
+        statusDeprecated: t("docHeader.statusDeprecated"),
+      },
+      deps: sessionDepsRef,
+    });
+    sessionRef.current = session;
+    session.setEditable(!workspaceReadOnly && !saveState.transferFrozen);
+    // Where you were (feedback round 2026-09-01, A5/E7): the scroll position
+    // per file, device-local, restored once the view has laid the document
+    // out, and remembered on the way out and while scrolling.
+    const scrollKey = vaultPath && activePath ? { vault: vaultPath, path: activePath } : null;
+    const remembered = scrollKey ? recallScrollTop(scrollKey.vault, scrollKey.path) : null;
+    if (remembered !== null) {
+      requestAnimationFrame(() => {
+        if (sessionRef.current === session) session.view.scrollDOM.scrollTop = remembered;
+      });
+    }
+    let scrollTimer: number | null = null;
+    const onScroll = () => {
+      if (!scrollKey) return;
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        scrollTimer = null;
+        rememberScrollTop(scrollKey.vault, scrollKey.path, session.view.scrollDOM.scrollTop);
+      }, 400);
+    };
+    session.view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
+    // Seed the freshly created view with the current resolver set so unresolved
+    // links style immediately instead of only after the next resolver bump.
+    if (wikiResolverRef.current) session.view.dispatch({ effects: setWikiResolver.of(wikiResolverRef.current) });
+    return () => {
+      // Flush pending debounced work with the final text so (a) the read view
+      // renders fresh content immediately and (b) the last edit window is
+      // never lost on file switch / unmount. persistText is the closure of
+      // THIS mount, so a pending save still targets the file it belongs to.
+      const text = session.view.state.doc.toString();
+      if (contentSyncTimeoutRef.current) {
+        window.clearTimeout(contentSyncTimeoutRef.current);
+        contentSyncTimeoutRef.current = null;
+        setContent(text);
+        contentRef.current = text;
+      }
+      if (saveState.dirty && !saveState.transferFrozen) {
+        if (saveTimeoutRef.current !== null) window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+        void persistText(text).catch(() => {});
+      }
+      session.view.scrollDOM.removeEventListener("scroll", onScroll);
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      if (scrollKey) rememberScrollTop(scrollKey.vault, scrollKey.path, session.view.scrollDOM.scrollTop);
+      sessionRef.current = null;
+      session.destroy();
+    };
+    // viewMode is handled by setMode below (the compartment swap keeps the
+    // syntax tree); content is owned by the view while mounted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isReadMode, activePath, vaultPath, i18n.language, workspaceReadOnly]);
+
+  useEffect(() => { sessionRef.current?.setEditable(!workspaceReadOnly && !saveState.transferFrozen); }, [workspaceReadOnly, saveState]);
+
+  // Push the resolved ranges into the editor. An orphan contributes nothing -
+  // its card says so instead; tinting a random place would be worse than none.
+  // A card names a place; picking it brings the place into view (finding
+  // 2026-09-03). The read view scrolls its marked element, the editor its
+  // resolved range; a remark without a place (whole note, orphan) only selects.
+  const editorRootRef = useRef<HTMLDivElement>(null);
+  const selectCommentFromColumn = useCallback((commentId: string | null) => {
+    setActiveCommentId(commentId);
+    if (!commentId) return;
+    if (isReadMode) {
+      editorRootRef.current?.querySelector<HTMLElement>(`[data-comment-id="${commentId}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const resolution = anchorResolutions.get(commentId);
+    const view = sessionRef.current?.view;
+    if (!view || !resolution || resolution.status === "orphan") return;
+    view.dispatch({ effects: EditorView.scrollIntoView(Math.min(resolution.from, view.state.doc.length), { y: "center" }) });
+  }, [anchorResolutions, isReadMode]);
+  // The same list feeds the editor's tints and frames AND the read view's
+  // (Sammelplan C28): one resolution, two renderers, no drift between them.
+  const anchorHighlights = useMemo(() => {
+    const highlights: AnchorHighlight[] = [];
+    for (const comment of workspaceComments) {
+      if (comment.resolvedAt) continue;
+      const resolution = anchorResolutions.get(comment.commentId);
+      if (!resolution || resolution.status === "orphan") continue;
+      // A widget covers the range: the tint would have no text to paint on, so
+      // the widget draws a frame instead (Stufe E, E1).
+      // An open proposal is drawn in the text while the switch is on (K5):
+      // struck passage, proposed wording behind it. A decided one is a plain
+      // tint again - the thread is closed, the text says what it says.
+      const open = comment.suggestion && comment.suggestionDecision?.status !== "conflict" && !comment.suggestion.appliedAt && !comment.suggestion.declinedAt ? comment.suggestion : null;
+      highlights.push({
+        commentId: comment.commentId, from: resolution.from, to: resolution.to, active: comment.commentId === activeCommentId,
+        // A cell is drawn where the resolution FOUND it (V7): a row inserted
+        // above moved it, and the corner has to sit on the cell, not on the
+        // coordinates the writer saw.
+        frame: toAnchorFrameHint(comment.anchor?.display, "cell" in resolution && resolution.cell ? { ...resolution.cell, moved: resolution.status === "moved" } : null),
+        ...(suggestionsInline && open && !comment.anchor?.display ? { suggestion: { replacement: open.replacement } } : {}),
+      });
+    }
+    return highlights;
+  }, [workspaceComments, anchorResolutions, activeCommentId, suggestionsInline]);
+  // Widget anchors written before 2026-09-03 left a marker pair around the
+  // whole table or picture, and a pair around a table keeps the parser from
+  // seeing a table (finding 2026-09-03, V7). The pair does nothing for such
+  // an anchor, so the first look at the note with its comments takes it out -
+  // an ordinary edit through the editor, versioned like any other. Once per
+  // note, never in the suggestion mode (that edits a copy), never read-only.
+  const widgetMarkerCleanupRef = useRef<string | null>(null);
+  useEffect(() => {
+    const view = sessionRef.current?.view;
+    if (!view || !activePath || workspaceComments.length === 0 || workspaceReadOnly || suggesting) return;
+    if (widgetMarkerCleanupRef.current === activePath) return;
+    widgetMarkerCleanupRef.current = activePath;
+    const doc = view.state.doc.toString();
+    const { removed } = stripWidgetAnchorMarkers(doc, workspaceComments.map((comment) => comment.anchor as WorkspaceCommentAnchor | null));
+    const changes: Array<{ from: number; to: number; insert: string }> = [];
+    for (const id of removed) {
+      for (const marker of [`<!--pv#${id}-->`, `<!--/pv#${id}-->`]) {
+        for (let at = doc.indexOf(marker); at >= 0; at = doc.indexOf(marker, at + marker.length)) changes.push({ from: at, to: at + marker.length, insert: "" });
+      }
+    }
+    if (changes.length > 0) view.dispatch({ changes, userEvent: "delete" });
+    // Markers written before `placeAnchorRange` (finding 2026-09-03) move out
+    // of the block prefix - the list item gets its bullet back.
+    const repair = repairAnchorMarkerPlacement(view.state.doc.toString());
+    if (repair.edits.length > 0) view.dispatch({ changes: repair.edits, userEvent: "input" });
+  }, [workspaceComments, activePath, workspaceReadOnly, suggesting]);
+  useEffect(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.setAnchorHighlights(anchorHighlights);
+  }, [anchorHighlights, viewMode, isLoading]);
+
+  /**
+   * Attaches a comment, minting the marker pair when the member may write.
+   *
+   * A comment-only member gets the SOFT anchor alone (quote plus context):
+   * inserting markers would be a content write, which that capability does not
+   * carry. Resolution stages 2 and 3 are built for exactly that case.
+   */
+  /**
+   * A comment that became work (D11).
+   *
+   * The thread stays where it is and gains a reply naming the task - the only
+   * honest link, because the comment log is append-only and an existing body
+   * cannot be rewritten. It also stays OPEN: promoting says "this became work",
+   * not "this is settled", and closing it automatically would hide the very
+   * reply that explains where the work went.
+   *
+   * The task is created through the SAME path as every other task (S30): the
+   * database's template, its storage folder and its checkbox pre-fill all
+   * apply, so a task born from a comment is not subtly unlike the rest.
+   */
+  // Stable so the callbacks below do not re-create on every render: the wiki
+  // opener itself is a plain function of the component.
+  const openNoteFromComment = useStableHandler((target: string) => { void openWikiTarget(target, false); });
+  const promoteCommentToTask = useCallback(async (comment: WorkspaceCommentRecord) => {
+    if (!activePath || !vaultAdapter || !vaultPath) return;
+    const store = await getSettingsStore();
+    const dbPath = ((await store.get<string>(taskDatabaseKey(vaultPath))) ?? "").trim();
+    if (!dbPath) {
+      toast.info(t("tasks.promoteNoDb"));
+      return;
+    }
+    const allNotePaths = queryService ? (await queryService.listNotes()).map((n) => n.path) : [];
+    const title = commentTaskTitle(comment.body, t("comments.commentTaskFallback"));
+    const res = await createTaskInDatabase({
+      adapter: vaultAdapter,
+      dbPath,
+      title,
+      noteType: "Task",
+      trailer: commentTaskTrailer({
+        body: comment.body,
+        quote: (comment.anchor as WorkspaceCommentAnchor | null)?.quote ?? null,
+        noteTarget: wikiTargetForPath(activePath, allNotePaths),
+        sourceLabel: t("comments.commentTaskSource"),
+      }),
+    });
+    if (!res.ok) {
+      toast.error(res.reason === "noFolder" ? t("tasks.promoteNoFolder") : t("tasks.promoteNoDb"));
+      return;
+    }
+    if (indexer) await applyIndexChanges(indexer, { added: [res.notePath] }).catch(() => undefined);
+    triggerFileTreeUpdate([res.notePath]);
+    // The new note is in the vault now, so its own wiki target has to be
+    // computed against a list that contains it - otherwise the reply links to
+    // a name that could collide with a note added a moment later.
+    const taskTarget = wikiTargetForPath(res.notePath, [...allNotePaths, res.notePath]);
+    const reply = commentTaskReply(taskTarget, t("comments.commentTaskCreated"));
+    // The reply and the word to the person come FIRST (K4, finding
+    // 2026-09-03): both used to wait behind the provider round trip below, so
+    // the feedback for a click was the last thing to arrive. The reply goes
+    // through the outbox (K6) and is on the card at once.
+    await postWorkspaceComment(activePath, reply, comment.commentId, null);
+    // Not the checkbox wording ("moved"): nothing moved here. The comment is
+    // still where it was, and saying otherwise would send the user looking for
+    // a passage that never left. The action opens the task it just made.
+    toast.info(t("comments.commentTaskCreated"), { label: t("comments.commentTaskOpen"), run: () => openNoteFromComment(taskTarget) });
+    // ...and, like every other task in that database, on to the provider list
+    // it names (C4/S17) - in the background. A failure there never costs the
+    // note or the reply, both are already written; it gets its own word.
+    void sendTaskToProviderList({ adapter: vaultAdapter, dbPath, notePath: res.notePath, title, pimRuntime })
+      .catch((error) => toast.warning(error instanceof Error ? error.message : String(error)));
+  }, [activePath, vaultAdapter, vaultPath, queryService, indexer, pimRuntime, triggerFileTreeUpdate, postWorkspaceComment, openNoteFromComment, t]);
+
+  const pendingCommentOperations = usePendingCommentOperations(commentOperations, vaultPath, activePath);
+  const [decisionReview, setDecisionReview] = useState<{ path: string; vaultPath: string; comment: WorkspaceCommentRecord; snapshot: CommentEditorSnapshot } | null>(null);
+
+  const captureCommentSnapshot = useStableHandler((): CommentEditorSnapshot => {
+    const session = sessionRef.current;
+    const revision = saveState.revision;
+    const persisted = saveState.persisted;
+    const text = session?.view.state.doc.toString() ?? contentRef.current;
+    const current = () => saveState.isActive() && sessionRef.current === session && saveState.revision === revision
+      && (session?.view.state.doc.toString() ?? contentRef.current) === text && !suggestingRef.current;
+    return { text, current, adopt: (confirmed) => {
+      if (!saveState.isActive() || sessionRef.current !== session || saveState.savedRevision > revision || suggestingRef.current
+        || (saveState.persisted !== persisted && saveState.persisted !== confirmed)) return;
+      // Later typing retains its original merge base; only our persisted echo
+      // moves forward. A newer completed save already owns its own receipt.
+      saveState.update({ persisted: confirmed });
+      if (!current()) return;
+      session?.applyExternalText(confirmed);
+      contentRef.current = confirmed;
+      setContent(confirmed);
+      saveState.update({ baseInput: confirmed, dirty: false });
+      if (activePath) dirtyStore.set(activePath, false, saveState.id);
+    } };
+  });
+  const flushCommentSnapshot = useStableHandler(async (): Promise<CommentEditorSnapshot> => {
+    if (!activePath || !vaultPath || !commentOperations || suggestingRef.current) throw new Error("comment-editor-unavailable");
+    const session = sessionRef.current;
+    await requestSaveFlush(activePath, vaultPath);
+    if (!saveState.isActive() || sessionRef.current !== session || suggestingRef.current) throw new CommentActionNotStartedError();
+    return captureCommentSnapshot();
+  });
+  const runCommentInput = useStableHandler(async (input: CommentOperationInput, snapshot: CommentEditorSnapshot) => {
+    if (!commentOperations) throw new Error("comments-unavailable");
+    try {
+      return await commentActionController(commentOperations).execute(input,
+        (operation) => runVisibleCommentOperation(commentOperations, operation, snapshot));
+    } finally { pendingCommentOperations.refresh(); }
+  });
+  const reportCommentFailure = useStableHandler((error: unknown) => {
+    toast.error(commentActionErrorKey(error) ? t(commentActionErrorKey(error)!) : errorText(error));
+  });
+  const retryCommentOperation = useStableHandler(async (operation: CommentOperation) => {
+    if (!commentOperations) return;
+    try {
+      const snapshot = operation.text && !operation.receipt ? await flushCommentSnapshot() : undefined;
+      if (!snapshot && activePath) await requestSaveFlush(activePath, vaultPath ?? undefined);
+      await commentActionController(commentOperations).resume(operation,
+        (current) => runVisibleCommentOperation(commentOperations, current, snapshot));
+    } catch (error) { reportCommentFailure(error); }
+    finally { pendingCommentOperations.refresh(); }
+  });
+  const reviewCommentDecision = useStableHandler(async (comment: WorkspaceCommentRecord) => {
+    try {
+      const snapshot = await flushCommentSnapshot();
+      if (activePath && vaultPath) setDecisionReview({ path: activePath, vaultPath, comment, snapshot });
+    } catch (error) { reportCommentFailure(error); }
+  });
+  const confirmCommentDecision = useStableHandler(async (outcome: "applied" | "declined") => {
+    if (!decisionReview || decisionReview.path !== activePath || decisionReview.vaultPath !== vaultPath) return;
+    try {
+      await requestSaveFlush(decisionReview.path, decisionReview.vaultPath);
+      const { snapshot, comment } = decisionReview;
+      await runCommentInput(planCommentDecision(decisionReview.path, snapshot.text, [comment], outcome, true), snapshot);
+      setDecisionReview(null);
+    } catch (error) { reportCommentFailure(error); }
+  });
+
+  const postComment = useStableHandler(async (body: string, parentCommentId: string | null, suggestion: { replacement: string } | null = null) => {
+    if (!activePath) return;
+    const parent = workspaceComments.find((comment) => comment.commentId === parentCommentId);
+    const parkedProperty = propertyTargetRef.current;
+    const parked = commentTargetRef.current;
+    const view = sessionRef.current?.view;
+    const source = view?.state.doc.toString() ?? contentRef.current;
+    const range = parked ?? view?.state.selection.main;
+    const placed = range && (parked?.display ? range : placeAnchorRange(source, range.from, range.to));
+    const selected = parentCommentId === null && parkedProperty === null && placed && placed.from !== placed.to
+      ? parked?.anchor ?? buildCommentAnchor(source, placed.from, placed.to, mintAnchorMarkerId(source), parked?.display) : null;
+    const snapshot = await flushCommentSnapshot();
+    let anchor: WorkspaceCommentAnchor | null = null;
+    let intended = snapshot.text;
+    if (parentCommentId === null && parkedProperty !== null) {
+      if (suggestion) throw new Error("workspace-suggestion-needs-selection");
+      anchor = buildPropertyCommentAnchor(parkedProperty, propertyValueText(readFrontmatterPath(snapshot.text, [parkedProperty])), mintAnchorMarkerId(snapshot.text));
+    } else if (selected) {
+      const resolved = resolveCommentAnchor(snapshot.text, selected);
+      if (resolved.status === "orphan") throw new Error("comment-suggestion-orphan");
+      anchor = buildCommentAnchor(snapshot.text, resolved.from, resolved.to, selected.markerId!, parked?.display);
+      // Properties and widgets keep soft anchors: HTML markers would corrupt
+      // YAML or the widget's block syntax. Read-only notes also stay untouched.
+      if (!workspaceReadOnly && commentAnchorsEnabled && !parked?.display)
+        intended = insertAnchorMarkers(snapshot.text, resolved.from, resolved.to, anchor.markerId!);
+    }
+    if (suggestion && !anchor?.quote) throw new Error("workspace-suggestion-needs-selection");
+    await runCommentInput({ notePath: activePath, kind: "post", text: intended === snapshot.text ? null : { before: snapshot.text, intended },
+      markers: [{ path: activePath, body, parentCommentId, ...(parent?.targetRevisionId ? { targetObjectId: parent.targetObjectId } : {}), anchor, suggestion }] }, snapshot);
+    if (snapshot.current() || (saveState.isActive() && sessionRef.current?.view === view)) {
+      if (propertyTargetRef.current === parkedProperty) propertyTargetRef.current = null;
+      if (commentTargetRef.current === parked) commentTargetRef.current = null;
+    }
+  });
+  const decideComments = useStableHandler(async (comments: WorkspaceCommentRecord[], outcome: "applied" | "declined") => {
+    if (!activePath || !comments.length) return;
+    const conflict = comments.find((c) => c.suggestionDecision?.status === "conflict");
+    if (conflict) { await reviewCommentDecision(conflict); return; }
+    try {
+      const snapshot = await flushCommentSnapshot();
+      await runCommentInput(planCommentDecision(activePath, snapshot.text, comments, outcome), snapshot);
+    } catch (error) { reportCommentFailure(error); }
+  });
+  const applySuggestion = useStableHandler((comment: WorkspaceCommentRecord) => decideComments([comment], "applied"));
+  const declineSuggestion = useStableHandler((comment: WorkspaceCommentRecord) => decideComments([comment], "declined"));
+  const applyRound = useStableHandler((batchId: string) => decideComments(workspaceComments.filter((c) => c.suggestionBatchId === batchId && c.suggestion && isCommentThreadOpen(c)), "applied"));
+  const declineRound = useStableHandler((batchId: string) => decideComments(workspaceComments.filter((c) => c.suggestionBatchId === batchId && c.suggestion && isCommentThreadOpen(c)), "declined"));
+  const deleteComment = useStableHandler(async (comment: WorkspaceCommentRecord) => {
+    if (!activePath) return;
+    try {
+      const snapshot = await flushCommentSnapshot();
+      const intended = comment.anchor?.markerId && !workspaceReadOnly && !comment.parentCommentId
+        ? removeAnchorMarkers(snapshot.text, comment.anchor.markerId) : snapshot.text;
+      await runCommentInput({ notePath: activePath, kind: "retract", text: intended === snapshot.text ? null : { before: snapshot.text, intended },
+        markers: [{ path: activePath, body: "", retractsCommentId: comment.commentId, ...(comment.targetRevisionId ? { targetObjectId: comment.targetObjectId } : {}) }] }, snapshot);
+    } catch (error) { reportCommentFailure(error); }
+  });
+  const resolveComment = useStableHandler(async (commentId: string) => {
+    if (!activePath) return;
+    const target = workspaceComments.find((c) => c.commentId === commentId);
+    try {
+      const snapshot = await flushCommentSnapshot();
+      await runCommentInput({ notePath: activePath, kind: "resolve", markers: [{ path: activePath, body: "", resolvedCommentId: commentId, ...(target?.targetRevisionId ? { targetObjectId: target.targetObjectId } : {}) }] }, snapshot);
+    } catch (error) { reportCommentFailure(error); }
+  });
+
+  useLayoutEffect(() => {
+    suggestionActionsRef.current = { apply: (comment) => { void applySuggestion(comment); }, decline: (comment) => { void declineSuggestion(comment); } };
+  });
+
+  const startSuggesting = useStableHandler(async () => {
+    const session = sessionRef.current;
+    if (!session || !activePath || !workspaceCanSuggest) return;
+    // Locked (N3): the verb stays and leads to the explanation - the column
+    // opens and says what to do - rather than into a mode whose send would
+    // fail a minute later.
+    if (commentsLocked) { setCommentColumnSession("open"); toast.info(t("comments.commentsLockedToast")); return; }
+    try { await flushCommentSnapshot(); }
+    catch (error) { reportCommentFailure(error); return; }
+    if (viewMode === "source") { setViewMode("live"); rememberSessionViewMode(activePath, "live"); }
+    suggestingRef.current = true;
+    setSuggesting(true);
+    session.setSuggesting(true);
+    const parked = suggestParkRef.current.get(activePath);
+    if (parked) {
+      const view = session.view;
+      if (parked.copy !== view.state.doc.toString()) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: parked.copy } });
+      setSuggestNote(parked.note);
+    }
+  });
+
+  const stopSuggesting = useCallback(() => {
+    suggestingRef.current = false;
+    setSuggesting(false);
+    setSuggestCount(0);
+    setSuggestNote("");
+    sessionRef.current?.setSuggesting(false);
+  }, []);
+
+  const discardSuggestions = useCallback(async () => {
+    if (!activePath) return;
+    if (suggestCount > 0) {
+      const ok = await appConfirm({ title: t("comments.suggestDiscard"), message: t("comments.suggestDiscardConfirm", { n: suggestCount }), kind: "warning" });
+      if (!ok) return;
+    }
+    suggestParkRef.current.delete(activePath);
+    forgetPark(activePath);
+    stopSuggesting();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath, suggestCount, stopSuggesting, t]);
+
+  /**
+   * One round: every change block between base and copy becomes a proposal
+   * record with the round's id, its position and the sentence for the round.
+   * The base's text of a block is the anchor's quote (an empty one is an
+   * insertion point), the copy's text its replacement. Nothing is written
+   * into the note - not even a marker pair - until somebody accepts.
+   */
+  const currentSuggestNote = useRef(suggestNote);
+  useLayoutEffect(() => { currentSuggestNote.current = suggestNote; });
+  const finishCommentRound = useStableHandler((operation: CommentOperation) => {
+    const session = sessionRef.current;
+    if (!session || !activePath || !suggestingRef.current || !saveState.isActive()) return;
+    const { base, chunks } = session.suggestion();
+    if (base === null || !chunks.length || !commentOperationMatchesInput(operation, planCommentRound(activePath, base, chunks, currentSuggestNote.current))) return;
+    suggestParkRef.current.delete(activePath);
+    forgetPark(activePath);
+    stopSuggesting();
+  });
+  useEffect(() => {
+    if (!commentOperations || !vaultPath || !activePath) return;
+    return observeCompletedCommentRounds(commentOperations, vaultPath, activePath, finishCommentRound);
+  }, [commentOperations, vaultPath, activePath, finishCommentRound]);
+  const sendSuggestions = useStableHandler(async () => {
+    const session = sessionRef.current;
+    if (!session || !activePath || !commentOperations) return;
+    const { base, chunks } = session.suggestion();
+    if (base === null || chunks.length === 0) { toast.info(t("comments.suggestNothing")); return; }
+    if (chunks.some((chunk) => new TextEncoder().encode(base.slice(chunk.fromA, chunk.toA)).length > MAX_ANCHOR_QUOTE_BYTES)) { toast.warning(t("comments.suggestTooLarge")); return; }
+    const copy = session.view.state.doc.toString();
+    const capturedNote = suggestNote;
+    const current = () => saveState.isActive() && sessionRef.current === session && suggestingRef.current
+      && session.view.state.doc.toString() === copy && currentSuggestNote.current === capturedNote;
+    const batchId = createWorkspaceObjectId();
+    const markers = chunks.map((chunk, index) => ({ path: activePath, body: "", parentCommentId: null,
+      anchor: buildCommentAnchor(base, chunk.fromA, chunk.toA, mintAnchorMarkerId(base)),
+      suggestion: { replacement: chunk.replacement }, batch: { batchId, index, note: capturedNote.trim() || null } }));
+    try {
+      await commentActionController(commentOperations).execute({ notePath: activePath, kind: "post", markers },
+        (operation) => runVisibleCommentOperation(commentOperations, operation, { text: copy, current, adopt: () => {} }));
+      if (current()) {
+        suggestParkRef.current.delete(activePath);
+        forgetPark(activePath);
+        stopSuggesting();
+      }
+      toast.info(t("comments.suggestSent", { n: markers.length }));
+    } catch (error) { reportCommentFailure(error); }
+    finally { pendingCommentOperations.refresh(); }
+  });
+
+  // A note left in the mode keeps its copy parked (F5); a note opened with a
+  // parked copy comes back in the mode. The session is rebuilt per note, so
+  // the restore runs after that effect, with the same triggers.
+  useEffect(() => {
+    if (isLoading || isReadMode || !activePath) return;
+    if (suggestParkRef.current.has(activePath) && !suggestingRef.current) { startSuggesting(); return; }
+    // No copy in memory: the vault database may hold one from before the app
+    // was closed (C34). It is OFFERED, never restored on its own - the note may
+    // have changed since, and the reader decides whether the round still holds.
+    const db = vaultContext.queryService?.db;
+    if (!db || suggestingRef.current) return;
+    let alive = true;
+    void readParkedSuggestion(db, activePath).then((record) => { if (alive) setStoredPark(record); }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isReadMode, activePath]);
+  useEffect(() => { setStoredPark(null); }, [activePath]);
+  useEffect(() => {
+    if (!suggestingRef.current || !activePath) return;
+    // The in-memory park already holds the copy and its base; no need to ask
+    // the session (an effect must not read what a later effect assigns).
+    const parked = suggestParkRef.current.get(activePath);
+    if (!parked) return;
+    schedulePark(activePath, parked.base ?? null, parked.copy, suggestNote);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestNote]);
+
+  /** Picks the parked copy up, rebased onto the note as it stands now (C34). */
+  const resumeParked = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session || !activePath || !storedPark) return;
+    const reconciled = reconcileParkedSuggestion(storedPark, session.view.state.doc.toString());
+    const note = reconciled.orphaned.length > 0
+      ? [storedPark.note, ...reconciled.orphaned].filter((part) => part.trim()).join("\n")
+      : storedPark.note;
+    suggestParkRef.current.set(activePath, { copy: reconciled.copy, note, base: session.view.state.doc.toString() });
+    setStoredPark(null);
+    startSuggesting();
+    if (reconciled.orphaned.length > 0) toast.info(t("comments.suggestParkedOrphaned", { n: reconciled.orphaned.length, count: reconciled.orphaned.length }));
+  }, [activePath, storedPark, startSuggesting, t]);
+  const discardParked = useCallback(() => {
+    if (!activePath) return;
+    forgetPark(activePath);
+    setStoredPark(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePath]);
+  useEffect(() => () => {
+    // The session goes with the note; the flag must not outlive it.
+    suggestingRef.current = false;
+    setSuggesting(false);
+    setSuggestCount(0);
+  }, [activePath]);
+
+  // Live <-> source switches swap ONE compartment — the parser state survives,
+  // so nothing collapses or jumps.
+  useEffect(() => {
+    if (isReadMode) return;
+    sessionRef.current?.setMode(viewMode === 'source' ? 'source' : 'live');
+  }, [viewMode, isReadMode]);
+
+  const captureTabDocument = useStableHandler(async () => {
+    if (!activePath || !vaultPath || loadedPathRef.current !== activePath || !saveState.isActive() || saveState.transferFrozen) throw new Error("The source editor is unavailable");
+    saveState.setTransferFrozen(true);
+    sessionRef.current?.setEditable(false);
+    for (const timer of [saveTimeoutRef, draftTimerRef, contentSyncTimeoutRef, parkWriteTimer]) {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const finish = async (accepted: boolean) => {
+      if (accepted) {
+        saveState.update({ dirty: false });
+        dirtyStore.set(activePath, false, saveState.id);
+        const { clearDraft } = await import("../services/draftJournal");
+        await clearDraft(vaultPath, activePath, saveState.revision, saveState.id);
+      } else {
+        saveState.setTransferFrozen(false);
+        if (saveState.isActive()) {
+          sessionRef.current?.setEditable(!workspaceReadOnly);
+          if (saveState.dirty) scheduleSave(() => contentRef.current);
+        }
+      }
+    };
+    try {
+      await waitForPendingWrites(activePath, vaultPath);
+      if (!saveState.isActive()) throw new Error("The source editor closed");
+      const session = sessionRef.current;
+      const selection = session?.view.state.selection.main;
+      const proposal = suggestingRef.current && session ? {
+        copy: session.view.state.doc.toString(), note: suggestNote,
+        base: suggestionBase(session.view.state) ?? undefined,
+      } : undefined;
+      if (proposal) {
+        const db = vaultContext.queryService?.db;
+        if (!db || proposal.base === undefined) throw new Error("The suggestion cannot be preserved");
+        await parkEditorSuggestion(db, { path: activePath, base: proposal.base, copy: proposal.copy, note: proposal.note, savedAt: new Date().toISOString() }, vaultPath);
+      }
+      const text = proposal ? contentRef.current : session?.view.state.doc.toString() ?? contentRef.current;
+      const { recordDraft } = await import("../services/draftJournal");
+      await recordDraft(vaultPath, activePath, text, saveState.revision, saveState.id);
+      return { document: {
+        text, base: saveState.baseInput, shape: saveState.shape, viewMode,
+        selection: selection ? { anchor: selection.anchor, head: selection.head } : readScrollRef.current ? readSourceSelection(readScrollRef.current, text) : null,
+        scrollTop: session?.view.scrollDOM.scrollTop ?? readScrollRef.current?.scrollTop ?? 0,
+        ...(proposal ? { suggestion: proposal } : {}),
+      }, finish };
+    } catch (error) { await finish(false); throw error; }
+  });
+
+  const adoptTabDocument = useStableHandler(async (document: TransferredDocument, transferId: string) => {
+    if (!activePath || !vaultPath || !saveState.isActive() || saveState.transferFrozen || suggestingRef.current
+      || saveState.dirty && contentRef.current !== document.text) throw new Error("The target editor has other pending changes");
+    await waitForPendingWrites(activePath, vaultPath);
+    if (!saveState.isActive()) throw new Error("The target editor closed");
+    const dirty = document.text !== saveState.persisted;
+    // Keep incoming changes based on their original disk version. A concurrent
+    // disk edit will pass through the ordinary merge-on-save path.
+    saveState.setTransferFrozen(true);
+    saveState.update({ baseInput: document.base, shape: document.shape });
+    contentRef.current = document.text;
+    setContent(document.text);
+    sessionRef.current?.applyExternalText(document.text);
+    setViewMode(document.viewMode);
+    rememberSessionViewMode(activePath, document.viewMode);
+    saveState.recover({ revision: 0, sessionId: `transfer:${transferId}` });
+    try {
+      // A view-mode change can replace CodeMirror with the reader. A receipt
+      // follows the committed destination view, not just setState().
+      for (let attempt = 0; ; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 30));
+        if (!saveState.isActive()) throw new Error("The target editor closed");
+        if (document.viewMode === "read" ? !!readScrollRef.current?.querySelector(".markdown-reader") : !!sessionRef.current) break;
+        if (attempt > 300) throw new Error("The target view did not become ready");
+      }
+      const session = sessionRef.current;
+      if (document.suggestion && session) {
+        const proposal = document.suggestion;
+        const db = vaultContext.queryService?.db;
+        if (!db) throw new Error("The target suggestion store is unavailable");
+        await parkEditorSuggestion(db, { path: activePath, base: proposal.base ?? document.text, copy: proposal.copy, note: proposal.note, savedAt: new Date().toISOString() }, vaultPath);
+        session.applyExternalText(proposal.base ?? document.text);
+        suggestingRef.current = true; setSuggesting(true); setSuggestNote(proposal.note);
+        session.setSuggesting(true);
+        session.view.dispatch({ changes: { from: 0, to: session.view.state.doc.length, insert: proposal.copy } });
+      }
+      if (document.selection) {
+        const { anchor, head } = document.selection;
+        if (document.viewMode !== "read" && session) {
+          const length = session.view.state.doc.length;
+          session.view.dispatch({ selection: { anchor: Math.min(anchor, length), head: Math.min(head, length) } });
+        } else if (readScrollRef.current) {
+          const range = findSourceTextRange(readScrollRef.current, Math.min(anchor, head), Math.max(anchor, head), document.text);
+          if (range) selectAndRevealRange(range);
+        }
+      }
+      if (document.viewMode === "read" && readScrollRef.current) readScrollRef.current.scrollTop = document.scrollTop;
+      else if (session) session.view.scrollDOM.scrollTop = document.scrollTop;
+      saveState.update({ dirty });
+      dirtyStore.set(activePath, dirty, saveState.id);
+      if (!dirty) {
+        const { clearDraft } = await import("../services/draftJournal");
+        await clearDraft(vaultPath, activePath, 0, `transfer:${transferId}`);
+        saveState.update({ recoveredDraft: null });
+      }
+    } finally {
+      saveState.setTransferFrozen(false);
+      if (saveState.isActive()) {
+        sessionRef.current?.setEditable(!workspaceReadOnly);
+        if (saveState.dirty && !suggestingRef.current) scheduleSave(() => contentRef.current);
+      }
+    }
+  });
+
+  useEffect(() => {
+    if (!vaultPath || !activePath || isLoading || loadError || notText || loadedPathRef.current !== activePath) return;
+    return registerTabDocument(vaultPath, activePath, { capture: captureTabDocument, adopt: adoptTabDocument });
+  }, [vaultPath, activePath, isLoading, loadError, notText, captureTabDocument, adoptTabDocument]);
+
+  if (!activePath) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}>
+        {t("editor.noActiveFileDesc")}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={editorRootRef} onFocusCapture={() => editorCommandTarget.focus(commandId)} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, position: "relative" }}>
+      {/* The peek hides the toolbar, so the column's switch floats over the
+          note's top right until the column is open - which has its own X.
+          A new pinboard entry has nothing to comment on yet, and the phone's
+          entry page offers no comments either. */}
+      {peek && !newEntry && commentsAccessible && !commentColumnOpen && (
+        <IconButton
+          label={t("comments.commentColumnShow")}
+          onClick={toggleCommentColumn}
+          className="pv-comment-toggle pv-comment-toggle--peek"
+          data-testid="peek-comments-toggle"
+        >
+          <MessageSquare size={ICON.ui} />
+          {openCommentThreads > 0 && <span className="pv-badge pv-badge--accent pv-comment-toggle__badge">{openCommentThreads}</span>}
+        </IconButton>
+      )}
+      {!commentColumnOpen && <CommentOperationStatus operations={pendingCommentOperations.operations} failed={pendingCommentOperations.failed} onRetry={retryCommentOperation} onRefresh={pendingCommentOperations.refresh} currentText={content} />}
+      {decisionReview && decisionReview.path === activePath && decisionReview.vaultPath === vaultPath && <CommentDecisionReview comment={decisionReview.comment} text={decisionReview.snapshot.text} onDecision={confirmCommentDecision} onClose={() => setDecisionReview(null)} />}
+      {workspaceReadOnly && <div className="pv-banner pv-banner--info">{workspaceCanComment ? t("workspaceSecurity.commentOnly", { defaultValue: "Comment-only access — file content is read-only." }) : t("workspaceSecurity.readOnly", { defaultValue: "Read-only access — changes cannot be saved." })}</div>}
+      {!peek && (
+      <div className="pv-appbar pv-appbar--split" data-testid="editor-toolbar">
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={onNavigateBack}
+            disabled={!canGoBack}
+            className="pv-iconbtn"
+            aria-label={t("editor.back")} data-tip={t("editor.back")}
+          >
+            <ArrowLeft size={ICON.head} />
+          </button>
+          <button
+            onClick={onNavigateForward}
+            disabled={!canGoForward}
+            className="pv-iconbtn"
+            aria-label={t("editor.forward")} data-tip={t("editor.forward")}
+          >
+            <ArrowRight size={ICON.head} />
+          </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <span style={{ fontSize: "var(--text-ui)", color: saveError ? "var(--error-text)" : "var(--text-muted)" }} data-tip={saveError || ""}>
+            {isSaving ? t("editor.saving") : saveError ? t("editor.saveFailed") : t("editor.saved")}
+          </span>
+          {!isPlainText && <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", background: "var(--bg-secondary)", borderRadius: "var(--radius-xs)", padding: "2px" }}>
+            <button
+              onClick={() => { setViewMode('read'); rememberSessionViewMode(activePath, 'read'); }}
+              aria-label={t("editor.readMode")} data-tip={t("editor.readMode")}
+              className="pv-iconbtn"
+              style={{ background: viewMode === 'read' ? 'var(--bg-primary)' : 'transparent', color: viewMode === 'read' ? 'var(--accent-color)' : 'var(--text-muted)', boxShadow: viewMode === 'read' ? 'var(--shadow-1)' : 'none' }}
+            >
+              <BookOpen size={ICON.ui} />
+            </button>
+            <button
+              onClick={() => { if (!managedIndex) { setViewMode('live'); rememberSessionViewMode(activePath, 'live'); } }}
+              aria-label={managedIndex ? t("indexMd.managedBanner") : t("editor.livePreview")} data-tip={managedIndex ? t("indexMd.managedBanner") : t("editor.livePreview")}
+              className="pv-iconbtn"
+              style={{ opacity: managedIndex ? 0.45 : 1, background: viewMode === 'live' ? 'var(--bg-primary)' : 'transparent', color: viewMode === 'live' ? 'var(--accent-color)' : 'var(--text-muted)', boxShadow: viewMode === 'live' ? 'var(--shadow-1)' : 'none' }}
+            >
+              <Pencil size={ICON.ui} />
+            </button>
+            <button
+              onClick={() => { if (!managedIndex) { setViewMode('source'); rememberSessionViewMode(activePath, 'source'); } }}
+              aria-label={managedIndex ? t("indexMd.managedBanner") : t("editor.sourceMode")} data-tip={managedIndex ? t("indexMd.managedBanner") : t("editor.sourceMode")}
+              className="pv-iconbtn"
+              style={{ opacity: managedIndex ? 0.45 : 1, background: viewMode === 'source' ? 'var(--bg-primary)' : 'transparent', color: viewMode === 'source' ? 'var(--accent-color)' : 'var(--text-muted)', boxShadow: viewMode === 'source' ? 'var(--shadow-1)' : 'none' }}
+            >
+              <Code size={ICON.ui} />
+            </button>
+            {/* The suggestion mode (V2) sits with the views: it changes what
+                typing MEANS, not where the text goes. Amber, not the accent -
+                the band below says the same in words. */}
+            {workspaceCanSuggest && !managedIndex && (
+              <IconButton
+                label={t("comments.suggestMode")}
+                active={suggesting}
+                onClick={() => { if (suggesting) void discardSuggestions(); else startSuggesting(); }}
+                data-testid="editor-suggest-mode"
+                style={suggesting ? { background: "var(--warning-bg)", color: "var(--warning-text)" } : undefined}
+              >
+                <PenLine size={ICON.ui} />
+              </IconButton>
+            )}
+          </div>}
+
+          {commentsAccessible && (
+            <IconButton
+              label={commentColumnOpen ? t("comments.commentColumnHide") : t("comments.commentColumnShow")}
+              active={commentColumnOpen}
+              onClick={toggleCommentColumn}
+              className="pv-comment-toggle"
+              data-testid="editor-comments-toggle"
+            >
+              <MessageSquare size={ICON.ui} />
+              {openCommentThreads > 0 && <span className="pv-badge pv-badge--accent pv-comment-toggle__badge">{openCommentThreads}</span>}
+            </IconButton>
+          )}
+          <button
+            onClick={toggleWidth}
+            data-tip={editorWidth === 'narrow' ? t("editor.widthFull", { defaultValue: "Volle Breite" }) : t("editor.widthNarrow", { defaultValue: "Lesbare Breite" })}
+            aria-label={editorWidth === 'narrow' ? t("editor.widthFull", { defaultValue: "Volle Breite" }) : t("editor.widthNarrow", { defaultValue: "Lesbare Breite" })}
+            className="pv-iconbtn"
+          >
+            {editorWidth === 'narrow' ? <UnfoldHorizontal size={ICON.ui} /> : <FoldHorizontal size={ICON.ui} />}
+          </button>
+
+          <SplitButton onSplit={onSplit} activeDirection={activeSplitDirection} />
+          <div style={{ position: "relative" }}>
+            <button
+              ref={menuBtnRef}
+              onClick={() => setShowMenu(!showMenu)}
+              data-tip={t("editor.menu", { defaultValue: "Menu" })}
+              aria-label={t("editor.menu", { defaultValue: "Menu" })}
+              aria-haspopup="menu"
+              aria-expanded={showMenu}
+              data-testid="editor-menu-btn"
+              className="pv-iconbtn"
+            >
+              <MoreVertical size={ICON.ui} />
+            </button>
+            {/* Grouped ⋮ menu on the shared MenuSurface (plan UI-Menüs P4). */}
+            <MenuSurface
+              open={showMenu}
+              onClose={() => setShowMenu(false)}
+              anchorRef={menuBtnRef}
+              align="right"
+              minWidth={230}
+              ariaLabel={t("editor.menu", { defaultValue: "Menu" })}
+            >
+              <MenuLabel>{t("fileTree.groupFile", "Datei")}</MenuLabel>
+              <MenuItem icon={<Pencil size={ICON.ui} />} data-testid="editor-menu-rename" onSelect={() => { void handleMenuRename(); }}>
+                {t("common.rename", { defaultValue: "Umbenennen" })}
+              </MenuItem>
+              <MenuItem icon={<Copy size={ICON.ui} />} onSelect={() => { void handleMenuDuplicate(); }}>
+                {t("fileTree.duplicate")}
+              </MenuItem>
+              {/* The way in beside the palette and the slash command (T4 parity):
+                  the phone's menu gained it, the desktop's should not lack it. */}
+              <MenuItem icon={<FileDown size={ICON.ui} />} data-testid="editor-menu-insert-template" onSelect={() => window.dispatchEvent(new CustomEvent("plainva-open-template-picker"))}>
+                {t("shortcuts.insertTemplate")}
+              </MenuItem>
+              {isTemplateFile && (
+                <MenuItem icon={<Database size={ICON.ui} />} data-testid="editor-menu-template-targets" onSelect={() => setShowTemplateTargets(true)}>
+                  {t("editor.templateTargets", "Ziel-Datenbanken…")}
+                </MenuItem>
+              )}
+              {onToggleBookmark && (
+                <MenuItem icon={<Bookmark size={ICON.ui} fill={isBookmarked ? "currentColor" : "none"} />} onSelect={onToggleBookmark}>
+                  {isBookmarked ? t("editor.removeBookmark", { defaultValue: "Lesezeichen entfernen" }) : t("editor.addBookmark", { defaultValue: "Lesezeichen hinzufügen" })}
+                </MenuItem>
+              )}
+              <MenuSeparator />
+              <MenuItem
+                icon={<History size={ICON.ui} />}
+                data-testid="editor-menu-version-history"
+                onSelect={() => { if (activePath) window.dispatchEvent(new CustomEvent("plainva-show-version-history", { detail: { path: activePath } })); }}
+              >
+                {t("fileTree.versionHistory")}
+              </MenuItem>
+              <MenuItem icon={<ClipboardCopy size={ICON.ui} />} onSelect={() => { void handleMenuCopyPath(); }}>
+                {t("fileTree.copyPath")}
+              </MenuItem>
+              <MenuItem icon={<FolderTree size={ICON.ui} />} data-testid="editor-menu-reveal-tree" onSelect={handleMenuRevealInTree}>
+                {t("editor.revealInTree")}
+              </MenuItem>
+              {isOwnerWindow() && (
+                <MenuItem icon={<ExternalLink size={ICON.ui} />} data-testid="editor-menu-new-window" onSelect={handleMenuOpenInNewWindow}>
+                  {t("window.openInNewWindow")}
+                </MenuItem>
+              )}
+              <MenuItem icon={<FolderOpen size={ICON.ui} />} onSelect={() => { void handleMenuReveal(); }}>
+                {t("editor.revealInFileManager", "Im Dateimanager anzeigen")}
+              </MenuItem>
+              <MenuItem icon={<ExternalLink size={ICON.ui} />} onSelect={() => { void handleMenuOpenInDefaultApp(); }}>
+                {t("editor.openInDefaultApp")}
+              </MenuItem>
+              <MenuSeparator />
+              {/* Issue #56: dragging from the file manager used to be the only
+                  way in, and nothing in the app said so. */}
+              <MenuItem icon={<Paperclip size={ICON.ui} />} data-testid="editor-menu-attach-file" onSelect={() => { void attachFile(); }}>
+                {t("editor.attachFile", { defaultValue: "Datei anhängen…" })}
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<Printer size={ICON.ui} />} onSelect={handleMenuPrint}>
+                {t("editor.print")}
+              </MenuItem>
+              <MenuItem icon={<FileDown size={ICON.ui} />} onSelect={handleMenuExportMarkdown}>
+                {t("editor.exportMarkdown", "Als Markdown exportieren…")}
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem icon={<Mail size={ICON.ui} />} data-testid="editor-menu-send-mail" onSelect={handleMenuSendMail}>
+                {t("mail.sendNoteViaEmail", { defaultValue: "Per Mail verschicken" })}
+              </MenuItem>
+              <MenuItem icon={<Paperclip size={ICON.ui} />} data-testid="editor-menu-send-mail-attachment" onSelect={handleMenuSendMailAttachment}>
+                {t("mail.sendNoteAsAttachment", { defaultValue: "Per Mail als Anhang" })}
+              </MenuItem>
+              {onDelete && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem danger icon={<Trash2 size={ICON.ui} />} onSelect={onDelete}>
+                    {t("editor.delete", { defaultValue: "Löschen" })}
+                  </MenuItem>
+                </>
+              )}
+            </MenuSurface>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {showTemplateTargets && activePath && (
+        <TemplateTargetsModal templatePath={activePath} onClose={() => setShowTemplateTargets(false)} />
+      )}
+
+      {staleSince && (
+        // OKF 0.2 `stale_after` (plan P3a, D3): display only — nothing is
+        // written, nothing is blocked; the one action opens the properties.
+        <div data-testid="okf-stale-banner">
+          <Banner
+            kind="warning"
+            actions={
+              <button
+                type="button"
+                className="pv-btn pv-btn--secondary pv-btn--sm"
+                onClick={() => window.dispatchEvent(new CustomEvent("plainva-reveal-properties"))}
+              >
+                {t("trust.openProperties")}
+              </button>
+            }
+          >
+            {t("trust.staleBanner", { date: formatStampDate(staleSince, i18n.language) })}
+          </Banner>
+        </div>
+      )}
+
+      {vanished && vanished.kind !== "checking" && activePath && (
+        // The file of this note vanished while it held unsaved text (issue
+        // 110, E9): the text stays here, the question sits above it. Picking
+        // a file carries the text there; "Save here again" brings the file
+        // back where it was. Nothing is written until the reader decides.
+        <div data-testid="editor-vanished">
+          <Banner
+            kind="warning"
+            actions={
+              <>
+                {vanished.kind === "ask" && vanished.candidates.map((candidate) => (
+                  <Button key={candidate} size="sm" variant="secondary" data-testid="editor-vanished-candidate" onClick={() => { void carryAndFollow(activePath, candidate, true); }}>
+                    {candidate}
+                  </Button>
+                ))}
+                <Button size="sm" variant="secondary" data-testid="editor-vanished-restore" onClick={() => { void restoreHere(); }}>
+                  {t("editor.vanishedRestore")}
+                </Button>
+              </>
+            }
+          >
+            {vanished.kind === "ask" ? t("editor.vanishedAsk") : t("editor.vanishedGone")}
+            {vanished.searching && <> {t("editor.movedFileStillLooking")}</>}
+          </Banner>
+        </div>
+      )}
+
+      {conflictInfo && (
+        // The shared Banner (P1, Build-91 feedback): this strip carried its own
+        // flex-wrap by hand while the primitive the phone uses had none — the
+        // same card was unreadable there. One strip, one layout rule.
+        <Banner
+          kind="warning"
+          actions={
+            <>
+              {conflictInfo.conflictPath && (
+                <button
+                  type="button"
+                  className="pv-btn pv-btn--secondary pv-btn--sm"
+                  onClick={() => window.dispatchEvent(new CustomEvent("plainva-resolve-conflict", { detail: { path: conflictInfo.conflictPath } }))}
+                >
+                  {t("conflict.resolveAction")}
+                </button>
+              )}
+              {conflictInfo.conflictPath && onOpenPath && (
+                <button type="button" className="pv-btn pv-btn--secondary pv-btn--sm" onClick={() => onOpenPath(conflictInfo.conflictPath, true)}>
+                  {t("editor.conflictOpenCopy")}
+                </button>
+              )}
+              <button type="button" className="pv-btn pv-btn--secondary pv-btn--sm" onClick={() => setConflictInfo(null)}>
+                {t("common.dismiss")}
+              </button>
+            </>
+          }
+        >
+          {conflictInfo.working ? t("conflict.workingCopy") : conflictInfo.conflictPath
+            ? t("editor.conflictBanner", { path: conflictInfo.conflictPath })
+            : t("editor.conflictBannerNoPath")}
+          {conflictInfo.foreignCopySnapshot && <><br />{t("conflict.workingCopyChanged")}</>}
+        </Banner>
+      )}
+
+      {draftOffer && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", padding: "0.5rem 1rem", borderBottom: "1px solid var(--warning-border)", background: "var(--warning-bg)", color: "var(--warning-text)", fontSize: "var(--text-ui)" }}>
+          <span style={{ flex: 1, minWidth: 180 }}>
+            {t("editor.draftBanner", { time: new Date(draftOffer.savedAt).toLocaleString() })}
+          </span>
+          <button
+            type="button"
+            className="pv-btn pv-btn--secondary pv-btn--sm"
+            onClick={() => {
+              const offer = draftOffer;
+              setDraftOffer(null);
+              const view = sessionRef.current?.view;
+              if (view) {
+                saveState.recover(offer);
+                // A plain user-visible edit: dirty + autosave + undoable.
+                view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: offer.text } });
+              } else {
+                saveState.recover(offer);
+                applyNonViewEdit(offer.text);
+              }
+            }}
+          >
+            {t("editor.draftRestore")}
+          </button>
+          <button
+            type="button"
+            className="pv-btn pv-btn--secondary pv-btn--sm"
+            onClick={() => {
+              setDraftOffer(null);
+              if (activePath && vaultPath) {
+                void import("../services/draftJournal")
+                  .then(({ clearDraft }) => clearDraft(vaultPath, activePath, draftOffer!.revision, draftOffer!.sessionId))
+                  .catch(() => {});
+              }
+            }}
+          >
+            {t("editor.draftDiscard")}
+          </button>
+        </div>
+      )}
+
+      {storedPark && !suggesting && !isReadMode && (
+        <div className="pv-suggest-band" role="status" data-testid="suggest-parked">
+          <PenLine size={ICON.ui} />
+          <span className="pv-suggest-band__text">
+            <strong>{t("comments.suggestParkedTitle")}</strong>{" "}
+            {t("comments.suggestParkedBody", { n: parkedSuggestionBlocks(storedPark), count: parkedSuggestionBlocks(storedPark), when: storedPark.savedAt ? new Date(storedPark.savedAt).toLocaleString() : "" })}
+          </span>
+          <Button size="sm" variant="ghost" onClick={discardParked} data-testid="suggest-parked-discard">{t("comments.suggestDiscard")}</Button>
+          <Button size="sm" variant="primary" onClick={resumeParked} data-testid="suggest-parked-resume">{t("comments.suggestParkedResume")}</Button>
+        </div>
+      )}
+      {suggesting && (
+        <div className="pv-suggest-band" role="status" data-testid="suggest-band">
+          <PenLine size={ICON.ui} />
+          <span className="pv-suggest-band__text">
+            <strong>{t("comments.suggestBandTitle")}</strong> {t("comments.suggestBandBody")} {t("comments.suggestCount", { n: suggestCount })}
+          </span>
+          {/* Note and discard are one group, so a narrow pane can give them a
+              row of their own (finding 2026-09-19; the rule lives in ui.css). */}
+          <span className="pv-suggest-band__more">
+            <TextInput className="pv-suggest-band__note" value={suggestNote} placeholder={t("comments.suggestNotePlaceholder")} onChange={(event) => setSuggestNote(event.target.value)} />
+            <UiButton size="sm" variant="ghost" onClick={() => { void discardSuggestions(); }}>{t("comments.suggestDiscard")}</UiButton>
+          </span>
+          <UiButton className="pv-suggest-band__send" size="sm" variant="primary" disabled={suggestCount === 0} onClick={() => { void sendSuggestions(); }} data-testid="suggest-send">
+            <span className="pv-suggest-band__long">{t("comments.suggestSend", { n: suggestCount })}</span>
+            <span className="pv-suggest-band__short">{t("comments.suggestSendShort", { n: suggestCount })}</span>
+          </UiButton>
+        </div>
+      )}
+      <div className={commentsAccessible ? "pv-comment-layout" : undefined} style={commentsAccessible ? undefined : { display: "contents" }}>
+      <div ref={readScrollRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: "var(--bg-primary)", overflowY: viewMode === 'read' ? "auto" : "hidden" }}>
+        {viewMode === 'read' ? (
+          <>
+            {managedIndex && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", padding: "0.5rem 1rem", borderBottom: "1px solid var(--border-color)", background: "var(--bg-secondary)", fontSize: "var(--text-ui)", color: "var(--text-muted)" }}>
+                <span style={{ flex: 1, minWidth: 180 }}>{t("indexMd.managedBanner")}</span>
+                <button type="button" className="pv-btn pv-btn--secondary pv-btn--sm" onClick={() => void refreshManagedIndex()}>{t("indexMd.refreshNow")}</button>
+                <button type="button" className="pv-btn pv-btn--secondary pv-btn--sm" onClick={() => void unlockManagedIndex()}>{t("indexMd.editAnyway")}</button>
+              </div>
+            )}
+            <DocumentHeaderRead meta={docMeta} fullWidth={editorWidth === 'full'} badge={trustBadge} badgeTexts={badgeTexts} />
+            {!newEntry && <NoteDatabaseBar
+              context={dbContext}
+              title={activePath ? noteDisplayName(activePath) : ""}
+              fullWidth={editorWidth === 'full'}
+              onOpenPath={(p) => onOpenPath?.(p, false)}
+            />}
+            <div className={managedIndex ? "pv-index-doc" : undefined}>
+              <MarkdownReader
+                content={content}
+                onOpenPath={onOpenPath}
+                fullWidth={editorWidth === 'full'}
+                sourcePath={activePath ?? undefined}
+                docIcons={docIcons}
+                showLinkIcons={managedIndex}
+                onToggleTask={managedIndex ? undefined : handleToggleTask}
+                onToggleHtmlBox={managedIndex ? undefined : handleToggleHtmlBox}
+                anchors={anchorHighlights}
+                onActivateAnchor={setActiveCommentId}
+              />
+            </div>
+          </>
+        ) : isLoading ? (
+          <div style={{ padding: "2rem", color: "var(--text-faint)" }}>{t("editor.loadingFile")}</div>
+        ) : notText ? (
+          // C15 (S13): the extension promised text, the bytes did not keep the
+          // promise. Showing it anyway would mean holding a lossy decode and
+          // writing that back on the first save — so the file is offered to
+          // the system app instead, which knows what it is.
+          <div data-testid="editor-not-text" style={{ padding: "2rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-2)", textAlign: "center" }}>
+            <FileX size={ICON.empty} style={{ color: "var(--text-faint)" }} />
+            <strong style={{ fontSize: "var(--text-md)", color: "var(--text-main)" }}>{t("editor.notTextTitle")}</strong>
+            <code style={{ fontSize: "var(--text-sm)" }}>{activePath}</code>
+            <p style={{ margin: 0, fontSize: "var(--text-md)", maxWidth: "42ch" }}>{t("editor.notTextBody")}</p>
+            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "center" }}>
+              <Button variant="primary" onClick={() => { void handleMenuOpenInDefaultApp(); }}>
+                {t("editor.openInDefaultApp")}
+              </Button>
+              {onCloseTab && (
+                <Button variant="secondary" onClick={onCloseTab}>
+                  {t("editor.missingFileCloseTab")}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : loadError && canLookForMissing && (missingLookup === null || missingLookup.kind === "checking") ? (
+          // Looking for the file first (issue 110, E9): a moved note must not
+          // flash "no longer exists" before the tab follows it — not even for
+          // the one frame between the failed load and the lookup's start.
+          <div style={{ padding: "2rem", color: "var(--text-faint)" }}>{t("editor.loadingFile")}</div>
+        ) : loadError && missingLookup?.kind === "ambiguous" ? (
+          // Several files carry this note's content, or the only one was
+          // written at another time (issue 110, E9): the tab does not guess —
+          // the reader picks, and the tab follows that one.
+          <div data-testid="editor-moved-choice" style={{ padding: "2rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-2)", textAlign: "center" }}>
+            <FolderInput size={ICON.empty} style={{ color: "var(--text-faint)" }} />
+            <strong style={{ fontSize: "var(--text-md)", color: "var(--text-main)" }}>{t("editor.movedFileAskTitle")}</strong>
+            <code style={{ fontSize: "var(--text-sm)" }}>{activePath}</code>
+            <p style={{ margin: 0, fontSize: "var(--text-md)", maxWidth: "42ch" }}>{t(movedChoiceBodyKey(missingLookup.candidates.length))}</p>
+            <div role="group" aria-label={t("editor.movedFileAskTitle")} style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", alignItems: "stretch" }}>
+              {missingLookup.candidates.map((candidate) => (
+                <Button key={candidate} variant="secondary" data-testid="editor-moved-candidate" onClick={() => {
+                  if (!activePath) return;
+                  // The reader said which file it is: that move is as good as
+                  // proven, and what Plainva stores about the note follows.
+                  void adoptMove(activePath, candidate);
+                  followMovedFile(activePath, candidate);
+                }}>
+                  {candidate}
+                </Button>
+              ))}
+            </div>
+            {missingLookup.searching && (
+              <p data-testid="editor-still-looking" style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--text-faint)" }}>{t("editor.movedFileStillLooking")}</p>
+            )}
+            {onCloseTab && (
+              <Button variant="ghost" onClick={onCloseTab}>
+                {t("editor.missingFileCloseTab")}
+              </Button>
+            )}
+          </div>
+        ) : loadError ? (
+          // Issue #34: phantom rows in a stale index (typically after a deletion
+          // made outside Plainva) used to open an editor whose CONTENT was the
+          // error message. It is a state now. The row that led here is already
+          // gone when this shows: the lookup above removes it without a click
+          // once the file is proven missing (issue 110, E9). Before that, a
+          // "Remove from index" button did it, and only when clicked.
+          <div data-testid="editor-missing-file" style={{ padding: "2rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-2)", textAlign: "center" }}>
+            <FileX size={ICON.empty} style={{ color: "var(--text-faint)" }} />
+            <strong style={{ fontSize: "var(--text-md)", color: "var(--text-main)" }}>{t("editor.missingFileTitle")}</strong>
+            <code style={{ fontSize: "var(--text-sm)" }}>{activePath}</code>
+            <p style={{ margin: 0, fontSize: "var(--text-md)", maxWidth: "42ch" }}>{t("editor.missingFileBody")}</p>
+            {missingLookup?.kind === "settled" && missingLookup.searching && (
+              // The parent folder had nothing; a vault-wide pass still looks,
+              // and the tab follows if it finds the file (issue 110, E9).
+              <p data-testid="editor-still-looking" style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--text-faint)" }}>{t("editor.movedFileStillLooking")}</p>
+            )}
+            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "center" }}>
+              {onCloseTab && (
+                <Button variant="primary" onClick={onCloseTab}>
+                  {t("editor.missingFileCloseTab")}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          // The editor session (P1/P2) mounts CodeMirror into this container;
+          // React only ever touches the div's attributes, never the editor.
+          // The database context line sits ABOVE it as a plain React sibling —
+          // the editor container itself must stay untouched by React.
+          <>
+            {!newEntry && <NoteDatabaseBar
+              context={dbContext}
+              title={activePath ? noteDisplayName(activePath) : ""}
+              fullWidth={editorWidth === 'full'}
+              onOpenPath={(p) => onOpenPath?.(p, false)}
+            />}
+          <div
+            ref={editorContainerRef}
+            // Readable line length (#1): center the text column when narrow.
+            className={editorWidth === 'narrow' ? 'pv-cm-narrow' : undefined}
+            // No overflow here: CodeMirror's own .cm-scroller handles scrolling,
+            // and the wrapper (above) is overflow:hidden in editor mode, so there
+            // is exactly one scroll container per view — no nested scrollbars (#4).
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, fontSize: 'var(--content-font-size, 16px)' }}
+          />
+          </>
+        )}
+      </div>
+      {commentColumnOpen && (
+        <WorkspaceCommentsColumn
+          operationStatus={<CommentOperationStatus operations={pendingCommentOperations.operations} failed={pendingCommentOperations.failed} onRetry={retryCommentOperation} onRefresh={pendingCommentOperations.refresh} currentText={content} />}
+          onClose={toggleCommentColumn}
+          onOpenNote={openNoteFromComment}
+          onOpenUrl={(url) => { void openExternalUrl(url); }}
+          comments={workspaceComments}
+          publicationComments={publicationComments}
+          memberNames={memberNames}
+          selfMemberId={commentSelfId}
+          resolutions={anchorResolutions}
+          propertyResolutions={propertyResolutions}
+          canComment={workspaceCanComment}
+          activeCommentId={activeCommentId}
+          selectionQuote={selectionQuote}
+          onSelect={selectCommentFromColumn}
+          onSubmit={postComment}
+          canWrite={!workspaceReadOnly}
+          canModerate={workspaceCapabilities?.includes("workspace.manage") === true}
+          onDelete={(comment) => { void deleteComment(comment); }}
+          inlineSuggestions={suggestionsInline}
+          onToggleInlineSuggestions={toggleSuggestionsInline}
+          onApplyRound={(batchId) => { void applyRound(batchId); }}
+          onDeclineRound={(batchId) => { void declineRound(batchId); }}
+          onReviewDecision={(comment) => { void reviewCommentDecision(comment); }}
+          onApplySuggestion={(comment) => { void applySuggestion(comment); }}
+          onDeclineSuggestion={(comment) => { void declineSuggestion(comment); }}
+          onPromoteToTask={(comment) => { void promoteCommentToTask(comment).catch((error) => toast.error(error instanceof Error ? error.message : String(error))); }}
+          onResolve={(commentId) => { void resolveComment(commentId); }}
+          onRetryPending={commentStoreState?.hasOutbox ? (outboxId) => { void retryWorkspaceComment(outboxId).catch((error) => toast.error(error instanceof Error ? error.message : String(error))); } : undefined}
+          onDiscardPending={commentStoreState?.hasOutbox ? (outboxId) => { void discardWorkspaceComment(outboxId).catch((error) => toast.error(error instanceof Error ? error.message : String(error))); } : undefined}
+          locked={commentsLocked ? { onUnlock: requestCommentUnlock, workspace: commentStoreState?.hasOutbox } : undefined}
+          legacyLocked={commentStoreState?.legacyLocked ? { onUnlock: () => window.dispatchEvent(new CustomEvent("plainva-encryption-locked", { detail: { vaultPath, force: true } })) } : undefined}
+          muted={commentMute.muted ?? false}
+          onToggleMute={commentMute.toggle}
+        />
+      )}
+      </div>
+
+      {tablePicker && (
+        <TableSizePicker
+          x={tablePicker.x}
+          y={tablePicker.y}
+          onSelect={handleTableSelect}
+          onClose={() => setTablePicker(null)}
+        />
+      )}
+
+      {iconPicker && (
+        <EmojiPicker
+          x={iconPicker.x}
+          y={iconPicker.y}
+          labels={emojiPickerLabels}
+          showRemove={!!docMeta.icon}
+          onSelect={(emoji) => { applyDocIcon(emoji, null); setIconPicker(null); }}
+          onSelectIcon={(name, color) => { applyDocIcon(docIconValue(name), color); setIconPicker(null); }}
+          onRemove={() => { applyDocIcon(null, null); setIconPicker(null); }}
+          onClose={() => setIconPicker(null)}
+        />
+      )}
+
+      {emojiTextPicker && (
+        <EmojiPicker
+          x={emojiTextPicker.x}
+          y={emojiTextPicker.y}
+          labels={emojiPickerLabels}
+          emojiOnly
+          onSelect={(emoji) => {
+            const view = sessionRef.current?.view;
+            if (view) {
+              const sel = view.state.selection.main;
+              view.dispatch({
+                changes: { from: sel.from, to: sel.to, insert: emoji },
+                selection: { anchor: sel.from + emoji.length },
+                userEvent: "input.type",
+              });
+              view.focus();
+            }
+            setEmojiTextPicker(null);
+          }}
+          onSelectIcon={() => setEmojiTextPicker(null)}
+          onClose={() => setEmojiTextPicker(null)}
+        />
+      )}
+
+      {colorPicker && (
+        <ColorPopover
+          x={colorPicker.x}
+          y={colorPicker.y}
+          value={docMeta.headerColor}
+          onSelect={(color, { close }) => { applyPlainvaValue("header_color", color); if (close) setColorPicker(null); }}
+          onRemove={() => { applyPlainvaValue("header_color", null); setColorPicker(null); }}
+          onClose={() => setColorPicker(null)}
+        />
+      )}
+
+      {dateMention && (
+        <div
+          className="pv-popover--fixed"
+          style={{ left: dateMention.x, top: dateMention.y, minWidth: "180px", visibility: "visible" }}
+        >
+          <CustomDatePicker
+            value=""
+            autoOpen
+            onChange={handleDateMentionSelect}
+            onClose={() => setDateMention(null)}
+          />
+        </div>
+      )}
+
+      {basePicker && (
+        <BasePicker
+          onPick={(path) => { embedBaseAtPos(path, basePicker.pos); setBasePicker(null); }}
+          onCreate={() => { const pos = basePicker.pos; setBasePicker(null); createAndEmbedBase(pos); }}
+          onClose={() => setBasePicker(null)}
+        />
+      )}
+
+      {viewMode !== 'read' && selToolbar && (
+        <SelectionToolbar {...selToolbar} onAction={applyFormat} />
+      )}
+
+      {blockMenu && (
+        <BlockMenu x={blockMenu.x} y={blockMenu.y} onAction={handleBlockAction} onClose={() => setBlockMenu(null)} />
+      )}
+
+      {tableMenu && (
+        <TableContextMenu
+          x={tableMenu.x}
+          y={tableMenu.y}
+          kind={tableMenu.kind}
+          align={tableMenu.align}
+          // The right the menu asks for is "may comment", as on the phone -
+          // not "may write" (finding 2026-09-03, K2): a Commenter has no
+          // content.write and lost the entry; the anchor setting only decides
+          // whether a hard marker is written, not whether one may comment.
+          // A cell that already carries a comment offers no second one (V7):
+          // the corner leads to the thread, a reply goes there.
+          canComment={workspaceCanComment && !anchorHighlights.some((h) => h.frame?.kind === "tableCell" && h.frame.row === (tableMenu.kind === "header" ? 0 : tableMenu.rowIndex + 1) && h.frame.column === tableMenu.colIndex && h.from >= tableMenu.from && h.to <= tableMenu.to)}
+          onAction={handleTableMenuAction}
+          onClose={() => setTableMenu(null)}
+        />
+      )}
+    </div>
+  );
+};

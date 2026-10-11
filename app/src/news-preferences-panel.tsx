@@ -47,7 +47,7 @@ export function NewsPreferences({ model, models = [], sources=[], section = 'dom
         <label>采集连接方式<NativeSelect variant="app" className="select" value={config.collectionProxy == null ? 'direct' : 'proxy'} onChange={e => update({ collectionProxy: e.target.value === 'proxy' ? '' : null })}><option value="direct">直连</option><option value="proxy">手动 HTTP 代理</option></NativeSelect></label>
         {config.collectionProxy != null && <><label>代理地址<Input variant="app" className="input" type="url" required maxLength={512} value={config.collectionProxy} onChange={e => update({ collectionProxy: e.target.value })} placeholder="http://127.0.0.1:7890" autoComplete="off" spellCheck={false} /></label><p className="meta">填写代理软件的 HTTP 或 Mixed 地址，示例端口需要替换为实际端口。仅支持 http://，不支持 SOCKS 地址或需要登录的代理。代理软件需要保持运行，域名解析由所填代理负责。</p></>}
         <p className="meta">不自动读取系统代理。此设置用于 RSS / Atom、公开正文与配图采集，AI 模型连接单独配置。保存后可回到信源管理，先预览或重试一个失败信源；旧错误记录会保留。</p>
-        <UILink variant="text" className="foundation-link" href="#settings/news">前往信源管理 →</UILink>
+        <UILink variant="text" className="foundation-link" href="#sources">前往信源管理 →</UILink>
       </fieldset>}
       {section === 'domains' && <>
         <Disclosure className="disclosure news-classification-guide"><summary>AIHOT 分类与筛选规则 · T1 ≥60 / T1.5 ≥65 / T2 ≥76</summary>

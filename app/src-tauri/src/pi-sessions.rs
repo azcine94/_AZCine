@@ -44,6 +44,7 @@ pub struct SessionSummary {
     pub name: Option<String>,
     pub cwd: String,
     pub updated_at: String,
+    pub last_activity_at: Option<String>,
     pub message_count: usize,
 }
 
@@ -265,28 +266,52 @@ fn validate_session_observed(
     Ok(summary)
 }
 
-/// Display the last native branch without starting Pi or rebuilding its model
-/// context. Native JSONL stays unchanged; only whitelisted message fields leave
-/// this reader. Live/resumed context continues to come from official RPC.
-pub fn read_message_view(paths:&PiPaths,path:&Path)->Result<(SessionSummary,Value),ConfigError>{
-    let mut entries=std::collections::HashMap::<String,(Option<String>,Option<Value>)>::new();
-    let mut leaf=None;
-    let summary=validate_session_observed(paths,path,|entry|{
-        let is_message=entry.get("type").and_then(Value::as_str)==Some("message");
-        let Some(id)=entry.get("id").and_then(Value::as_str)else{return if is_message{Err(format_error())}else{Ok(())};};
-        if id.is_empty()||id.len()>MAX_ID_BYTES||entries.len()>=100_000{return Err(limit_error());}
+// Keep the transcript independent from Pi's compacted model context. Both the
+// cold JSONL reader and official get_entries RPC use the same branch traversal.
+#[derive(Default)]
+struct DisplayBranch {
+    entries:std::collections::HashMap<String,(Option<String>,Option<Value>)>,
+    last:Option<String>,
+}
+impl DisplayBranch {
+    fn push(&mut self,entry:&Map<String,Value>)->Result<(),ConfigError>{
+        let kind=entry.get("type").and_then(Value::as_str);
+        let is_message=kind==Some("message");
+        let Some(id)=entry.get("id").and_then(Value::as_str) else{return if is_message{Err(format_error())}else{Ok(())};};
+        if id.is_empty()||id.len()>MAX_ID_BYTES||self.entries.len()>=100_000{return Err(limit_error());}
         let parent=match entry.get("parentId"){None|Some(Value::Null)=>None,Some(Value::String(value))if value.len()<=MAX_ID_BYTES=>Some(value.clone()),_=>return Err(format_error())};
-        let message=if is_message{Some(crate::pi_projection::message(entry.get("message").ok_or_else(format_error)?))}else{None};
-        if entries.insert(id.to_owned(),(parent,message)).is_some(){return Err(format_error());}
-        leaf=Some(id.to_owned());Ok(())
-    })?;
-    let mut messages=Vec::new();
-    while let Some(id)=leaf{
-        let (parent,message)=entries.remove(&id).ok_or_else(format_error)?;
-        if let Some(message)=message{if messages.len()>=20_000{return Err(limit_error());}messages.push(message);}
-        leaf=parent;
+        let message=if is_message{
+            let raw=entry.get("message").ok_or_else(format_error)?;
+            if matches!(raw["role"].as_str(),Some("compactionSummary"|"branchSummary")){None}else{Some(crate::pi_projection::message(raw))}
+        }else if kind==Some("custom_message")&&entry.get("display").and_then(Value::as_bool)!=Some(false){
+            Some(crate::pi_projection::message(&serde_json::json!({"role":"custom","customType":entry.get("customType"),"content":entry.get("content"),"display":true,"timestamp":entry.get("timestamp")})))
+        }else{None};
+        if self.entries.insert(id.to_owned(),(parent,message)).is_some(){return Err(format_error());}
+        self.last=Some(id.to_owned());Ok(())
     }
-    messages.reverse();Ok((summary,Value::Array(messages)))
+    fn messages(mut self,mut leaf:Option<String>)->Result<Value,ConfigError>{
+        let mut messages=Vec::new();
+        while let Some(id)=leaf{
+            let (parent,message)=self.entries.remove(&id).ok_or_else(format_error)?;
+            if let Some(message)=message{if messages.len()>=20_000{return Err(limit_error());}messages.push(message);}
+            leaf=parent;
+        }
+        messages.reverse();Ok(Value::Array(messages))
+    }
+}
+/// Official RPC supplies the actual active leaf, including branches that do not
+/// end at the last physical JSONL entry. Never infer the leaf from model context.
+pub fn read_entry_view(value:&Value)->Result<Value,ConfigError>{
+    let mut branch=DisplayBranch::default();
+    for entry in value["entries"].as_array().ok_or_else(format_error)?{branch.push(entry.as_object().ok_or_else(format_error)?)?;}
+    let leaf=match value.get("leafId"){Some(Value::Null)=>None,Some(Value::String(id))=>Some(id.clone()),_=>return Err(format_error())};
+    branch.messages(leaf)
+}
+/// Display persisted history without starting Pi or changing its native file.
+pub fn read_message_view(paths:&PiPaths,path:&Path)->Result<(SessionSummary,Value),ConfigError>{
+    let mut branch=DisplayBranch::default();
+    let summary=validate_session_observed(paths,path,|entry|branch.push(entry))?;
+    let leaf=branch.last.clone();Ok((summary,branch.messages(leaf)?))
 }
 
 pub fn list_sessions(paths: &PiPaths) -> Result<SessionList, ConfigError> {
@@ -507,6 +532,7 @@ fn parse_session_observed<R:BufRead>(reader:&mut R,mut observe:impl FnMut(&Map<S
         name: None,
         cwd: cwd.to_owned(),
         updated_at: timestamp.to_owned(),
+        last_activity_at: None,
         message_count: 0,
     };
 
@@ -521,6 +547,11 @@ fn parse_session_observed<R:BufRead>(reader:&mut R,mut observe:impl FnMut(&Map<S
                 // the nested Unix message timestamp as updated_at.
                 required_timestamp(&entry)?;
                 validate_message(entry.get("message").ok_or_else(format_error)?)?;
+                let message = &entry["message"];
+                if message["role"] == "user" || (message["role"] == "assistant"
+                    && matches!(message["stopReason"].as_str(), Some("stop" | "error" | "aborted" | "length"))) {
+                    summary.last_activity_at = Some(required_timestamp(&entry)?.to_owned());
+                }
                 summary.message_count = summary
                     .message_count
                     .checked_add(1)
@@ -1308,8 +1339,9 @@ mod tests {
         let summary = must_parse(&source(&[user_entry("not returned")]));
         let value = serde_json::to_value(summary).unwrap();
         let object = value.as_object().unwrap();
-        assert_eq!(object.len(), 6);
-        for field in ["id", "path", "name", "cwd", "updatedAt", "messageCount"] {
+        assert_eq!(object.len(), 7);
+        assert!(object["lastActivityAt"].is_string());
+        for field in ["id", "path", "name", "cwd", "updatedAt", "lastActivityAt", "messageCount"] {
             assert!(object.contains_key(field));
         }
 
