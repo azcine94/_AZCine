@@ -12,7 +12,7 @@
 
 
 /* Selected Agent direction. All local colors and layout stay inside this module. */
-.workspace[data-page=agent] { background:var(--background); }
+.workspace[data-page=agent] { background-color:var(--background); }
 .workspace[data-page=agent] .page-heading { padding:24px var(--content-pad) 20px; }
 .workspace[data-page=agent] .page-heading h1 { font-size:var(--fs-title); line-height:var(--lh-title); }
 .workspace[data-page=agent] .workspace-scroll { padding:0 24px 20px; }
@@ -94,7 +94,7 @@
 .pi-agent-layout .pi-message { color:var(--text); font:14px/23px var(--font); margin-block:24px; overflow-wrap:anywhere; }
 .pi-agent-layout .pi-message>header { color:var(--t2); font:12px/18px var(--font); margin-bottom:var(--s-2); }
 .pi-agent-layout .pi-message-text { white-space:pre-wrap; margin-block:var(--s-2); overflow-wrap:anywhere; }
-.pi-agent-layout .pi-message--user { width:fit-content; max-width:90%; margin-left:auto; background:#17181B; color:#FFFFFF; border-radius:18px; padding:8px 14px; }
+.pi-agent-layout .pi-message--user { width:fit-content; max-width:90%; margin-left:auto; background:var(--foreground); color:var(--background); border-radius:0; padding:8px 14px; }
 .pi-agent-layout .pi-message--user>header { display:none; }
 .pi-agent-layout .pi-answer-state { font:12px/18px var(--font); color:var(--t2); }
 
@@ -173,7 +173,7 @@
 
 
 
-.pi-agent-layout .pi-composer-send--queued { width:auto; padding:0 10px; border-radius:999px; }
+.pi-agent-layout .pi-composer-send--queued { width:auto; padding:0 10px; border-radius:0; }
 .pi-agent-layout .pi-attachments { display:flex; gap:var(--s-2); flex-wrap:wrap; margin-top:var(--s-2); max-height:96px; overflow:auto; }
 .pi-agent-layout .pi-attachment { display:flex; align-items:center; min-width:0; max-width:100%; gap:var(--s-2); background:var(--island-2); padding-left:var(--s-2); border-radius:var(--r-xs); font-size:12px; }
 .pi-agent-layout .pi-attachment span { overflow-wrap:anywhere; }

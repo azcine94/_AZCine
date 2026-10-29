@@ -3,7 +3,8 @@
 .workspace-header-slot:has(>.workspace-header-custom)>.workspace-header-default { display:none; }
 .workspace-page-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); width:100%; min-width:0; }
 .workspace-page-heading .page-name { flex:1; min-width:0; }
-.workspace-page-heading h1 { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:600 var(--fs-h)/var(--lh-h) var(--font); }
+.workspace-page-heading h1 { display:flex; align-items:center; gap:var(--s-3); min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font:900 21px/24px var(--font-display); letter-spacing:-.04em; }
+.workspace-page-heading h1::before { content:""; flex:none; width:8px; height:8px; background:var(--spot); }
 .workspace-page-heading h1:focus { outline:none; }
 .workspace-header-custom :is(h1,h2)[tabindex="-1"]:focus { outline:none; }
 .workspace-page-heading .agent-page-tools { flex:none; flex-wrap:nowrap; }

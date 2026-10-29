@@ -1,6 +1,9 @@
 /* AZCine 公共控件。业务变体由组件显式选择，主题只引用 tokens。 */
 /* 尺寸各有用途；这里统一焦点与操作排列，不改变已确认的页面布局。 */
 .ui-button:focus-visible,.ui-link:focus-visible,.ui-disclosure>summary:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+/* herdr 风：作为标题/条目的普通链接保持正文色，悬停才显主色；文字链接（text）仍用主色。 */
+.ui-link[data-variant="plain"] { color:inherit; }
+.ui-link[data-variant="plain"]:hover { color:var(--spot); text-decoration:none; }
 .ui-choice-chip { border:1px solid var(--border); border-radius:var(--r-ctl); background:transparent; color:var(--muted-foreground); padding:4px 9px; font:400 11px/20px var(--font); }
 .ui-choice-chip[aria-pressed=true] { background:var(--primary); color:var(--primary-foreground); border-color:var(--primary); }
 .ui-underline-tab { border:0; border-bottom:2px solid transparent; background:transparent; color:var(--muted-foreground); padding:0 0 12px; white-space:nowrap; font:400 13px/20px var(--font); }
@@ -68,13 +71,20 @@
 .search input { border: 0; background: transparent; color: var(--text); font: inherit; width: 100%; outline: none; min-width: 0; }
 .search input::placeholder { color: var(--t3); }
 
-.pill { min-height:var(--control-h); padding-inline:var(--s-4); border-radius:var(--r-ctl); color:var(--text); background:var(--background); border-color:var(--border); box-shadow:var(--shadow-card); }
+.pill { min-height:var(--control-h); padding-inline:var(--s-4); border-radius:var(--r-ctl); color:var(--text); background:transparent; border-color:var(--border); box-shadow:none; letter-spacing:.06em; text-transform:uppercase; }
+.pill:is(:hover,.is-hover):not(:disabled) { background:var(--spot); border-color:var(--spot); color:var(--spot-ink); }
+.pill.on { background:var(--spot); border-color:var(--spot); color:var(--spot-ink); }
+.pill.on:is(:hover,.is-hover):not(:disabled) { background:var(--foreground); border-color:var(--foreground); color:var(--background); opacity:1; }
 .pill:active { transform:none; }
 .pill:disabled { opacity:.5; cursor:not-allowed; transform:none; }
-.input,.select,.textarea { background:var(--background); box-shadow:var(--shadow-card); }
+.ui-button:is([data-variant="app-quiet"],[data-variant="app-primary"]) { letter-spacing:.04em; }
+.ui-button[data-variant="app-quiet"]:hover:not(:disabled) { background:var(--acc-soft); color:var(--text); }
+.ui-button[data-variant="app-primary"]:hover:not(:disabled) { background:var(--foreground); color:var(--background); }
+.icon-btn:is(:hover,.is-hover) { color:var(--spot); }
+.input,.select,.textarea { background:var(--background); box-shadow:none; }
 :root[data-theme="dark"] :is(.input,.select,.textarea) { background:color-mix(in srgb,var(--input) 30%,var(--background)); }
-.input:is(:focus,.is-focus),.select:is(:focus,.is-focus),.textarea:is(:focus,.is-focus) { border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 40%,transparent); }
-.ui-status-badge { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:var(--r-xs); padding:2px 8px; font:500 12px/18px var(--font); background:var(--muted); }
+.input:is(:focus,.is-focus),.select:is(:focus,.is-focus),.textarea:is(:focus,.is-focus) { border-color:var(--ring); box-shadow:inset 0 0 0 1px var(--ring); }
+.ui-status-badge { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:var(--r-xs); padding:2px 8px; font:500 11px/18px var(--mono); letter-spacing:.08em; background:transparent; }
 .ui-loading-status { height:var(--lh-s); min-height:var(--lh-s); min-width:0; margin:0; color:var(--t2); font:400 var(--fs-s)/var(--lh-s) var(--font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ui-loading-status>span { display:block; height:100%; overflow:hidden; text-overflow:ellipsis; }
 .ui-loading-status[data-loading="false"] { visibility:hidden; }

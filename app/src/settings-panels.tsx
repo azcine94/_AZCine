@@ -2,11 +2,13 @@ import { UILink } from './components/ui/ui-link.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { Button } from './components/ui/button.tsx';
 import { useLayoutEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { settingsGroups, settingsTitle } from './settings-navigation.ts';
 import type { SettingsIconName } from './settings-navigation.ts';
 import type { Route } from './routes.ts';
 import type { Theme } from './theme.ts';
+import { SPOTS } from './spot.ts';
+import { useSpot } from './use-spot.ts';
 import type { WorkspaceController } from './use-workspace.ts';
 import type { PiController } from './use-pi.ts';
 import type { NewsController } from './use-news.ts';
@@ -40,14 +42,25 @@ function SettingsIcon({ name }: { name: SettingsIconName }) {
 }
 
 function AppearanceSettings({ theme, selectTheme }: { theme: Theme; selectTheme: (theme: Theme) => void }) {
+  const { spot, selectSpot, warning } = useSpot();
+  const current = SPOTS.find(item => item.id === spot) ?? SPOTS[0];
   return <section className="settings-page">
     <header className="settings-page-header"><h2>常用设置</h2><p className="subtle">调整工作台的显示偏好。</p></header>
-    <div className="settings-row"><div><h3>外观主题</h3><p className="meta">默认使用浅色。手动选择后，记住这台设备的偏好。</p></div>
+    <div className="settings-row"><div><h3>外观主题</h3><p className="meta">默认使用浅色（PAPER）。手动选择后，记住这台设备的偏好。</p></div>
       <div className="settings-theme-options" aria-label="外观主题">{(['light', 'dark'] as const).map(value => <Button variant="app-control" key={value} type="button" className="settings-theme-option" aria-pressed={theme === value} onClick={() => selectTheme(value)}>
         <span className={`settings-theme-preview settings-theme-preview--${value}`} aria-hidden="true"><span /><span><i /><i /><i /></span></span>
-        <span>{value === 'light' ? '浅色' : '深色'}</span>
+        <span>{value === 'light' ? '浅色 · PAPER' : '深色 · INK'}</span>
       </Button>)}</div>
     </div>
+    <div className="settings-row"><div><h3>主色</h3><p className="meta">用于选中、标签、主按钮和焦点。亮暗主题各自换算成合适的深浅，记住这台设备的偏好。</p></div>
+      <div className="settings-spot-picker">
+        <div className="settings-spot-options" role="radiogroup" aria-label="主色">{SPOTS.map(item => <Button variant="app-control" key={item.id} type="button" role="radio" className="settings-spot-option" aria-checked={spot === item.id} aria-label={`主色：${item.label}`} title={item.label} onClick={() => selectSpot(item.id)}>
+          <span className="settings-spot-swatch" aria-hidden="true" style={{ '--swatch': theme === 'dark' ? item.dark : item.light } as CSSProperties} />
+        </Button>)}</div>
+        <span className="settings-spot-name" aria-live="polite">{current.label}</span>
+      </div>
+    </div>
+    {warning && <Feedback as="p" tone="error" role="alert">{warning}</Feedback>}
   </section>;
 }
 
