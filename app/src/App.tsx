@@ -107,7 +107,7 @@ function Today({ calendar, projects, ideas, agentData, pi }: { calendar:Delivery
       <div className="today-overview">
       <TodayClock/>
       <section className="today-card review-card">
-        <div className="card-heading"><span className="card-kicker">待核对</span><span className="card-state">{agentData.error?'读取失败':`${agentData.drafts.filter(d=>d.status!=='applied').length} 份草案`}</span></div>
+        <div className="card-heading"><span className="card-kicker">待核对</span><span className="card-state" data-state={agentData.error?'error':agentData.drafts.some(d=>d.status!=='applied')?'blocked':'idle'}>{agentData.error?'读取失败':`${agentData.drafts.filter(d=>d.status!=='applied').length} 份草案`}</span></div>
         <div className="review-card-body"><h2>{agentData.error?'草案记录尚未读到':agentData.drafts.some(d=>d.status!=='applied')?'有草案等待本人核对':'还没有可核对的变更'}</h2><p className="card-description">{agentData.error||'Agent完成的业务草案会保存在这里；核对后再写入正式记录。'}</p><AgentDraftsPanel model={agentData} pi={pi}/></div>
       </section>
       </div>

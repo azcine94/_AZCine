@@ -1,75 +1,92 @@
-/* ShadcnStore default theme, adapted to AZCine data-theme and legacy aliases.
-   Source: shadcnstore/shadcn-dashboard-landing-template (MIT).
+/* herdr 风主题（2026-10-29 用户确认）：paper 浅色 / ink 深色，直角、细线、单一主色。
+   参考 herdr.dev 的 ink / paper 取值；主色由根节点 data-spot 切换（7 种），偏好见 spot.ts。
    This file is the single source for light/dark colors, typography and sizing. */
 :root {
-  --radius: .625rem;
-  --background: oklch(1 0 0); --foreground: oklch(.145 0 0);
-  --card: oklch(1 0 0); --card-foreground: var(--foreground);
-  --popover: oklch(1 0 0); --popover-foreground: var(--foreground);
-  --primary: oklch(.205 0 0); --primary-foreground: oklch(.985 0 0);
-  --secondary: oklch(.97 0 0); --secondary-foreground: var(--primary);
-  --muted: oklch(.97 0 0); --muted-foreground: oklch(.48 0 0);
-  --accent: oklch(.97 0 0); --accent-foreground: var(--primary);
-  --destructive: oklch(.577 .245 27.325);
-  --border: oklch(.922 0 0); --input: var(--border); --ring: oklch(.708 0 0);
-  --sidebar: oklch(.985 0 0); --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--primary); --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent); --sidebar-accent-foreground: var(--accent-foreground);
+  --radius: 0px;
+  /* paper（浅色） */
+  --background: #efece5; --foreground: #15140f;
+  --card: #f4f2ec; --card-foreground: var(--foreground);
+  --popover: #f7f5f0; --popover-foreground: var(--foreground);
+  --spot: #8839ef; --spot-ink: #ffffff;
+  --primary: var(--spot); --primary-foreground: var(--spot-ink);
+  --secondary: #e7e3da; --secondary-foreground: var(--foreground);
+  --muted: #e7e3da; --muted-foreground: #55534a;
+  --accent: #e7e3da; --accent-foreground: var(--foreground);
+  --destructive: #c73e3e;
+  --border: #cbc5b6; --input: var(--border); --ring: var(--spot);
+  --sidebar: var(--background); --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--spot); --sidebar-primary-foreground: var(--spot-ink);
+  --sidebar-accent: var(--card); --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border); --sidebar-ring: var(--ring);
-  --chart-1: oklch(.646 .222 41.116); --chart-2: oklch(.6 .118 184.704);
-  --chart-3: oklch(.398 .07 227.392); --chart-4: oklch(.828 .189 84.429); --chart-5: oklch(.769 .188 70.08);
-  --ok: #15803D; --warn: #A16207; --bad: #B91C1C;
-  --ok-soft: color-mix(in srgb,var(--ok) 9%,var(--card));
-  --warn-soft: color-mix(in srgb,var(--warn) 9%,var(--card));
-  --bad-soft: color-mix(in srgb,var(--bad) 9%,var(--card)); --ok-fg:#FFFFFF;
-  --shadow-pop: 0 0 0 1px var(--border),0 8px 24px rgb(0 0 0 / .1);
-  --shadow-knob: 0 1px 3px rgb(0 0 0 / .12);
-  --shadow-card: 0 1px 2px rgb(0 0 0 / .04);
+  --chart-1: var(--spot); --chart-2: #1e66f5; --chart-3: #c4520a; --chart-4: #c21f7a; --chart-5: #0b7fa8;
+  --ok: #2d9f52; --warn: #a66f08; --bad: #c73e3e;
+  --ok-soft: color-mix(in srgb,var(--ok) 10%,var(--card));
+  --warn-soft: color-mix(in srgb,var(--warn) 10%,var(--card));
+  --bad-soft: color-mix(in srgb,var(--bad) 10%,var(--card)); --ok-fg:#FFFFFF;
+  --line-faint: #e2ded4; --mass: #ddd8cc; --grid: #e4e0d6; --dim: #3d3b33;
+  --shadow-pop: 0 0 0 1px var(--border),0 10px 28px rgb(21 20 15 / .10);
+  --shadow-knob: 0 0 0 1px var(--border);
+  --shadow-card: none;
   /* Decorative icon accents; card surfaces remain neutral. */
-  --icon-accent-violet:#8277c7; --icon-accent-mint:#438873;
-  --icon-accent-amber:#aa8132; --icon-accent-rose:#b76c89;
-  --chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  --icon-accent-violet:#8839ef; --icon-accent-mint:#0b7fa8;
+  --icon-accent-amber:#a66f08; --icon-accent-rose:#c21f7a;
+  --chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386826f' stroke-width='2' stroke-linecap='square' stroke-linejoin='miter'><polyline points='6 9 12 15 18 9'/></svg>");
   color-scheme:light;
 
   /* Compatibility aliases: module styles use the same semantic theme. */
   --bg:var(--background); --island:var(--card); --island-2:var(--muted);
-  --island-3:color-mix(in srgb,var(--foreground) 9%,var(--card));
+  --island-3:var(--mass);
   --text:var(--foreground); --t2:var(--muted-foreground); --t3:var(--muted-foreground);
   --ink:var(--primary); --ink-fg:var(--primary-foreground);
-  --acc:var(--primary); --acc-fg:var(--primary-foreground); --acc-soft:var(--accent);
-  --line:var(--border); --line-2:var(--input); --sel:color-mix(in srgb,var(--primary) 18%,transparent);
-  --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
-  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --acc:var(--primary); --acc-fg:var(--primary-foreground); --acc-soft:color-mix(in srgb,var(--spot) 10%,transparent);
+  --line:var(--border); --line-2:var(--input); --sel:color-mix(in srgb,var(--spot) 28%,transparent);
+  --font:"Inter Variable",Inter,"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;
+  --font-display:"Archivo Variable",Archivo,"Segoe UI Black","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --mono:"JetBrains Mono Variable","JetBrains Mono","Cascadia Mono",Consolas,"Microsoft YaHei",monospace;
   --fs-title:24px; --lh-title:32px; --fs-h:16px; --lh-h:24px;
   --fs-body:14px; --lh-body:22px; --fs-read:16px; --lh-read:28px;
   --fs-s:13px; --lh-s:20px; --fs-xs:12px; --lh-xs:18px; --fs-mono:12px;
   --fs-feature:30px; --lh-feature:38px; --feature-secondary:var(--muted-foreground);
+  --fs-label:10.5px; --ls-label:.2em;
   --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px; --s-8:64px;
-  --r-island:calc(var(--radius) + 2px); --r-panel:var(--radius);
-  --r-ctl:calc(var(--radius) - 4px); --r-xs:calc(var(--radius) - 4px); --r-pill:999px;
+  --r-island:0px; --r-panel:0px;
+  --r-ctl:0px; --r-xs:0px; --r-pill:0px;
   --h-1:32px; --h-2:36px; --h-3:36px; --control-h:36px; --row-h:64px;
   --gap:16px; --nav-w:64px; --nav-wide:240px; --nav-small:64px; --aux-w:320px;
   --titlebar-h:56px; --content-pad:24px; --detail-w:352px; --modal-w:720px; --icon-size:16px;
   --card-padding:24px; --card-gap:16px; --scrim:rgb(0 0 0 / .5);
-  --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+  --grid-size:72px;
+  --dur:120ms; --ease:cubic-bezier(.2,0,0,1);
 }
 :root[data-theme="dark"] {
-  --background:oklch(.145 0 0); --foreground:oklch(.985 0 0);
-  --card:oklch(.205 0 0); --popover:oklch(.205 0 0);
-  --primary:oklch(.922 0 0); --primary-foreground:oklch(.205 0 0);
-  --secondary:oklch(.269 0 0); --secondary-foreground:var(--foreground);
-  --muted:oklch(.269 0 0); --muted-foreground:oklch(.708 0 0);
-  --accent:oklch(.269 0 0); --accent-foreground:var(--foreground);
-  --destructive:oklch(.704 .191 22.216);
-  --border:oklch(1 0 0 / 10%); --input:oklch(1 0 0 / 15%); --ring:oklch(.556 0 0);
-  --sidebar:oklch(.205 0 0); --sidebar-primary:oklch(.922 0 0);
-  --chart-1:oklch(.488 .243 264.376); --chart-2:oklch(.696 .17 162.48);
-  --chart-3:oklch(.769 .188 70.08); --chart-4:oklch(.627 .265 303.9); --chart-5:oklch(.645 .246 16.439);
-  --ok:#4ADE80; --warn:#FACC15; --bad:#F87171; --ok-fg:#171717;
-  --shadow-pop:0 0 0 1px var(--border),0 12px 32px rgb(0 0 0 / .4);
-  --shadow-card:0 1px 2px rgb(0 0 0 / .15);
-  --icon-accent-violet:#b0a6ed; --icon-accent-mint:#82c9ad;
-  --icon-accent-amber:#dcc078; --icon-accent-rose:#dca0ba;
-  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A3A3A3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  /* ink（深色） */
+  --background:#17171a; --foreground:#eae8ee;
+  --card:#1c1c20; --popover:#1e1e22;
+  --spot:#cba6f7; --spot-ink:#17171a;
+  --secondary:#232328; --secondary-foreground:var(--foreground);
+  --muted:#232328; --muted-foreground:#b0afb6;
+  --accent:#232328; --accent-foreground:var(--foreground);
+  --destructive:#e05a5a;
+  --border:#35353d; --input:#35353d;
+  --chart-2:#4a9eff; --chart-3:#fab387; --chart-4:#f5c2e7; --chart-5:#89dceb;
+  --ok:#52c97a; --warn:#e6b84a; --bad:#e05a5a; --ok-fg:#17171a;
+  --line-faint:#26262b; --mass:#2a2a30; --grid:#202024; --dim:#cdccd2;
+  --shadow-pop:0 0 0 1px var(--border),0 12px 32px rgb(0 0 0 / .45);
+  --icon-accent-violet:#cba6f7; --icon-accent-mint:#89dceb;
+  --icon-accent-amber:#f9e2af; --icon-accent-rose:#f5c2e7;
+  --chevron:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23908f96' stroke-width='2' stroke-linecap='square' stroke-linejoin='miter'><polyline points='6 9 12 15 18 9'/></svg>");
   color-scheme:dark;
 }
+/* 7 种主色（spot）：paper / ink 各一组；薰衣草为默认 */
+:root[data-spot="blue"]{--spot:#1e66f5;--spot-ink:#ffffff}
+:root[data-spot="peach"]{--spot:#c4520a;--spot-ink:#ffffff}
+:root[data-spot="pink"]{--spot:#c21f7a;--spot-ink:#ffffff}
+:root[data-spot="sky"]{--spot:#0b7fa8;--spot-ink:#ffffff}
+:root[data-spot="yellow"]{--spot:#9a6a08;--spot-ink:#ffffff}
+:root[data-spot="coral"]{--spot:#d20f39;--spot-ink:#ffffff}
+:root[data-theme="dark"][data-spot="blue"]{--spot:#4a9eff;--spot-ink:#0c0c0b}
+:root[data-theme="dark"][data-spot="peach"]{--spot:#fab387;--spot-ink:#17171a}
+:root[data-theme="dark"][data-spot="pink"]{--spot:#f5c2e7;--spot-ink:#17171a}
+:root[data-theme="dark"][data-spot="sky"]{--spot:#89dceb;--spot-ink:#17171a}
+:root[data-theme="dark"][data-spot="yellow"]{--spot:#f9e2af;--spot-ink:#17171a}
+:root[data-theme="dark"][data-spot="coral"]{--spot:#f38ba8;--spot-ink:#17171a}

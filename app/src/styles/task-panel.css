@@ -63,7 +63,7 @@
 .tp-card-reason svg { flex:none; margin-top:2px; }
 .tp-card-tags { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
 .tp-card-tags [data-slot=badge] { font-weight:400; font-size:11px; line-height:16px; padding:2px 6px; white-space:normal; }
-.tp-progress { display:flex; justify-content:flex-end; gap:3px; }.tp-progress i { width:15px; height:4px; border-radius:4px; background:var(--border); }.tp-progress i[data-done=true] { background:var(--foreground); }
+.tp-progress { display:flex; justify-content:flex-end; gap:3px; }.tp-progress i { width:15px; height:4px; border-radius:0; background:var(--border); }.tp-progress i[data-done=true] { background:var(--foreground); }
 .tp-lane-empty { text-align:center; padding:24px 8px; color:var(--muted-foreground); font-size:12px; }
 .tp-detail { min-width:0; min-height:0; display:flex; flex-direction:column; border:1px solid var(--border); border-radius:var(--r-panel); background:var(--card); box-shadow:var(--shadow-card); overflow:hidden; }
 .tp-detail-head { padding:16px 16px 12px; display:grid; gap:8px; flex:none; border-bottom:1px solid var(--border); }

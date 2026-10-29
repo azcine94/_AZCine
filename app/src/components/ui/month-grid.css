@@ -1,28 +1,30 @@
 .ui-month-grid { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; }
-.ui-month-weekdays { display:grid; flex:none; grid-template-columns:repeat(7,minmax(0,1fr)); gap:var(--s-1); color:var(--t2); padding-bottom:var(--s-2); font-size:var(--fs-xs); line-height:var(--lh-xs); }
+.ui-month-weekdays { display:grid; flex:none; grid-template-columns:repeat(7,minmax(0,1fr)); gap:0; color:var(--t3); padding-bottom:var(--s-2); font:400 10px/16px var(--mono); letter-spacing:var(--ls-label); }
 .ui-month-weekdays > span { text-align:right; padding-right:var(--s-2); }
-.ui-month-days { flex:1; min-height:0; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:var(--s-1); }
-.ui-month-cell.ui-card-review { min-width:0; min-height:0; overflow:hidden; border-radius:var(--r-ctl); }
-.ui-month-cell > button { display:flex; flex:1; flex-direction:column; align-items:stretch; justify-content:flex-start; gap:2px; width:100%; min-height:0; min-width:0; padding:var(--s-1); border-radius:inherit; text-align:left; color:var(--text); font:400 var(--fs-s)/var(--lh-s) var(--font); }
-.ui-month-cell[data-outside=true] { background:transparent; box-shadow:none; border-color:transparent; }
-.ui-month-cell[data-outside=true] .ui-month-number { color:var(--t2); }
-.ui-month-cell:hover { border-color:var(--ring); }
-.ui-month-cell[data-today=true] { background:linear-gradient(180deg,var(--bad-soft),var(--card)); border-color:color-mix(in srgb,var(--bad) 45%,var(--border)); }
-.ui-month-cell[data-selected=true] { border-color:var(--bad); }
+/* herdr 风：格子之间共用 1px 细线，像表格 */
+.ui-month-days { flex:1; min-height:0; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); }
+.ui-month-cell.ui-card-review { min-width:0; min-height:0; overflow:hidden; border:0; border-radius:0; background:var(--card); box-shadow:none; transition:background-color var(--dur) var(--ease); }
+.ui-month-cell > button { display:flex; flex:1; flex-direction:column; align-items:stretch; justify-content:flex-start; gap:2px; width:100%; min-height:0; min-width:0; padding:var(--s-1) var(--s-2); border-radius:0; text-align:left; color:var(--text); font:400 var(--fs-s)/var(--lh-s) var(--font); }
+.ui-month-cell[data-outside=true] { background:var(--muted); }
+.ui-month-cell[data-outside=true] .ui-month-number { color:var(--t3); }
+.ui-month-cell:hover { background:var(--muted); }
+.ui-month-cell[data-today=true] { box-shadow:inset 0 2px 0 var(--spot); }
+.ui-month-cell[data-selected=true] { background:var(--acc-soft); box-shadow:inset 0 0 0 1px var(--spot); }
+.ui-month-cell[data-today=true][data-selected=true] { box-shadow:inset 0 0 0 1px var(--spot),inset 0 3px 0 var(--spot); }
 .ui-month-date { display:flex; flex:none; align-items:center; justify-content:space-between; min-width:0; }
-.ui-month-number { display:grid; place-items:center; margin-left:auto; width:22px; height:22px; flex:none; border-radius:var(--r-pill); }
-.ui-month-cell[data-today=true] .ui-month-number { color:var(--bad); }
-.ui-month-cell[data-selected=true] .ui-month-number { color:var(--card); background:var(--bad); }
-.ui-month-today { color:var(--bad); font-size:var(--fs-xs); line-height:var(--lh-xs); white-space:nowrap; }
+.ui-month-number { display:grid; place-items:center; margin-left:auto; min-width:22px; height:22px; flex:none; border-radius:0; font:500 12px/18px var(--mono); }
+.ui-month-cell[data-today=true] .ui-month-number { color:var(--spot); font-weight:700; }
+.ui-month-cell[data-selected=true] .ui-month-number { color:var(--spot-ink); background:var(--spot); }
+.ui-month-today { padding:0 5px; background:var(--spot); color:var(--spot-ink); font:500 10px/16px var(--mono); letter-spacing:.06em; white-space:nowrap; }
 .ui-month-events { display:flex; align-items:flex-end; gap:2px; min-width:0; margin-top:auto; font-size:var(--fs-xs); line-height:var(--lh-xs); }
 .ui-month-event-list { display:flex; flex:1; flex-direction:column; min-width:0; }
-.ui-month-cell[data-selected=true] .ui-month-event:first-child { background:var(--bad); color:var(--card); border-radius:3px; }
-.ui-month-cell[data-selected=true] .ui-month-event:first-child i { background:var(--card); }
+.ui-month-cell[data-selected=true] .ui-month-event:first-child { background:var(--spot); color:var(--spot-ink); }
+.ui-month-cell[data-selected=true] .ui-month-event:first-child i { background:var(--spot-ink); }
 .ui-month-cell[data-selected=true] .ui-month-event:first-child > span { color:inherit; }
 .ui-month-event { display:flex; flex:1; gap:var(--s-1); align-items:center; min-width:0; }
-.ui-month-event i { width:5px; height:5px; border-radius:var(--r-pill); background:var(--bad); flex:none; }
+.ui-month-event i { width:5px; height:5px; border-radius:0; background:var(--spot); flex:none; }
 .ui-month-event[data-personal=true] i { background:var(--t2); }
 .ui-month-event > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ui-month-event[data-done=true] > span { text-decoration:line-through; color:var(--t2); }
-.ui-month-more { flex:none; color:var(--t2); }
+.ui-month-more { flex:none; color:var(--t2); font-family:var(--mono); }
 .ui-month-cell > button:focus-visible { outline-offset:-3px; }

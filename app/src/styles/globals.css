@@ -2,6 +2,7 @@
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import './tokens.css' layer(theme);
+@import './fonts.css' layer(base);
 @import './base.css' layer(base);
 @import '../components/ui/controls.css' layer(components);
 @import '../components/ui/resizable-panel.css' layer(components);

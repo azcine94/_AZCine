@@ -6,18 +6,18 @@
 .delivery-calendar-heading { display:flex; flex:none; align-items:center; justify-content:space-between; gap:var(--s-2); min-height:var(--control-h); margin-bottom:var(--s-2); }
 .delivery-calendar-heading-actions { display:flex; align-items:center; gap:var(--s-1); }
 .delivery-calendar-toolbar { display:flex; flex:none; align-items:center; gap:var(--s-1); margin-bottom:var(--s-2); min-width:0; }
-.delivery-calendar-toolbar > strong { font-size:var(--fs-s); white-space:nowrap; }
+.delivery-calendar-toolbar > strong { font:800 17px/1 var(--font-display); letter-spacing:-.03em; white-space:nowrap; }
 .delivery-calendar-month-nav { display:flex; align-items:center; margin-right:auto; }
-.delivery-calendar-key { display:flex; flex:none; align-items:center; justify-content:flex-end; gap:var(--s-4); min-height:28px; padding-top:var(--s-1); color:var(--t2); font-size:var(--fs-xs); }
+.delivery-calendar-key { display:flex; flex:none; align-items:center; justify-content:flex-end; gap:var(--s-4); min-height:28px; padding-top:var(--s-1); color:var(--t3); font:400 10px/16px var(--mono); letter-spacing:.16em; }
 .delivery-calendar-key > span { display:flex; align-items:center; gap:var(--s-1); }
-.delivery-calendar-key i,.delivery-calendar-dot { width:5px; height:5px; flex:none; border-radius:var(--r-pill); background:var(--bad); }
+.delivery-calendar-key i,.delivery-calendar-dot { width:5px; height:5px; flex:none; border-radius:0; background:var(--spot); }
 .delivery-calendar-key .personal,.delivery-calendar-entry[data-personal=true] .delivery-calendar-dot { background:var(--t2); }
 .delivery-calendar-missing { flex:none; align-self:flex-start; }
 .delivery-calendar-agenda { min-width:0; min-height:0; display:flex; flex-direction:column; border-left:1px solid var(--border); padding:var(--s-4) var(--s-3); }
 .delivery-calendar-agenda > header { display:flex; flex:none; align-items:center; gap:var(--s-1); min-height:var(--control-h); margin-bottom:var(--s-3); }
-.delivery-calendar-agenda h3 { font:500 var(--fs-body)/var(--lh-body) var(--font); }
+.delivery-calendar-agenda h3 { font:800 15px/var(--lh-body) var(--font-display); letter-spacing:-.02em; }
 .delivery-calendar-agenda > header > span { margin-left:auto; color:var(--t2); font-size:var(--fs-xs); }
-.delivery-calendar-selected { flex:none; color:var(--t2); font-size:var(--fs-s); margin-bottom:var(--s-3); }
+.delivery-calendar-selected { flex:none; color:var(--t2); font:400 11px/18px var(--mono); letter-spacing:.14em; margin-bottom:var(--s-3); }
 .delivery-calendar-events { flex:1; overflow:auto; min-height:0; overscroll-behavior:contain; }
 .delivery-calendar-entry { display:flex; align-items:flex-start; gap:var(--s-2); padding:var(--s-3) 0; border-bottom:1px solid var(--border); }
 .delivery-calendar-entry:first-child { padding-top:var(--s-1); }

@@ -8,7 +8,7 @@ function Card({ className, variant = 'default', ...props }: React.ComponentProps
       data-variant={variant}
       className={cn(
         "flex flex-col gap-6 py-6",
-        variant === 'review' ? 'ui-card-review' : 'rounded-xl border bg-card text-card-foreground shadow-sm',
+        variant === 'review' ? 'ui-card-review' : 'rounded-xl border bg-card text-card-foreground',
         className
       )}
       {...props}

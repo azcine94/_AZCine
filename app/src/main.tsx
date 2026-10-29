@@ -4,6 +4,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import {NotesWindow} from './notes-window.tsx';
+import { applyStoredSpot } from './spot.ts';
+
+applyStoredSpot();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('AZCine root element is missing.');

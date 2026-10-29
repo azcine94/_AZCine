@@ -1,7 +1,7 @@
 /* ShadcnStore business variants. Page styles only own layout, not control skins. */
 
 /* Same surface as Today's review panel; layout and spacing remain with the caller. */
-.ui-card-review { background:linear-gradient(180deg,var(--muted),var(--card)); color:var(--text); border:1px solid var(--border); border-radius:var(--r-panel); box-shadow:var(--shadow-card); }
+.ui-card-review { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:var(--r-panel); box-shadow:var(--shadow-card); }
 
 /* Explicit record-table and semantic badge variants; existing defaults stay intact. */
 .ui-status-badge[data-variant="soft"] { gap:var(--s-1); border:1px solid var(--border); padding:var(--s-1) var(--s-2); white-space:nowrap; }
@@ -34,7 +34,7 @@ button.chip, button.check, button.opt, button.mi, button.i, button.ly, button.oi
 .stepper input:focus { outline: none; }
 .seg > button { height: 22px; padding: 0 var(--s-3); border: 0; border-radius: var(--r-pill); background: transparent; color: var(--t2); font: 500 var(--fs-xs)/1 var(--font); cursor: pointer; transition: background var(--dur) var(--ease), color var(--dur) var(--ease); }
 .seg > button:hover { color: var(--text); }
-.seg > button:is(.on, [aria-pressed="true"], [aria-selected="true"]) { background: var(--island); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.seg > button:is(.on, [aria-pressed="true"], [aria-selected="true"]) { background: var(--foreground); color: var(--background); }
 .seg > button:disabled { opacity: 0.4; cursor: default; } .island .seg > button:is(.on, [aria-pressed="true"], [aria-selected="true"]) { background: var(--island); }
 .disclosure > summary { display: flex; align-items: center; gap: var(--s-2); cursor: pointer; list-style: none; padding: 8px 0; font-weight: 500; color: var(--t2); }
 .disclosure > summary::-webkit-details-marker { display: none; }
@@ -60,10 +60,15 @@ button:disabled { cursor:not-allowed; }
 .side nav>.nav-item { flex:none; }
 .side .nav-item[href="#agent"] { margin-top:0; }
 .side .nav-item[href="#settings"] { margin-top:auto; }
-.nav-item { min-height:36px; border-radius:var(--r-ctl); color:var(--sidebar-foreground); padding:6px 12px; display:flex; align-items:center; gap:var(--s-3); font:400 14px/20px var(--font); }
-.nav-item:hover { background:var(--island-2); color:var(--text); text-decoration:none; }
+.nav-item { position:relative; min-height:36px; border-radius:var(--r-ctl); color:var(--dim); padding:6px 12px; display:flex; align-items:center; gap:var(--s-3); font:400 13.5px/20px var(--font); }
+.nav-item:hover { background:var(--acc-soft); color:var(--text); text-decoration:none; }
 .nav-item:active { background:var(--island-3); }
-.nav-item[aria-current] { background:var(--sidebar-accent); color:var(--sidebar-accent-foreground); font-weight:500; }
+/* 选中：浅一级底 + 细边框 + 左侧主色竖线 + 右侧主色箭头 */
+.nav-item[aria-current] { background:var(--sidebar-accent); color:var(--sidebar-accent-foreground); font-weight:500; box-shadow:inset 0 0 0 1px var(--border); }
+.nav-item[aria-current]::before { content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--spot); }
+.nav-item[aria-current] > svg { color:var(--spot); }
+.side .nav-item[aria-current]:not(:has(.nav-status-dot))::after { content:"→"; margin-left:auto; color:var(--spot); font-size:13px; }
+.app-shell[data-sidebar-collapsed="true"] .side .nav-item[aria-current]::after { content:none; }
 .foundation-link { min-height:var(--control-h); display:inline-flex; align-items:center; }
 
 /* workspace：业务控件及上下文变体 */
@@ -85,7 +90,7 @@ button:disabled { cursor:not-allowed; }
 :is(.project-content .doc-button,[data-variant="app-document"],a[data-variant="document"]):active { background:var(--island-3); }
 :is(.project-content .doc-button,[data-variant="app-document"],a[data-variant="document"]):disabled { color:var(--t2); opacity:.5; cursor:default; }
 .project-card { display:flex; flex-direction:column; width:100%; min-width:0; overflow:hidden; border:1px solid var(--line); border-radius:var(--r-panel); background:linear-gradient(180deg,var(--muted),var(--card)); box-shadow:var(--shadow-card); color:var(--text); text-decoration:none; transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease); }
-.project-card:hover { border-color:var(--ring); box-shadow:0 2px 6px rgb(0 0 0 / .06); text-decoration:none; }
+.project-card:hover { border-color:var(--ring); box-shadow:none; text-decoration:none; }
 .project-card:focus-visible { outline-offset:-2px; }
 .project-card:active { background:var(--acc-soft); }
 .project-card h2 { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; align-self:start; margin:0; font:600 var(--fs-h)/22px var(--font); overflow-wrap:anywhere; }
@@ -168,7 +173,7 @@ button:disabled { cursor:not-allowed; }
 .pi-runtime dl { display:grid; grid-template-columns:120px minmax(0,1fr); gap:var(--s-3); }
 .pi-runtime dd { margin:0; overflow-wrap:anywhere; }
 .pi-settings summary,.pi-agent-layout summary { min-height:40px; padding:var(--s-2); cursor:pointer; overflow-wrap:anywhere; }
-.pi-preview-strip button { min-height:28px; padding:4px 8px; border:0; border-radius:6px; background:var(--island-2); color:var(--text); cursor:pointer; font:500 12px/18px var(--font); }
+.pi-preview-strip button { min-height:28px; padding:4px 8px; border:0; border-radius:0; background:var(--island-2); color:var(--text); cursor:pointer; font:500 12px/18px var(--font); }
 .pi-preview-strip button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
 .pi-preview-strip>button:last-child { margin-left:auto; }
 .pi-preview-scenarios button[aria-pressed=true] { color:var(--acc); background:var(--acc-soft); }
@@ -221,14 +226,14 @@ button:disabled { cursor:not-allowed; }
 .pi-agent-layout .pi-composer textarea:focus-visible { outline:none; }
 .pi-agent-layout .pi-composer-model-link { display:inline-flex; align-items:center; gap:4px; min-height:32px; color:var(--t2); text-decoration:none; font:13px/20px var(--font); }
 .pi-agent-layout .pi-composer-model-link:hover { color:var(--text); }
-.pi-agent-layout .pi-model-trigger { display:flex; align-items:center; gap:4px; min-height:32px; padding:4px 6px; max-width:260px; font:12px/20px var(--font); color:var(--t2); border-radius:8px; }
+.pi-agent-layout .pi-model-trigger { display:flex; align-items:center; gap:4px; min-height:32px; padding:4px 6px; max-width:260px; font:12px/20px var(--font); color:var(--t2); border-radius:0; }
 .pi-agent-layout .pi-model-trigger:hover:not(:disabled),.pi-agent-layout .pi-model-trigger[aria-expanded=true] { background:var(--island-2); }
 .pi-agent-layout .pi-model-trigger:disabled { background:transparent; }
 .pi-agent-layout .pi-model-trigger svg { width:12px; height:12px; flex:none; }
-.pi-agent-layout .pi-model-menu { position:absolute; bottom:calc(100% + 12px); right:0; z-index:25; width:300px; max-width:calc(100vw - 192px); padding:6px; border:1px solid var(--line); border-radius:16px; background:var(--island); box-shadow:var(--shadow-pop); }
+.pi-agent-layout .pi-model-menu { position:absolute; bottom:calc(100% + 12px); right:0; z-index:25; width:300px; max-width:calc(100vw - 192px); padding:6px; border:1px solid var(--line); border-radius:0; background:var(--island); box-shadow:var(--shadow-pop); }
 .pi-agent-layout .pi-model-menu-heading { padding:8px 10px; color:var(--t2); font:12px/18px var(--font); }
 .pi-agent-layout .pi-model-menu-options { max-height:min(320px,45vh); overflow:auto; overscroll-behavior:contain; }
-.pi-agent-layout .pi-model-menu-options button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; padding:9px 10px; border-radius:10px; }
+.pi-agent-layout .pi-model-menu-options button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; text-align:left; padding:9px 10px; border-radius:0; }
 .pi-agent-layout .pi-model-menu-options button:hover,.pi-agent-layout .pi-model-menu-options button:focus-visible { background:var(--island-2); }
 .pi-agent-layout .pi-model-menu-options button>span:first-child { min-width:0; overflow-wrap:anywhere; }
 .pi-agent-layout .pi-model-menu-options strong { display:block; font:500 13px/20px var(--font); }
