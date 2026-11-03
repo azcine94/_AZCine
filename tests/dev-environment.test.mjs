@@ -14,8 +14,8 @@ const main = path.dirname(path.resolve(workspace, execFileSync('git', ['rev-pars
 const evidence = path.join(workspace, 'artifacts/validation/dev-environment');
 mkdirSync(evidence, { recursive: true });
 const run = mkdtempSync(path.join(evidence, 'run-'));
-const declarations = ['rust-toolchain.toml', 'app/src-tauri/Cargo.lock', 'app/package.json', 'app/package-lock.json', 'app/resources/runtime-lock.json'];
-const resources = ['.tooling/rustup', '.tooling/cargo/bin', '.tooling/cargo/registry', 'app/node_modules', 'app/resources/runtime'];
+const declarations = ['rust-toolchain.toml', 'app/src-tauri/Cargo.lock', 'app/package.json', 'app/package-lock.json', 'app/plainva-editor/package-lock.json', 'app/resources/runtime-lock.json'];
+const resources = ['.tooling/rustup', '.tooling/cargo/bin', '.tooling/cargo/registry', 'app/node_modules', 'app/plainva-editor/node_modules', 'app/resources/runtime'];
 function fixture(name, owned = true) {
   const root = path.join(run, name);
   for (const relative of declarations) {
@@ -56,6 +56,7 @@ test('matching missing resources link only to this repository main environment',
 for (const [label, relative, pattern] of [
   ['Rust', 'app/src-tauri/Cargo.lock', /Rust 锁/],
   ['Node', 'app/package-lock.json', /Node 依赖/],
+  ['editor', 'app/plainva-editor/package-lock.json', /编辑器依赖锁/],
   ['runtime', 'app/resources/runtime-lock.json', /runtime 锁/],
 ]) test(`missing shared ${label} with a different lock rejects before creating any links`, () => {
   const root = fixture(`missing-${label}`, false);
