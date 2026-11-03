@@ -39,6 +39,21 @@
 .settings-content .settings-spot-option[aria-checked="true"] { border-color:var(--foreground); box-shadow:inset 0 0 0 2px var(--background); }
 .settings-spot-swatch { width:18px; height:18px; background:var(--swatch); }
 .settings-spot-name { font:500 var(--fs-label)/16px var(--mono); letter-spacing:var(--ls-label); color:var(--t2); }
+/* 品牌 Logo：并排展示 paper / ink 两种底色上的效果，颜色固定不随当前主题变化。 */
+.settings-logo { display:grid; gap:var(--s-3); width:min(100%,420px); flex:none; }
+.settings-logo-preview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1px solid var(--border); }
+.settings-logo-sample { display:flex; align-items:center; justify-content:center; height:96px; padding:var(--s-4); min-width:0; }
+.settings-logo-sample--light { background:#efece5; }
+.settings-logo-sample--dark { background:#17171a; border-left:1px solid #35353d; }
+.settings-logo-sample img { display:block; max-width:100%; max-height:100%; width:auto; height:calc(56px * var(--logo-scale,1)); object-fit:contain; }
+.settings-logo-sample--light[data-invert="true"] img { filter:brightness(0); }
+.settings-logo-sample--dark[data-invert="true"] img { filter:brightness(0) invert(1); }
+.settings-logo-name { margin:0; display:flex; align-items:center; gap:var(--s-2); min-width:0; font-size:var(--fs-s); line-height:var(--lh-s); color:var(--t2); overflow-wrap:anywhere; }
+.settings-logo-actions { display:flex; align-items:center; gap:var(--s-2); flex-wrap:wrap; }
+.settings-logo-actions .ui-file-upload { width:auto; flex:1 1 220px; }
+.settings-logo-option { display:grid; grid-template-columns:auto 1fr; column-gap:var(--s-3); row-gap:var(--s-1); align-items:center; }
+.settings-logo-option>.meta { grid-column:2; }
+.settings-logo-option [data-slot="native-select-wrapper"] { justify-self:start; }
 .settings-resource-state { display:flex; gap:16px; padding:24px; background:var(--island-2); border-radius:var(--r-panel); }
 .settings-resource-state>svg { margin-top:3px; }
 .settings-resource-state>div { display:grid; gap:8px; min-width:0; }

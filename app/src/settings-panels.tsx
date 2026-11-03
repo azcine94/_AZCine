@@ -1,8 +1,16 @@
 import { UILink } from './components/ui/ui-link.tsx';
 import { Feedback } from './components/ui/feedback.tsx';
 import { Button } from './components/ui/button.tsx';
-import { useLayoutEffect, useRef } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { Input } from './components/ui/input.tsx';
+import { Switch } from './components/ui/switch.tsx';
+import { Label } from './components/ui/label.tsx';
+import { LoadingStatus } from './components/ui/loading-status.tsx';
+import { NativeSelect, NativeSelectOption } from './components/ui/native-select.tsx';
+import { isLogoScale, logoAccept, logoMediaTypes, logoScales } from './branding-contract.ts';
+import type { BrandingController } from './use-branding.ts';
+import defaultLogo from './assets/logo-lockup.png';
 import { settingsGroups, settingsTitle } from './settings-navigation.ts';
 import type { SettingsIconName } from './settings-navigation.ts';
 import type { Route } from './routes.ts';
@@ -41,7 +49,47 @@ function SettingsIcon({ name }: { name: SettingsIconName }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{iconPaths[name]}</svg>;
 }
 
-function AppearanceSettings({ theme, selectTheme }: { theme: Theme; selectTheme: (theme: Theme) => void }) {
+function BrandLogoSettings({ model, hasRoot }: { model: BrandingController; hasRoot: boolean }) {
+  const darkId = useId(), lightId = useId(), scaleId = useId(), fileId = useId(), helpId = useId();
+  const logo = model.logo;
+  const invertDark = logo ? logo.invertDark : true, invertLight = logo ? logo.invertLight : false, scale = logo?.scale ?? 100;
+  const sampleStyle = { '--logo-scale': scale / 100 } as CSSProperties;
+  return <div className="settings-row"><div><h3>品牌 Logo</h3><p className="meta">显示在左侧导航顶部。图片保存在当前数据目录的 branding 文件夹，随数据目录迁移；建议横版、透明底，PNG、JPEG、WebP 或 SVG，不超过 1 MB。PNG / WebP 四周的透明边距会自动裁掉。</p>
+    {!hasRoot && <p className="meta">选择数据目录后才能更换。</p>}
+    <LoadingStatus active={hasRoot && !model.loaded} delayMs={300}>正在读取品牌 Logo…</LoadingStatus>
+    {model.error && <Feedback as="p" tone="error" role="alert">{model.error}</Feedback>}
+  </div>
+    <div className="settings-logo">
+      <div className="settings-logo-preview" aria-label={logo ? `当前 Logo：${logo.name}` : '当前使用默认 Logo'} style={sampleStyle}>
+        <span className="settings-logo-sample settings-logo-sample--light" data-invert={invertLight}><img src={logo?.url ?? defaultLogo} alt="" /></span>
+        <span className="settings-logo-sample settings-logo-sample--dark" data-invert={invertDark}><img src={logo?.url ?? defaultLogo} alt="" /></span>
+      </div>
+      <p className="settings-logo-name">{logo ? <>{logo.name} <span className="ui-label">{logoMediaTypes[logo.mediaType]}</span></> : '默认 AZCine 字标'}</p>
+      <div className="settings-logo-actions">
+        <Label htmlFor={fileId} className="sr-only">选择 Logo 图片</Label>
+        <Input id={fileId} type="file" accept={logoAccept} fileName={logo ? '更换图片' : undefined} disabled={!hasRoot || model.busy} aria-describedby={helpId} onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void model.save(file); }} />
+        {logo && <Button type="button" variant="outline" size="sm" disabled={model.busy} onClick={() => void model.reset()}>恢复默认</Button>}
+      </div>
+      <p id={helpId} className="sr-only">PNG、JPEG、WebP 或 SVG，不超过 1 MB。</p>
+      <div className="settings-logo-option">
+        <Label htmlFor={scaleId}>显示尺寸</Label>
+        <NativeSelect id={scaleId} size="sm" value={scale} disabled={!logo || model.busy} onChange={event => { const value = Number(event.target.value); if (isLogoScale(value)) void model.setOptions({ scale: value }); }}>{logoScales.map(item => <NativeSelectOption key={item.value} value={item.value}>{item.label} · {item.value}%</NativeSelectOption>)}</NativeSelect>
+      </div>
+      <div className="settings-logo-option">
+        <Switch id={lightId} checked={invertLight} disabled={!logo || model.busy} onCheckedChange={value => void model.setOptions({ invertLight: value })} />
+        <Label htmlFor={lightId}>浅色主题下压成黑色</Label>
+        <span className="meta">白色单色 Logo 打开后在 PAPER 主题可见。</span>
+      </div>
+      <div className="settings-logo-option">
+        <Switch id={darkId} checked={invertDark} disabled={!logo || model.busy} onCheckedChange={value => void model.setOptions({ invertDark: value })} />
+        <Label htmlFor={darkId}>深色主题下压成白色</Label>
+        <span className="meta">{logo ? '黑色单色 Logo 打开后在 INK 主题可见；彩色 Logo 两项都建议关闭。' : '默认字标在深色主题始终变白。'}</span>
+      </div>
+    </div>
+  </div>;
+}
+
+function AppearanceSettings({ theme, selectTheme, branding, hasRoot }: { theme: Theme; selectTheme: (theme: Theme) => void; branding: BrandingController; hasRoot: boolean }) {
   const { spot, selectSpot, warning } = useSpot();
   const current = SPOTS.find(item => item.id === spot) ?? SPOTS[0];
   return <section className="settings-page">
@@ -61,6 +109,7 @@ function AppearanceSettings({ theme, selectTheme }: { theme: Theme; selectTheme:
       </div>
     </div>
     {warning && <Feedback as="p" tone="error" role="alert">{warning}</Feedback>}
+    <BrandLogoSettings model={branding} hasRoot={hasRoot} />
   </section>;
 }
 
@@ -85,9 +134,10 @@ interface SettingsProps {
   desktop: ReturnType<typeof useDesktopCheck>;
   theme: Theme;
   selectTheme: (theme: Theme) => void;
+  branding: BrandingController;
 }
 
-export function SettingsWorkspace({ route, workspace, pi, providers, news, editorial, desktop, theme, selectTheme, updatePreview, processPreview }: SettingsProps) {
+export function SettingsWorkspace({ route, workspace, pi, providers, news, editorial, desktop, theme, selectTheme, branding, updatePreview, processPreview }: SettingsProps) {
   const content = useRef<HTMLDivElement>(null);
   const positions = useRef<Record<string, number>>({});
   const title = settingsTitle(route) ?? '设置';
@@ -100,7 +150,7 @@ export function SettingsWorkspace({ route, workspace, pi, providers, news, edito
   }, [route]);
 
   let page: ReactNode;
-  if (route === 'settings') page = <AppearanceSettings theme={theme} selectTheme={selectTheme} />;
+  if (route === 'settings') page = <AppearanceSettings theme={theme} selectTheme={selectTheme} branding={branding} hasRoot={!!workspace.workspace?.root && !workspace.loadError} />;
   else if (route === 'settings/models') page = <PiProviderPanel model={providers} pi={pi} />;
   else if (route === 'settings/runtime') page = <section className="settings-page"><header className="settings-page-header"><h2>工作目录与环境</h2><p className="subtle">查看本应用的 Agent，设置下次连接使用的工作目录。</p></header><p className="settings-help" role="status">{pi.action==='连接'||pi.snapshot?.connection==='connecting'?'正在自动连接本应用 Agent…':pi.snapshot?.connection==='ready'?'本应用 Agent 已连接。':'本应用 Agent 尚未连接，可在模型服务商页重试。'}</p>{(pi.error??pi.snapshot?.error?.message)&&<Feedback as="p" tone="error" className="form-error" role="alert">{pi.error??pi.snapshot?.error?.message}</Feedback>}<RuntimeInfo model={pi} expanded /><UILink variant="text" className="foundation-link" href="#settings/models">前往模型服务商 →</UILink></section>;
   else if (route === 'settings/data') page = <DataSettings model={workspace} />;

@@ -24,8 +24,12 @@ h2, h3 { font:600 var(--fs-h)/var(--lh-h) var(--font); }
 .app-shell { display:grid; flex:1; grid-template-columns:var(--nav-wide) minmax(0,1fr); grid-template-rows:minmax(0,1fr); gap:0; padding:0; min-height:0; overflow:hidden; align-items:stretch; background-color:var(--sidebar); }
 .side { background:var(--sidebar); color:var(--sidebar-foreground); border-radius:0; padding:0 var(--s-2) var(--s-3); display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
 .brand { flex:none; min-height:104px; padding:20px 12px; display:flex; align-items:center; justify-content:center; color:var(--text); }
+/* 自定义 Logo 按 --logo-scale 缩放高度（56px 为 100%），宽度不超过导航内宽。 */
 .brand-lockup { display:block; width:176px; max-width:100%; height:56px; object-fit:contain; }
-:root[data-theme=dark] .brand-lockup { filter:brightness(0) invert(1); }
+.brand-lockup[data-custom="true"] { width:auto; height:calc(56px * var(--logo-scale,1)); max-height:84px; }
+/* The bundled lockup is black artwork; a custom logo only recolors when the user asks for it. */
+:root[data-theme=light] .brand-lockup[data-invert-light="true"] { filter:brightness(0); }
+:root[data-theme=dark] .brand-lockup[data-invert-dark="true"] { filter:brightness(0) invert(1); }
 .side nav { display:flex; flex-direction:column; gap:var(--s-5); flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
 .nav-group { display:grid; flex-shrink:0; gap:4px; }
 .side nav > .nav-tools { margin-top:auto; }
