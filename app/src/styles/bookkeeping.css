@@ -1,39 +1,85 @@
 /* Layout only; controls, typography and light/dark surfaces use the shared library. */
-.bookkeeping { display:flex; flex-direction:column; gap:var(--s-5); min-width:0; }
+.bookkeeping { display:flex; flex-direction:column; gap:var(--s-4); min-width:0; }
 .bookkeeping-heading,.bookkeeping-actions,.bookkeeping-selection,.bookkeeping-pagination,.bookkeeping-reimbursement,.bookkeeping-form-actions { display:flex; align-items:center; gap:var(--s-3); flex-wrap:wrap; }
 .bookkeeping-heading { justify-content:space-between; }
 .bookkeeping-heading>p { margin:0; }
-.bookkeeping-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--border); border-radius:var(--r-panel); background:var(--card); padding:var(--s-5); gap:var(--s-5); }
-.bookkeeping-summary>div { min-width:0; display:flex; flex-direction:column; gap:var(--s-2); }
-.bookkeeping-summary>div+div { border-left:1px solid var(--border); padding-left:var(--s-5); }
-.bookkeeping-summary span,.bookkeeping-summary small { color:var(--muted-foreground); }
-.bookkeeping-summary strong { font-family:var(--mono); font-size:var(--fs-feature); line-height:var(--lh-feature); font-weight:600; overflow-wrap:anywhere; }
-.bookkeeping-summary small { font-size:var(--fs-xs); line-height:var(--lh-xs); }
-.bookkeeping-filters { display:flex; align-items:end; flex-wrap:wrap; gap:var(--s-3); }
-.bookkeeping-filters>div { display:grid; gap:var(--s-2); min-width:160px; }
-.bookkeeping-filters .bookkeeping-search { flex:1; min-width:220px; }
+.bookkeeping-actions { gap:var(--s-2); }
+/* Summary: three equal cells split by hairlines; cell content hugs its own left edge. */
+.bookkeeping-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--border); border-radius:var(--r-panel); background:var(--card); }
+.bookkeeping-summary>div { min-width:0; display:grid; grid-template-rows:auto auto auto 1fr; gap:var(--s-2); padding:var(--s-4) var(--s-5); }
+.bookkeeping-summary>div+div { border-left:1px solid var(--border); }
+.bookkeeping-summary strong { font:800 32px/36px var(--font-display); letter-spacing:-.03em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.bookkeeping-summary strong em { font-style:normal; font-weight:600; font-size:18px; margin-right:2px; color:var(--muted-foreground); }
+.bookkeeping-summary>div[data-highlight] strong { color:var(--spot); }
+.bookkeeping-summary small { font-size:var(--fs-xs); line-height:var(--lh-xs); color:var(--muted-foreground); }
+.bookkeeping-summary small b { font-weight:500; color:var(--foreground); font-variant-numeric:tabular-nums; }
+/* Small charts derived from the filtered rows; hairline-separated inside each cell. */
+.bookkeeping-mini { display:grid; gap:var(--s-2); align-content:start; margin-top:var(--s-2); padding-top:var(--s-3); border-top:1px solid var(--line-faint); }
+.bookkeeping-mini h3 { margin:0; display:flex; justify-content:space-between; gap:var(--s-2); }
+.bookkeeping-mini h3 span { letter-spacing:.04em; text-transform:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bookkeeping-days { display:flex; align-items:flex-end; gap:3px; height:40px; padding-bottom:1px; border-bottom:1px solid var(--border); }
+.bookkeeping-days i { flex:1; min-height:2px; height:calc(var(--w) * 100%); background:var(--mass); }
+.bookkeeping-days i[data-peak] { background:var(--spot); }
+.bookkeeping-days i:hover { background:var(--foreground); }
+.bookkeeping-axis { display:flex; justify-content:space-between; font:400 10px/14px var(--mono); letter-spacing:.06em; color:var(--muted-foreground); }
+.bookkeeping-kv { display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:var(--s-3); row-gap:6px; align-items:center; font-size:var(--fs-xs); line-height:var(--lh-xs); }
+.bookkeeping-kv>span:nth-child(3n+1) { color:var(--muted-foreground); white-space:nowrap; }
+.bookkeeping-kv>span:nth-child(3n) { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+.bookkeeping-line { position:relative; height:2px; background:var(--mass); }
+.bookkeeping-line::after { content:""; position:absolute; inset:0 auto 0 0; width:calc(var(--w) * 100%); background:var(--spot); }
+.bookkeeping-line[data-tone="warn"]::after { background:var(--warn); }
+.bookkeeping-line[data-tone="ok"]::after { background:var(--ok); }
+.bookkeeping-top { margin:0; padding:0; list-style:none; counter-reset:top; display:grid; gap:4px; font-size:var(--fs-xs); line-height:var(--lh-xs); }
+.bookkeeping-top li { display:flex; justify-content:space-between; gap:var(--s-3); min-width:0; }
+.bookkeeping-top li>span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bookkeeping-top li>span:first-child::before { content:counter(top) " "; counter-increment:top; margin-right:6px; font:600 11px/1 var(--mono); color:var(--spot); }
+.bookkeeping-top li>span:last-child { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+/* Filters: one 40px toolbar; labels sit inline before their controls. */
+.bookkeeping-filters { display:flex; align-items:center; flex-wrap:wrap; gap:var(--s-2) var(--s-3); }
+.bookkeeping-filters>div { display:flex; align-items:center; gap:var(--s-2); min-width:0; }
+.bookkeeping-filters .month-input-trigger { width:176px; }
+.bookkeeping-filters [data-slot="native-select"] { width:176px; }
+.bookkeeping-filters .bookkeeping-search { flex:0 1 320px; min-width:200px; }
+.bookkeeping-count { font:400 var(--fs-xs)/var(--lh-xs) var(--mono); letter-spacing:.04em; color:var(--muted-foreground); white-space:nowrap; }
+.bookkeeping-reset { margin-left:auto; }
 .bookkeeping-feedback:empty { display:none; }
 .bookkeeping-feedback { display:grid; gap:var(--s-2); }
 .bookkeeping-notice { min-height:var(--lh-body); }
 .bookkeeping-save { min-inline-size:7em; }
 .bookkeeping-feedback [data-slot="feedback"] { overflow-wrap:anywhere; }
-.bookkeeping-table-panel { border:1px solid var(--border); border-radius:var(--r-panel); overflow:hidden; }
-.bookkeeping-table { table-layout:fixed; min-width:700px; }
-.bookkeeping-table th:first-child { width:48px; }
-.bookkeeping-table th:nth-child(2) { width:116px; }
-.bookkeeping-table th:nth-child(4) { width:140px; }
-.bookkeeping-table th:nth-child(5) { width:110px; }
-.bookkeeping-table th:nth-child(6) { width:96px; }
-.bookkeeping-table th:last-child { width:56px; }
-.bookkeeping-table th { background:var(--muted); height:44px; }
-.bookkeeping-table td { min-height:56px; padding:var(--s-3) var(--s-2); white-space:normal; }
-.bookkeeping-table .bookkeeping-amount { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+/* Table: two flexible text columns (purpose / note) share the spare width; the rest are fixed. */
+.bookkeeping-table-panel { border:1px solid var(--border); border-radius:var(--r-panel); background:var(--card); overflow:hidden; }
+.bookkeeping-table { table-layout:fixed; min-width:880px; }
+.bookkeeping-table th.bookkeeping-check { width:44px; }
+.bookkeeping-table th.bookkeeping-date { width:120px; }
+.bookkeeping-table th.bookkeeping-purpose { width:30%; }
+.bookkeeping-table th.bookkeeping-fx { width:128px; }
+.bookkeeping-table th.bookkeeping-amount { width:136px; }
+.bookkeeping-table th.bookkeeping-status { width:112px; }
+.bookkeeping-table th.bookkeeping-receipt { width:88px; }
+.bookkeeping-table th.bookkeeping-more { width:52px; }
+.bookkeeping-table th { height:40px; padding:0 var(--s-3); background:var(--muted); color:var(--muted-foreground); font:400 var(--fs-label)/16px var(--mono); letter-spacing:var(--ls-label); text-transform:uppercase; }
+.bookkeeping-table td { height:44px; padding:var(--s-2) var(--s-3); white-space:normal; }
+.bookkeeping-table tbody tr { border-bottom-color:var(--line-faint); }
+.bookkeeping-table :is(th,td):first-child { padding-left:var(--s-4); }
+.bookkeeping-table td.bookkeeping-date { font-family:var(--mono); font-size:var(--fs-s); color:var(--muted-foreground); white-space:nowrap; }
 .bookkeeping-purpose { overflow-wrap:anywhere; }
-.bookkeeping-purpose>p { margin:var(--s-1) 0 0; font-size:var(--fs-xs); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.bookkeeping-selection { justify-content:space-between; padding:var(--s-4); border-top:1px solid var(--border); }
+.bookkeeping-purpose>p { display:none; margin:2px 0 0; font-size:var(--fs-xs); line-height:var(--lh-xs); -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+.bookkeeping-table td.bookkeeping-note { font-size:var(--fs-s); color:var(--muted-foreground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bookkeeping-table .bookkeeping-fx { text-align:right; font-family:var(--mono); font-size:var(--fs-s); color:var(--muted-foreground); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.bookkeeping-table .bookkeeping-fx small { font-size:11px; letter-spacing:.06em; margin-left:4px; }
+.bookkeeping-table .bookkeeping-amount { position:relative; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.bookkeeping-table td.bookkeeping-amount strong { display:block; padding-bottom:4px; font:500 var(--fs-body)/var(--lh-body) var(--mono); }
+.bookkeeping-original { display:none; font-size:var(--fs-xs); color:var(--muted-foreground); overflow-wrap:anywhere; white-space:normal; }
+/* 2px gauge: this row's amount relative to the largest on the page. */
+.bookkeeping-bar { position:absolute; right:var(--s-3); bottom:6px; height:2px; width:calc((100% - var(--s-3) * 2) * var(--w)); background:color-mix(in srgb,var(--spot) 55%,transparent); }
+.bookkeeping-table td.bookkeeping-more [data-slot="button"] { opacity:.55; }
+.bookkeeping-table tr:hover td.bookkeeping-more [data-slot="button"],.bookkeeping-table td.bookkeeping-more [data-slot="button"]:focus-visible { opacity:1; }
+.bookkeeping-selection { justify-content:space-between; padding:var(--s-2) var(--s-3) var(--s-2) var(--s-4); border-top:2px solid var(--spot); }
 .bookkeeping-selection>p { flex-basis:100%; margin:0; }
 .bookkeeping-selection strong { font-variant-numeric:tabular-nums; }
-.bookkeeping-pagination { justify-content:space-between; padding:var(--s-2) var(--s-4); border-top:1px solid var(--border); color:var(--muted-foreground); font-size:var(--fs-xs); }
+.bookkeeping-pagination { justify-content:space-between; min-height:40px; padding:0 var(--s-3) 0 var(--s-4); border-top:1px solid var(--border); color:var(--muted-foreground); font:400 var(--fs-xs)/var(--lh-xs) var(--mono); letter-spacing:.04em; }
+.bookkeeping-pagination .bookkeeping-actions { gap:var(--s-1); }
 .bookkeeping-form { display:grid; gap:var(--s-5); width:100%; max-width:720px; border:1px solid var(--border); border-radius:var(--r-panel); padding:var(--s-5); background:var(--card); }
 .bookkeeping-form h2 { margin:0; font-size:var(--fs-h); line-height:var(--lh-h); }
 .bookkeeping-form>div:not(.bookkeeping-reimbursement):not(.bookkeeping-form-actions):not(.bookkeeping-form-grid) { display:grid; gap:var(--s-2); }
@@ -53,13 +99,24 @@
 .bookkeeping-exchange-result { display:flex; align-items:center; gap:var(--s-3); flex-wrap:wrap; }
 .bookkeeping-exchange-result strong { font-family:var(--mono); font-size:var(--fs-h); overflow-wrap:anywhere; }
 .bookkeeping-exchange-result>button { margin-left:auto; }
-.bookkeeping-original { display:block; font-size:var(--fs-xs); color:var(--muted-foreground); overflow-wrap:anywhere; white-space:normal; }
 @media(max-width:1100px) {
-  .bookkeeping-summary { padding:var(--s-4); gap:var(--s-4); }
-  .bookkeeping-summary>div+div { padding-left:var(--s-4); }
+  .bookkeeping-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .bookkeeping-summary>div { padding:var(--s-4); }
+  .bookkeeping-summary>div:first-child { grid-column:1 / -1; border-bottom:1px solid var(--border); }
+  .bookkeeping-summary>div:nth-child(2) { border-left:0; }
+  .bookkeeping-filters .bookkeeping-search { flex:1 1 100%; order:3; }
+  .bookkeeping-reset { order:2; }
+  /* Narrow windows fold note and original currency back under purpose / amount. */
+  .bookkeeping-table { min-width:720px; }
+  .bookkeeping-table .bookkeeping-note,.bookkeeping-table .bookkeeping-fx { display:none; }
+  .bookkeeping-table th.bookkeeping-purpose { width:auto; }
+  .bookkeeping-purpose>p { display:-webkit-box; }
+  .bookkeeping-original { display:block; }
+  .bookkeeping-table td { height:52px; }
 }
 @media(max-width:700px) {
   .bookkeeping-summary { grid-template-columns:1fr; }
-  .bookkeeping-summary>div+div { padding-left:0; padding-top:var(--s-3); border-left:0; border-top:1px solid var(--border); }
+  .bookkeeping-summary>div:first-child { grid-column:auto; border-bottom:0; }
+  .bookkeeping-summary>div+div { border-left:0; border-top:1px solid var(--border); }
   .bookkeeping-form-grid { grid-template-columns:1fr; }
 }
