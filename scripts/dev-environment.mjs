@@ -55,13 +55,17 @@ export function prepareEnvironment(root) {
   }
   if (canonical(realpathSync(main)) !== rootPath) {
     const rust = ['.tooling/rustup', '.tooling/cargo/bin', '.tooling/cargo/registry'];
-    const resources = [...rust, '.tooling/cargo/git', 'app/node_modules', 'app/resources/runtime'];
+    // The Plainva editor keeps its own install (app postinstall) that bundle.mjs
+    // resolves esbuild from; share it alongside app/node_modules when its lock matches.
+    const resources = [...rust, '.tooling/cargo/git', 'app/node_modules', 'app/plainva-editor/node_modules', 'app/resources/runtime'];
     const states = Object.fromEntries(resources.map(relative => [relative, inspect(relative)]));
     const shareRust = rust.some(relative => states[relative] !== 'owned') || states['.tooling/cargo/git'] === 'shared';
     const shareNode = states['app/node_modules'] !== 'owned';
+    const shareEditor = states['app/plainva-editor/node_modules'] !== 'owned';
     const shareRuntime = states['app/resources/runtime'] !== 'owned';
     if (shareRust && (!equal('rust-toolchain.toml') || !sameDependencies('app/src-tauri/Cargo.lock'))) throw Error('分支 Rust 锁与主环境不一致，请准备独立匹配环境。');
     if (shareNode && (declarations(root) !== declarations(main) || !sameDependencies('app/package-lock.json'))) throw Error('分支 Node 依赖与主环境不一致，未链接或安装。');
+    if (shareEditor && !sameDependencies('app/plainva-editor/package-lock.json')) throw Error('分支编辑器依赖锁与主环境不一致，未链接或安装。');
     if (shareRuntime && !equal('app/resources/runtime-lock.json')) throw Error('应用 runtime 锁不一致，未复用。');
     for (const relative of resources) {
       if (states[relative] !== 'missing') continue;

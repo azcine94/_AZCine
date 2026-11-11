@@ -1,5 +1,6 @@
 import { RecordContextMenu } from './components/ui/record-context-menu.tsx';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Paperclip, Plus, RefreshCw } from 'lucide-react';
 import { Button } from './components/ui/button.tsx';
 import { Input } from './components/ui/input.tsx';
@@ -31,6 +32,60 @@ function FeedbackArea({ model, showLoading = true, showErrors = true }: { model:
     {showErrors && model.error && <Feedback tone="error" role="alert">{model.error}</Feedback>}
     {showErrors && model.pending && !model.busy && <Feedback tone="pending" role="status">原操作结果尚未确认，输入与选择已保留。<Button variant="outline" disabled={disabled} onClick={() => void model.reconcile()}>核对原操作结果</Button></Feedback>}
 
+  </div>;
+}
+const ratio = (part: number, whole: number) => ({ '--w': whole > 0 ? (part / whole).toFixed(3) : '0' }) as CSSProperties;
+function Amount({ fen }: { fen: number }) { const text = money(fen); return <><em>{text[0]}</em>{text.slice(1)}</>; }
+// Summary cards: totals plus small charts derived only from the filtered rows' own fields.
+function SummaryCards({ rows, month, loaded }: { rows: Expense[]; month: string; loaded: boolean }) {
+  const total = expenseTotals(rows);
+  const monthly = /^\d{4}-\d{2}$/.test(month) && rows.length > 0;
+  const dayCount = monthly ? new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate() : 0;
+  const byDay = new Map<string, number>();
+  for (const row of rows) byDay.set(row.date, (byDay.get(row.date) ?? 0) + row.amountFen);
+  const days = Array.from({ length: dayCount }, (_, i) => { const date = `${month}-${String(i + 1).padStart(2, '0')}`; return { date, fen: byDay.get(date) ?? 0 }; });
+  const peak = days.reduce((best, day) => day.fen > best.fen ? day : best, { date: '', fen: 0 });
+  const cny = rows.filter(row => !row.exchange).reduce((sum, row) => sum + row.amountFen, 0);
+  const foreign = new Map<string, { fen: number; count: number }>();
+  for (const row of rows) if (row.exchange) { const entry = foreign.get(row.exchange.quote.currency) ?? { fen: 0, count: 0 }; entry.fen += row.amountFen; entry.count += 1; foreign.set(row.exchange.quote.currency, entry); }
+  const currencies = [{ code: 'CNY', fen: cny, count: rows.length - [...foreign.values()].reduce((n, e) => n + e.count, 0) }, ...[...foreign].map(([code, e]) => ({ code, ...e })).sort((a, b) => b.fen - a.fen)].filter(c => c.count > 0).slice(0, 3);
+  const byPurpose = new Map<string, number>();
+  for (const row of rows) { const key = row.purpose.replace(/\s*[（(][^（）()]*[）)]\s*$/, '').trim() || row.purpose; byPurpose.set(key, (byPurpose.get(key) ?? 0) + row.amountFen); }
+  const top = [...byPurpose].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  return <div className="bookkeeping-summary">
+    <div>
+      <span className="ui-label">开销合计</span>
+      <strong>{loaded ? <Amount fen={total.expense} /> : '—'}</strong>
+      <small>{loaded ? <>共 <b>{rows.length}</b> 笔 · 按当前筛选统计</> : '等待读取'}</small>
+      {monthly && <div className="bookkeeping-mini">
+        <h3 className="ui-label">按日支出 <span>峰值 {peak.date.slice(5).replace('-', '.')} · {money(peak.fen)} · 日均 {money(Math.round(total.expense / byDay.size))}</span></h3>
+        <div className="bookkeeping-days" role="img" aria-label={`${month} 按日支出，峰值 ${peak.date} ${money(peak.fen)}`}>{days.map(day => <i key={day.date} style={ratio(day.fen, peak.fen)} data-peak={day.date === peak.date || undefined} title={`${day.date} ${money(day.fen)}`} />)}</div>
+        <div className="bookkeeping-axis" aria-hidden="true"><span>{month.slice(5)}.01</span><span>{month.slice(5)}.15</span><span>{month.slice(5)}.{dayCount}</span></div>
+      </div>}
+    </div>
+    <div data-highlight>
+      <span className="ui-label">待报销</span>
+      <strong>{loaded ? <Amount fen={total.waiting} /> : '—'}</strong>
+      <small>待提交 <b>{money(total.pending)}</b> · 已提交 <b>{money(total.submitted)}</b></small>
+      {loaded && rows.length > 0 && <div className="bookkeeping-mini">
+        <h3 className="ui-label">报销进度</h3>
+        <div className="bookkeeping-kv">
+          <span>待提交</span><span className="bookkeeping-line" data-tone="warn" style={ratio(total.pending, total.expense)} /><span>{money(total.pending)}</span>
+          <span>已提交</span><span className="bookkeeping-line" style={ratio(total.submitted, total.expense)} /><span>{money(total.submitted)}</span>
+          <span>已到账</span><span className="bookkeeping-line" data-tone="ok" style={ratio(total.paid, total.expense)} /><span>{money(total.paid)}</span>
+        </div>
+      </div>}
+    </div>
+    <div>
+      <span className="ui-label">已到账</span>
+      <strong>{loaded ? <Amount fen={total.paid} /> : '—'}</strong>
+      <small>只统计已整笔到账的报销</small>
+      {loaded && rows.length > 0 && <div className="bookkeeping-mini">
+        <h3 className="ui-label">构成 <span>{currencies.map(c => `${c.code} ${c.count} 笔`).join(' · ')}{foreign.size > 0 && '（按开销日汇率折算）'}</span></h3>
+        <div className="bookkeeping-kv">{currencies.map(c => <Fragment key={c.code}><span>{c.code}</span><span className="bookkeeping-line" style={ratio(c.fen, total.expense)} /><span>{money(c.fen)}</span></Fragment>)}</div>
+        <ol className="bookkeeping-top" title="按用途文字归并（去掉括号里的支付方式），不是正式分类">{top.map(([name, fen]) => <li key={name}><span title={name}>{name}</span><span>{money(fen)}</span></li>)}</ol>
+      </div>}
+    </div>
   </div>;
 }
 function StatusBadge({ status }: { status: ExpenseStatus }) {
@@ -87,13 +142,15 @@ export function BookkeepingPanel({ model, create = false, editId = null }: { mod
     if (!open && location.hash.startsWith('#bookkeeping/')) location.hash = '#bookkeeping';
   }
   const rows = filteredExpenses(model.expenses, model.month, model.filter, model.query);
-  const total = expenseTotals(rows), chosen = rows.filter(row => model.selected.includes(row.id));
+  const active = model.expenses.filter(row => !row.deleted).length;
+  const chosen = rows.filter(row => model.selected.includes(row.id));
   const disabled = !!model.busy || model.loading;
   const blocked = disabled || !!model.pending || !model.loaded || !!model.loadError;
   const [page, setPage] = useState(0);
   useEffect(() => { setPage(0); }, [model.month, model.filter, model.query]);
   const maxPage = Math.max(0, Math.ceil(rows.length / 50) - 1), currentPage = Math.min(page, maxPage);
   const visible = rows.slice(currentPage * 50, (currentPage + 1) * 50);
+  const largest = visible.reduce((max, row) => Math.max(max, row.amountFen), 0);
   const selectedOnPage = visible.filter(row => model.selected.includes(row.id)).length;
   const allPending = chosen.length > 0 && chosen.every(row => row.status === 'pending');
   const allSubmitted = chosen.length > 0 && chosen.every(row => row.status === 'submitted');
@@ -106,27 +163,28 @@ export function BookkeepingPanel({ model, create = false, editId = null }: { mod
       <Button variant="outline" disabled={disabled || !rows.length || !!model.loadError} onClick={() => void model.exportRows(rows)}><Download size={16} />导出明细</Button>
       <Button data-create="bookkeeping" onClick={() => openEditor('new')}><Plus size={16} />记一笔</Button>
     </div></div>
-    <div className="bookkeeping-summary">
-      <div><span>开销合计</span><strong>{model.loaded ? money(total.expense) : '—'}</strong><small>{model.loaded ? `共 ${rows.length} 笔 · 按当前筛选统计` : '等待读取'}</small></div>
-      <div><span>待报销</span><strong>{model.loaded ? money(total.waiting) : '—'}</strong><small>待提交 {money(total.pending)} · 已提交 {money(total.submitted)}</small></div>
-      <div><span>已到账</span><strong>{model.loaded ? money(total.paid) : '—'}</strong><small>只统计已整笔到账的报销</small></div>
-    </div>
-    <div className="bookkeeping-filters">
-      <div><Label htmlFor="expense-month">月份</Label><MonthInput id="expense-month" value={model.month} onChange={model.setMonth} /></div>
-      <div><Label htmlFor="expense-status">报销状态</Label><NativeSelect id="expense-status" value={model.filter} onChange={e => model.setFilter(e.target.value)}><NativeSelectOption value="">全部状态</NativeSelectOption><NativeSelectOption value="waiting">要报销（未到账）</NativeSelectOption>{Object.entries(expenseStatuses).map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}</NativeSelect></div>
-      <div className="bookkeeping-search"><Label htmlFor="expense-query">搜索</Label><Input id="expense-query" type="search" placeholder="搜索用途、备注" value={model.query} onChange={e => model.setQuery(e.target.value)} /></div>
-      <Button variant="ghost" onClick={() => { model.setMonth(''); model.setFilter(''); model.setQuery(''); }}>查看全部</Button>
+    <SummaryCards rows={rows} month={model.month} loaded={model.loaded} />
+    <div className="bookkeeping-filters" role="search">
+      <div><Label htmlFor="expense-month" className="ui-label">月份</Label><MonthInput id="expense-month" value={model.month} onChange={model.setMonth} /></div>
+      <div><Label htmlFor="expense-status" className="ui-label">状态</Label><NativeSelect id="expense-status" value={model.filter} onChange={e => model.setFilter(e.target.value)}><NativeSelectOption value="">全部状态</NativeSelectOption><NativeSelectOption value="waiting">要报销（未到账）</NativeSelectOption>{Object.entries(expenseStatuses).map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}</NativeSelect></div>
+      <div className="bookkeeping-search"><Label htmlFor="expense-query" className="sr-only">搜索</Label><Input id="expense-query" type="search" placeholder="搜索用途、备注" value={model.query} onChange={e => model.setQuery(e.target.value)} /></div>
+      {model.loaded && <span className="bookkeeping-count" aria-live="polite">{rows.length} / {active} 条</span>}
+      <Button variant="ghost" className="bookkeeping-reset" onClick={() => { model.setMonth(''); model.setFilter(''); model.setQuery(''); }}>查看全部</Button>
     </div>
     <FeedbackArea model={model} showLoading={!creation.open && !model.confirmation} showErrors={!creation.open && !model.confirmation} />
     {model.loaded && !rows.length ? <EmptyState><h2>{model.expenses.some(row => !row.deleted) ? '没有符合筛选的开销' : '记下第一笔开销'}</h2><p>{model.expenses.some(row => !row.deleted) ? '调整月份、报销状态或搜索内容。' : '填写金额和用途，需要报销时勾选即可。'}</p><Button onClick={() => openEditor('new')}>记一笔</Button></EmptyState>
       : rows.length > 0 && <div className="bookkeeping-table-panel">
         <Table className="bookkeeping-table"><TableHeader><TableRow>
           <TableHead className="bookkeeping-check"><Checkbox aria-label="选择本页全部开销" checked={selectedOnPage === visible.length ? true : selectedOnPage > 0 ? 'indeterminate' : false} disabled={blocked} onCheckedChange={value => selectPage(value === true)} /></TableHead>
-          <TableHead>日期</TableHead><TableHead>用途</TableHead><TableHead className="bookkeeping-amount">金额</TableHead><TableHead>报销状态</TableHead><TableHead>票据</TableHead><TableHead><span className="sr-only">操作</span></TableHead>
+          <TableHead className="bookkeeping-date">日期</TableHead><TableHead className="bookkeeping-purpose">用途</TableHead><TableHead className="bookkeeping-note">备注</TableHead><TableHead className="bookkeeping-fx">原币</TableHead><TableHead className="bookkeeping-amount">金额</TableHead><TableHead className="bookkeeping-status">报销状态</TableHead><TableHead className="bookkeeping-receipt">票据</TableHead><TableHead className="bookkeeping-more"><span className="sr-only">操作</span></TableHead>
         </TableRow></TableHeader><TableBody>{visible.map(row => <RecordContextMenu key={row.id} copyText={[row.date,row.purpose,money(row.amountFen),expenseStatuses[row.status],row.note].filter(Boolean).join('\t')} actions={[{label:'编辑开销',disabled:blocked,run:origin=>openEditor(row.id,origin??undefined)},{label:'删除开销',destructive:true,disabled:blocked,run:()=>model.confirm({kind:'delete',target:target(row),purpose:row.purpose,deleted:true})}]}><TableRow data-state={model.selected.includes(row.id) ? 'selected' : undefined}>
           <TableCell><Checkbox aria-label={`选择${row.purpose}`} checked={model.selected.includes(row.id)} disabled={blocked} onCheckedChange={value => model.select(value === true ? [...new Set([...model.selected, row.id])] : model.selected.filter(id => id !== row.id))} /></TableCell>
-          <TableCell><time dateTime={row.date}>{row.date}</time></TableCell><TableCell className="bookkeeping-purpose"><Button variant="link" className="h-auto justify-start whitespace-normal p-0 text-left" data-edit="bookkeeping" onClick={event => openEditor(row.id, event.currentTarget)}>{row.purpose}</Button>{row.note && <p className="subtle" title={row.note}>{row.note}</p>}</TableCell>
-          <TableCell className="bookkeeping-amount">{money(row.amountFen)}{row.exchange && <small className="bookkeeping-original" title={`1 ${row.exchange.quote.currency} = ${row.exchange.quote.rate} CNY · 汇率日期 ${row.exchange.quote.rateDate}`}>{amountText(row.exchange.originalMinor)} {row.exchange.quote.currency}</small>}</TableCell><TableCell><StatusBadge status={row.status} /></TableCell><TableCell><ReceiptMenu row={row} model={model} /></TableCell><TableCell><RowMenu row={row} model={model} onEdit={openEditor} /></TableCell>
+          <TableCell className="bookkeeping-date"><time dateTime={row.date}>{row.date}</time></TableCell>
+          <TableCell className="bookkeeping-purpose"><Button variant="link" className="h-auto justify-start whitespace-normal p-0 text-left" data-edit="bookkeeping" onClick={event => openEditor(row.id, event.currentTarget)}>{row.purpose}</Button>{row.note && <p className="subtle" title={row.note}>{row.note}</p>}</TableCell>
+          <TableCell className="bookkeeping-note" title={row.note || undefined}>{row.note}</TableCell>
+          <TableCell className="bookkeeping-fx">{row.exchange && <span title={`1 ${row.exchange.quote.currency} = ${row.exchange.quote.rate} CNY · 汇率日期 ${row.exchange.quote.rateDate}`}>{amountText(row.exchange.originalMinor)}<small>{row.exchange.quote.currency}</small></span>}</TableCell>
+          <TableCell className="bookkeeping-amount"><strong>{money(row.amountFen)}</strong>{row.exchange && <small className="bookkeeping-original" title={`1 ${row.exchange.quote.currency} = ${row.exchange.quote.rate} CNY · 汇率日期 ${row.exchange.quote.rateDate}`}>{amountText(row.exchange.originalMinor)} {row.exchange.quote.currency}</small>}<i className="bookkeeping-bar" style={ratio(row.amountFen, largest)} aria-hidden="true" /></TableCell>
+          <TableCell className="bookkeeping-status"><StatusBadge status={row.status} /></TableCell><TableCell className="bookkeeping-receipt"><ReceiptMenu row={row} model={model} /></TableCell><TableCell className="bookkeeping-more"><RowMenu row={row} model={model} onEdit={openEditor} /></TableCell>
         </TableRow></RecordContextMenu>)}</TableBody></Table>
         {chosen.length > 0 && <div className="bookkeeping-selection"><span>已选 {chosen.length} 笔　合计 <strong>{money(expenseTotals(chosen).expense)}</strong></span><div className="bookkeeping-actions">
           <Button variant="outline" disabled={blocked} onClick={() => void model.exportRows(chosen)}><Download size={16} />导出所选明细</Button>

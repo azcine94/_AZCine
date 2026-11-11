@@ -1,6 +1,6 @@
 [package]
 name = "azcine"
-version = "0.1.4"
+version = "0.1.5"
 description = "AZCine local desktop workspace"
 edition = "2024"
 rust-version = "1.99"
